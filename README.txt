@@ -1,1 +1,0 @@
-# Segment Your Notions Trought Retrieval Augmentation: a Cross-Domain Semantic-Aware segmentation model
