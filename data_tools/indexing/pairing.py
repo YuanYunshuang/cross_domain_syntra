@@ -13,10 +13,10 @@ import numpy as np
 from tqdm import tqdm
 from tifffile import imread as tiff_imread
 
-from indexdb import IndexDatabase, DinoV2Encoder, BaseDataloaders
+from .indexdb import IndexDatabase, DinoV2Encoder, BaseDataloaders
 
 
-def generate_src_tgt_intra_cls(data_root, tgt_info_file, src_info_file=None, k=8, folder_list=None, visualize=False):
+def generate_src_tgt_intra_cls(data_root, tgt_info_file, src_info_file=None, k=8, folder_list=None, fg_ratio=0.05, visualize=False):
     if src_info_file is None:
         src_info_file = tgt_info_file
     if folder_list is None:
@@ -81,10 +81,12 @@ def generate_src_tgt_intra_cls(data_root, tgt_info_file, src_info_file=None, k=8
             visualize_generateion(dataset, pairing_info, mode='intra', n_vis = 5, ext=ext)
 
 
-def load_samples(data_info_file, remove_repeat=True):
+def load_samples(data_info_file, remove_repeat=True, keep_cls_structure=False):
     if '.json' in data_info_file:
         with open(data_info_file, 'r') as f:
             data_info = json.load(f)
+        if keep_cls_structure:
+            return data_info
         all_samples = []
         for cls_samples in data_info.values():
             all_samples += cls_samples
@@ -97,11 +99,11 @@ def load_samples(data_info_file, remove_repeat=True):
     return all_samples
 
 
-def parse_class_samples(data_info, samples, class_names):
+def parse_class_samples(data_info, samples, class_names, fg_ratio=0.05):
     class_samples = {x: [] for x in class_names}
     for sample in samples:
         for cls, ratio in data_info[sample].items():
-            if ratio > 0:
+            if ratio > fg_ratio:
                 class_samples[cls].append(sample)
     return class_samples
 

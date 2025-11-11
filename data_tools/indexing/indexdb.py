@@ -8,7 +8,7 @@ import torch
 from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 
-from faiss_utils import FAISSIndexer
+from .faiss_utils import FAISSIndexer
 
 import warnings
 warnings.filterwarnings("ignore", message="xFormers is available")

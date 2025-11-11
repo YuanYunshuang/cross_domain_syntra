@@ -35,7 +35,7 @@ def tiff32_to_png_rgba(tiff_path: str | Path, png_path: str | Path) -> None:
     im_rgba.save(png_path, optimize=False, compress_level=9)
 
 
-if __name__ == "__main__":
+def tif_to_png():
     in_path = "/home/yuan/data/syntra/geology/seismic_facies.f3/imgs_tif"
     out_path = "/home/yuan/data/syntra/geology/seismic_facies.f3/imgs"
 
@@ -50,3 +50,16 @@ if __name__ == "__main__":
 
         print((tif_img == png_img).all())
         print((arr2 == tif_img).all())
+
+if __name__ == "__main__":
+
+
+    in_path = "/home/yuan/data/syntra/forest_monitoring/forest_monitoring.trees/lbls"
+    lbl_files = list(Path(in_path).glob("*.png"))
+    for lbl_file in lbl_files:
+        lbl = np.array(Image.open(lbl_file))
+        lbl_cnts = {}
+        for l in np.unique(lbl):
+            lbl_cnts[l] = np.sum(lbl == l)
+        print(lbl_file.name, lbl_cnts)
+        # print(lbl_file.name, np.unique(lbl))
