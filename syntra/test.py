@@ -25,7 +25,7 @@ from syntra.utils.debug_utils import *
 from hydra import compose, initialize_config_module
 
 # set seeds
-torch.manual_seed(2023)
+torch.manual_seed(2025)
 torch.cuda.empty_cache()
 
 # torch.distributed.init_process_group(backend="gloo")
@@ -130,15 +130,15 @@ def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_lo
             loss = (seg_loss(model_pred, lbl_tgt.unsqueeze(2)) +
                     ce_loss(model_pred, lbl_tgt.float().unsqueeze(2)))
             for i in range(num_notions):
-                evaluator[i].add_sample(lbl_pred.squeeze(2)[:, i], lbl_tgt[:, i])
+                evaluator[i].add_sample(lbl_pred.squeeze(2)[:, i], lbl_tgt[:, i], meta=meta)
 
             pbar.set_postfix({ 'Loss': f'{loss:.6f}'})
             if args.save_result:
                 cur_dataset = meta[0]['tgt_name'].rsplit('.', 1)[0]
-                colors = list(test_dataset.label_colors[cur_dataset].values())
+                color_map = test_dataset.label_colors[cur_dataset]
                 save_results(os.path.join(out_dir, f"{str(args.data_keywords)}"), 
                                 img_src, lbl_src, img_tgt, lbl_tgt, model_pred, 
-                                [x['tgt_name'] for x in meta], colors=colors)
+                                meta, color_map=color_map)
             losses.append(loss.item())
 
     avg_loss = np.array(losses).mean()
@@ -146,15 +146,16 @@ def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_lo
     out_info = f"Average Loss: {avg_loss:.6f}\n" + "=" * 20 +\
         " Evaluation Results " + "=" * 20 + "\n"
     for i in range(num_notions):
-        avg_eval = evaluator[i].eval()
-        eval_out.append(avg_eval)
-        out_info += \
-            f"Notion {i+1}: \n" + \
-            f"  IoU (FG): {avg_eval[0]*100:.2f}\n" + \
-            f"  Precision (FG): {avg_eval[1]*100:.2f}\n" + \
-            f"  Recall (FG): {avg_eval[2]*100:.2f}\n" + \
-            f"  Accuracy (BG&FG): {avg_eval[3]*100:.2f}\n" + \
-            "-" * 40 + "\n"
+        avg_eval_dict = evaluator[i].eval()
+        for notion_name,  avg_eval in avg_eval_dict.items():
+            eval_out.append(avg_eval)
+            out_info += \
+                f"Notion set {i+1}, {notion_name}: \n" + \
+                f"  IoU (FG): {avg_eval[0]*100:.2f}\n" + \
+                f"  Precision (FG): {avg_eval[1]*100:.2f}\n" + \
+                f"  Recall (FG): {avg_eval[2]*100:.2f}\n" + \
+                f"  Accuracy (BG&FG): {avg_eval[3]*100:.2f}\n" + \
+                "-" * 40 + "\n"
     logger.info(out_info)
     print(out_info)
     return eval_out
@@ -185,21 +186,13 @@ def main():
 
     assert os.path.isfile(args.checkpoint)
     ## Map model to be loaded to specified single GPU
-    checkpoint = torch.load(args.checkpoint, map_location=device)
+    checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=True)
     model.load_trainable_state_dict(checkpoint["model"])
 
     # %% test
     eval_results = []
-    if args.dataset_name == 'syntra':
-        # num_notions = {'railway': 1, 'vineyard': 1}
-        # num_notions = {'hameln': 4, 'bayern': 3, 'railway': 1, 'vineyard': 1}
-        # num_notions = {'medical': 3}
-        # num_notions = {'landcover_selection': 8}
-        # num_notions = {'chaos': 4}
-        # num_notions = {'trees': 11}
+    if args.dataset_name == 'cd_syntra' or args.dataset_name == 'syntra':
         fixed_src_cls = None
-        # for kw, n in num_notions.items():
-        # args.keywords = kw
         eval_res = single_test(args.num_notions, fixed_src_cls, args, device, model, seg_loss, ce_loss, logger, out_dir)
         eval_results.extend([torch.stack(x, dim=0) for x in eval_res])
     elif args.dataset_name == 'smol':

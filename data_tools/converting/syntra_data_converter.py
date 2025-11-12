@@ -252,7 +252,7 @@ class SyntraDataConverter:
         selected_samples = {}
         for cls_name, samples in cls_to_samples.items():
             if len(samples) == 0:
-                print(f"Warning: No samples found for class '{cls_name}'.")
+                print(f"Warning: No samples found for class '{cls_name}'. Skip.")
                 continue
             selected = random.sample(samples, min(n, len(samples)))
             selected_samples[cls_name] = selected
@@ -261,7 +261,7 @@ class SyntraDataConverter:
         with open(os.path.join(self.syntra_data_path, f"cls_selection_{n}.json"), 'w') as f:
             json.dump(selected_samples, f, indent=4)
 
-    def paring_intra_cls(self, tgt_info_file, src_info_file=None, k=8):
+    def pairing_intra_cls(self, tgt_info_file, src_info_file=None, k=8):
         if src_info_file is None:
             src_info_file = tgt_info_file
 
@@ -270,16 +270,21 @@ class SyntraDataConverter:
         tgt_samples = load_samples(os.path.join(self.syntra_data_path, tgt_info_file), keep_cls_structure=True)
         src_samples = load_samples(os.path.join(self.syntra_data_path, src_info_file), keep_cls_structure=True)
         ext = "." + os.listdir(self.img_dir)[0].rsplit('.', 1)[-1]
+        if isinstance(src_samples, list):
+            src_samples = parse_class_samples(self.load_data_info(), src_samples, list(self.color_map.keys()))
+        if not 'test' in tgt_info_file and isinstance(tgt_samples, list):
+            # for test samples, visible classes are not known, we pair for all classes
+            tgt_samples = parse_class_samples(self.load_data_info(), tgt_samples, list(self.color_map.keys()))
         
         pairing_info = {}
         for cls_name in class_names:
-            if len(src_samples[cls_name]) == 0:
+            if cls_name not in src_samples or len(src_samples[cls_name]) == 0:
                 print(f"Warning: No source samples found for class {cls_name}. Skip.")
                 continue
             print(f"Processing class: {cls_name}")
             pairing_info[cls_name] = {}
             cur_src_samples = src_samples[cls_name]
-            cur_tgt_samples = tgt_samples[cls_name]
+            cur_tgt_samples = tgt_samples[cls_name] if isinstance(tgt_samples, dict) else tgt_samples
             # build index db for current source samples
             map_dataloader = BaseDataloaders(os.path.dirname(self.syntra_data_path), cur_src_samples, batch_size=4, ext=ext)
             index_db = IndexDatabase(map_dataloader=map_dataloader, img_encoder=img_encoder, merge_patch_token=False)
@@ -304,8 +309,8 @@ class SyntraDataConverter:
             del map_dataloader
 
         # save pairing info
-        src_mode = os.path.splitext(src_info_file)[0].replace('selected_', '').replace('_samples', '')
-        tgt_mode = os.path.splitext(tgt_info_file)[0].replace('selected_', '').replace('_samples', '')
+        src_mode = os.path.splitext(src_info_file)[0]
+        tgt_mode = os.path.splitext(tgt_info_file)[0]
         save_path = os.path.join(self.syntra_data_path, f'pairing_{src_mode}_{tgt_mode}_intracls.json')
         with open(save_path, 'w') as f:
             json.dump(pairing_info, f, indent=4)

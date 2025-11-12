@@ -49,11 +49,12 @@ class CrossDomainSynTraDataset(Dataset):
         self.label_colors = {}
         self.meta_info = {}
         self.dataset_full_paths = {}
+        self.filtering_keys = [x.strip() for x in filtering_keys.split(",")] if filtering_keys is not None else None
 
         # parse info files
         if isinstance(info_file, str):
-            datasets = glob(os.path.join(self.data_root, "**/color_map.json"), recursive=True)
-            datasets = [os.path.basename(os.path.dirname(ds)) for ds in datasets]
+            datasets = glob(os.path.join(self.data_root, f"**/{info_file}.json"), recursive=True)
+            datasets = [os.path.dirname(ds) for ds in datasets]
             # unified info file for all datasets
             info_file_dict = {info_file: datasets}
         else:
@@ -64,11 +65,11 @@ class CrossDomainSynTraDataset(Dataset):
             info_file_dict = {info_file_name: [os.path.join(self.data_root, x) for x in ds_list] for info_file_name, ds_list in info_file.items()}
 
         for info_file, datasets in info_file_dict.items():
+            info_file += '.json'
             for ds_path in datasets:
                 ds = os.path.basename(ds_path)
                 self.dataset_full_paths[ds] = ds_path
-                info_file += '.json'
-                if filtering_keys is not None and not any([k in ds_path for k in filtering_keys.split(",")]):
+                if self.filtering_keys is not None and not any([k in ds_path for k in self.filtering_keys]):
                     continue
                 if not os.path.isfile(os.path.join(ds_path, info_file)):
                     Warning(f"Info file {info_file} does not exist in dataset folder {ds_path}. Skip this dataset.")
@@ -85,7 +86,8 @@ class CrossDomainSynTraDataset(Dataset):
 
         self._parse_samples()
 
-        self.transform = MapTransformTrain() if 'train' in mode or 'nshot' in mode else MapTransformTest()
+        self.transform = MapTransformTrain() if 'train' in mode else MapTransformTest()
+        assert len(self.file_list) > 0, f"No samples found for mode {mode} with filtering keys {self.filtering_keys}."
         print(f"Number of {mode} images: {len(self.file_list)}")
     
     def _parse_samples(self):
@@ -141,14 +143,8 @@ class CrossDomainSynTraDataset(Dataset):
 
         src_full_names = self._select_src_samples(cls_name, tgt_full_name)
 
-        if self.mode == "train":
-            selected_cls = cls_name
-            selected_colors = [self.label_colors[dataset][selected_cls] if selected_cls is not None else None]                 
-        else:
-            # for test mode, use all notions
-            selected_colors = [v for k, v in self.label_colors[dataset].items() if k not in self.INVALID_CLS]
-            assert len(selected_colors) <= self.num_notions, \
-                f"During test, number of selected notions {len(selected_colors)} should be == {self.num_notions}."
+        selected_cls = cls_name
+        selected_colors = [self.label_colors[dataset][selected_cls] if selected_cls is not None else None]                 
 
         # load images and labels
         imgs = []

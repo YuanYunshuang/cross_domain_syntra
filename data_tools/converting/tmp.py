@@ -2,6 +2,7 @@ import numpy as np
 from PIL import Image
 from tifffile import imread
 from pathlib import Path
+import os
 
 
 def float32_to_rgba_bytes(arr: np.ndarray) -> np.ndarray:
@@ -51,15 +52,19 @@ def tif_to_png():
         print((tif_img == png_img).all())
         print((arr2 == tif_img).all())
 
+
+def syncronize_two_folders(folder_src, folder_tgt):
+    """Sync all files from folder_src to folder_tgt recursively."""
+    import subprocess
+    subprocess.run(f"rsync -av --progress {folder_src}/ {folder_tgt}/", shell=True, check=True)
+
+
 if __name__ == "__main__":
 
 
-    in_path = "/home/yuan/data/syntra/forest_monitoring/forest_monitoring.trees/lbls"
-    lbl_files = list(Path(in_path).glob("*.png"))
-    for lbl_file in lbl_files:
-        lbl = np.array(Image.open(lbl_file))
-        lbl_cnts = {}
-        for l in np.unique(lbl):
-            lbl_cnts[l] = np.sum(lbl == l)
-        print(lbl_file.name, lbl_cnts)
-        # print(lbl_file.name, np.unique(lbl))
+    syncronize_two_folders(
+        "/home/yuan/data/syntra/geology",
+        "/koko/datasets/syntra/geology")
+    syncronize_two_folders(
+    "/home/yuan/data/syntra/forest_monitoring",
+    "/koko/datasets/syntra/forest_monitoring")

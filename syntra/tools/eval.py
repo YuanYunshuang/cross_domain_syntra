@@ -4,35 +4,64 @@ import torch
 
 class Evaluator:
     def __init__(self):
-        self.tp = 0
-        self.union = 0
-        self.pos_pred = 0
-        self.pos_gt = 0
-        self.overall_tp = 0 # including background
-        self.n = 0
-
-    def add_sample(self, pred, target, thresh=0.5):
-        assert pred.shape == target.shape
-        pred_cls = pred > thresh
-
+        self.tp = {}
+        self.union = {}
+        self.pos_pred = {}
+        self.pos_gt = {}
+        self.overall_tp = {} # including background
+        self.n = {}
+        self.notions = []
+    
+    def _add_new_notions(self, notion_id):
+        if isinstance(notion_id, int):
+            notion_id = f"notion_{notion_id}"
+        self.tp[notion_id] = 0
+        self.union[notion_id] = 0
+        self.pos_pred[notion_id] = 0
+        self.pos_gt[notion_id] = 0
+        self.overall_tp[notion_id] = 0
+        self.n[notion_id] = 0
+        self.notions.append(notion_id)
+    
+    def _add_one_sample(self, pred_cls, target, notion_id):
+        if notion_id not in self.notions:
+            self._add_new_notions(notion_id)
         # iou
         tp = torch.logical_and(pred_cls, target)
         union = torch.logical_or(pred_cls, target)
+        self.n[notion_id] += 1
+        self.overall_tp[notion_id] += (pred_cls == target).sum() / target.numel()
+        self.tp[notion_id] += torch.sum(tp)
+        self.union[notion_id] += torch.sum(union)
+        self.pos_pred[notion_id] += torch.sum(pred_cls)
+        self.pos_gt[notion_id] += torch.sum(target)
 
-        self.n += 1
-        self.overall_tp += (pred_cls == target).sum() / target.numel()
-        self.tp += torch.sum(tp)
-        self.union += torch.sum(union)
-        self.pos_pred += torch.sum(pred_cls)
-        self.pos_gt += torch.sum(target)
+    def add_sample(self, pred, target, thresh=0.5, meta=None):
+        assert pred.shape == target.shape
+        B = pred.shape[0]
+
+        if meta is None:
+            notion_ids = [f"notion_{len(self.notions) + 1}"] * B
+        else:
+            assert len(meta) == B
+            assert 'cls_name' in meta[0]
+            notion_ids = [x['cls_name'] for x in meta]
+
+        pred_cls = pred > thresh
+
+        for args in zip(pred_cls, target, notion_ids):
+            self._add_one_sample(*args)
 
     def eval(self):
-        iou = self.tp / self.union
-        prec = self.tp / self.pos_pred
-        rec = self.tp / self.pos_gt
-        acc = self.overall_tp / self.n
+        res = {}
+        for notion_id in self.notions:
+            iou = self.tp[notion_id] / self.union[notion_id] if self.union[notion_id] > 0 else 0
+            prec = self.tp[notion_id] / self.pos_pred[notion_id] if self.pos_pred[notion_id] > 0 else 0
+            rec = self.tp[notion_id] / self.pos_gt[notion_id] if self.pos_gt[notion_id] > 0 else 0
+            acc = self.overall_tp[notion_id] / self.n[notion_id] if self.n[notion_id] > 0 else 0
+            res[notion_id] = (iou, prec, rec, acc)
 
-        return iou, prec, rec, acc
+        return res
 
 
 def cal_all(pred_mask, gt_mask):

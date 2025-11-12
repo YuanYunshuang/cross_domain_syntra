@@ -2,9 +2,7 @@ TRAIN:
   # common
   task_name: syntra_facies_trees
   root_dir: /home/yuan/data/syntra
-  data_info: 
-    pairing_train_train_intracls: ['geology/seismic_facies.f3']
-    pairing_cls_selection_100_cls_selection_100_intracls: ['forest_monitoring/forest_monitoring.trees']
+  data_info: pairing_cls_selection_100_cls_selection_100_intracls
   batch_size: 8
   num_workers: 8
   accum_steps: 4
@@ -36,10 +34,11 @@ TRAIN:
   disable_runid: true
 
 TEST:
-  num_notions: 7
+  num_notions: 1
   num_src: 7
-  data_info: pairing_train_test_intercls.json
-  data_keywords: facies
+  data_info: pairing_cls_selection_100_test_samples_intracls
+  data_keywords: trees
   checkpoint: logs/syntra_facies_trees/model_latest.pth
   save_result: true
+  output_dir: null # will be set to the checkpoint's parent directory
 

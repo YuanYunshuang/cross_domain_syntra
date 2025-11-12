@@ -63,8 +63,8 @@ def overlay_masks_on_image(image, tgt_name, alpha=0.5, colors=None):
     return overlaid_image
 
 
-def save_results(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, names, rescale=0.5, colors=None):
-    overlay_func = partial(overlay_masks_on_image, colors=colors)
+def save_results(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta, rescale=0.5, color_map=None):
+    # overlay_func = partial(overlay_masks_on_image, colors=colors)
     B, T, _, H, W = img_src.shape
     N = lbl_src.shape[2]
 
@@ -83,8 +83,11 @@ def save_results(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, names, r
     lbl_src = lbl_src.detach().cpu().numpy()
     lbl_tgt = lbl_tgt.detach().cpu().numpy()
     pred_tgt = pred_tgt.detach().sigmoid().cpu().numpy()
+    names = [m['tgt_name'] for m in meta]
 
     for i in range(1):
+        cur_cls = meta[i]['cls_name']
+        cur_colors = [color_map[cur_cls]]
         midbar = np.zeros_like(img_tgt[0, :, :10]) + 128
         row1, row2 = [], []
         for t in range(T):
@@ -93,14 +96,18 @@ def save_results(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, names, r
                 img_src[i, t] = rgb_img_to_gray_med_img(img_src[i, t])
             row1.append(img_src[i, t])
             row1.append(midbar)
-            overlayed_img = overlay_func(img_src[i, t], names[i], alpha=lbl_src[i, t] * 0.5)
+            overlayed_img = overlay_masks_on_image(img_src[i, t], names[i], 
+                                                   alpha=lbl_src[i, t] * 0.5, 
+                                                   colors=cur_colors)
             row2.append(overlayed_img)
             row2.append(midbar)
         if 'chaos' in names[i]:
             img_tgt[i] = rgb_img_to_gray_med_img(img_tgt[i])
         row1.append(img_tgt[i])
         row1.append(midbar)
-        overlayed_tgt_img = overlay_func(img_tgt[i], names[i], alpha=lbl_tgt[i] * 0.5)
+        overlayed_tgt_img = overlay_masks_on_image(img_tgt[i], names[i], 
+                                                   alpha=lbl_tgt[i] * 0.5,
+                                                   colors=cur_colors)
         row2.append(overlayed_tgt_img)
         row2.append(midbar)
 
@@ -113,9 +120,13 @@ def save_results(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, names, r
         for n in range(N):
             pred[n] = (pred_inds == n + 1)
 
-        overlayed_pred_prob_img = overlay_func(img_tgt[i], names[i], alpha=pred_prob_norm)
+        overlayed_pred_prob_img = overlay_masks_on_image(img_tgt[i], names[i], 
+                                                         alpha=pred_prob_norm,
+                                                         colors=cur_colors)
         row1.append(overlayed_pred_prob_img)
-        overlayed_pred_img = overlay_func(img_tgt[i],  names[i], alpha=pred * 0.5)
+        overlayed_pred_img = overlay_masks_on_image(img_tgt[i],  names[i], 
+                                                    alpha=pred * 0.5,
+                                                    colors=cur_colors)
         row2.append(overlayed_pred_img)
 
         row1 = np.concatenate(row1, axis=1)[..., ::-1]
@@ -127,7 +138,7 @@ def save_results(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, names, r
                 img = Image.fromarray(img)
                 img = img.resize((int(img.width * rescale), int(img.height * rescale)), 
                                  resample=Image.Resampling.BILINEAR)
-                img.save(os.path.join(out_dir, names[i] + '.png'))
+                img.save(os.path.join(out_dir, names[i] + f'_{cur_cls}.png'))
         except:
             print(f"Failed to save {names[i]}")
 
