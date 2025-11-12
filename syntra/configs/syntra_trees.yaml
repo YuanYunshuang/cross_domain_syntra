@@ -1,7 +1,7 @@
 TRAIN:
   # common
   task_name: syntra_trees
-  root_dir: /home/yuan/data/syntra/forest_monitoring
+  root_dir: /koko/datasets/syntra/forest_monitoring
   data_info: pairing_train_samples_train_samples_intracls
   batch_size: 8
   num_workers: 8
