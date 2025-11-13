@@ -20,11 +20,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-import monai
 from hydra import compose, initialize_config_module
 
 
 from syntra.modeling.dataset import get_dataset
+from syntra.modeling.losses import get_loss_fn
+from syntra.utils.vis import vis_train
 from syntra.modeling.validator import Validator
 from syntra.modeling import build_segmentation_model
 from syntra.utils.train_utils import adjust_learning_rate_cosine, adjust_learning_rate_exp_decay
@@ -76,6 +77,7 @@ def parse_args():
     parser.add_argument("--data-mode", type=str, default="nshot100", help="sample list file (.txt).")
     parser.add_argument("--data-info", type=str, help="data info file (.json)")
     parser.add_argument("--num-src", type=int, default=1, help="number of source images")
+    parser.add_argument("--num-notions", type=int, default=1, help="number of notions")
     parser.add_argument("-fg", "--foreground-ratio", type=float, default=0.05)
     parser.add_argument("-val", "--validation-data", type=str, default=None)
     parser.add_argument("--sampler", type=str, default="uniform", help="sampler type: uniform or prob")
@@ -158,14 +160,13 @@ def main():
         opt_params, lr=args.lr, weight_decay=args.weight_decay
     )
 
-    seg_loss = monai.losses.DiceLoss(sigmoid=True, squared_pred=True, reduction="mean")
-    # cross entropy loss
-    ce_loss = nn.BCEWithLogitsLoss(reduction="mean")
+    loss_fn = get_loss_fn("SAMLoss")
 
     # dataset
     train_dataset = get_dataset(args.dataset_name,
                                data_root=args.root_dir,
                                num_src=args.num_src,
+                               num_notions = args.num_notions,
                                mode="train",
                                info_file=args.data_info,
                                fg_ratio=args.foreground_ratio,
@@ -254,12 +255,12 @@ def main():
                                                         warmup_itrs=args.warmup_itrs)
             # optimizer.zero_grad()
             img_src, lbl_src, img_tgt, lbl_tgt = [d.to(device) for d in data[:4]]
+            aux = data[4] if len(data) > 4 else None
             if args.use_amp:
                 ## AMP
                 with torch.autocast(device_type="cuda", dtype=torch.float16):
                     mapsam_pred = model(img_src, lbl_src, img_tgt)
-                    loss = (seg_loss(mapsam_pred, lbl_tgt.unsqueeze(1)) +
-                            ce_loss(mapsam_pred, lbl_tgt.float().unsqueeze(1))) / args.accum_steps
+                    loss = loss_fn(mapsam_pred, lbl_tgt) / args.accum_steps
                     # loss = ce_loss(mapsam_pred, lbl_tgt.float())
                 scaler.scale(loss).backward()
                 if iter_num % args.accum_steps == 0:
@@ -268,8 +269,7 @@ def main():
                     optimizer.zero_grad()
             else:
                 mapsam_pred = model(img_src, lbl_src, img_tgt)
-                loss = (seg_loss(mapsam_pred, lbl_tgt.unsqueeze(1)) +
-                        ce_loss(mapsam_pred, lbl_tgt.float().unsqueeze(1))) / args.accum_steps
+                loss = loss_fn(mapsam_pred, lbl_tgt) / args.accum_steps
                 # loss = ce_loss(mapsam_pred, lbl_tgt.float().unsqueeze(1))
                 loss.backward()
                 if iter_num % args.accum_steps == 0:
@@ -285,8 +285,7 @@ def main():
             iter_num += 1
 
             if args.vis_freq is not None and iter_num % args.vis_freq == 0:
-                from syntra.utils.vis import vis_train
-                vis_train(img_src, lbl_src, img_tgt, lbl_tgt, mapsam_pred, iter_num)
+                vis_train(img_src, lbl_src, img_tgt, lbl_tgt, mapsam_pred, aux, iter_num)
 
             if iter_num % 100 == 0:
                 inter_avg_loss /= max(step, 1)

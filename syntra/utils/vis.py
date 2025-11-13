@@ -196,7 +196,7 @@ def save_results_v1(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, names
                 print(f"Failed to save {names[i]}")
 
 
-def vis_train(img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, iter_num, size_per_img=1.0):
+def vis_train(img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, aux, iter_num, size_per_img=1.0):
     assert img_src.dim() == 5  # (bs, T, 3, H, W)
     lbl_src = F.interpolate(
             lbl_src.flatten(0, 1).float(),
@@ -205,8 +205,73 @@ def vis_train(img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, iter_num, size_per_i
             align_corners=False,
         )
 
-    bs = img_src.shape[0]
-    lbl_src = lbl_src.view(img_src.shape[0], img_src.shape[1], img_src.shape[3], img_src.shape[4])
+    bs, nsrc, _, H, W = img_src.shape
+    n_notions = lbl_tgt.shape[1]
+    lbl_src = lbl_src.view(bs, nsrc, n_notions, H, W)
+    T = img_src.shape[1] + 1
+
+    ncol = T + 1
+    vis_img = np.zeros((bs * H // 2, ncol * W // 2, 3), dtype=np.uint8)
+    # generate random colors for each notion
+    if 'cls_color' in aux[0]:
+        colors = [x['cls_color'] for x in aux]
+    else:
+        colors = [np.random.randint(0, 255, size=(n_notions, 3), dtype=np.uint8)] * bs
+
+    # half the size for visualization
+    img_src = img_src[..., ::2, ::2]
+    img_tgt = img_tgt[..., ::2, ::2]
+    lbl_src = lbl_src[..., ::2, ::2]
+    lbl_tgt = lbl_tgt[..., ::2, ::2]
+    pred_tgt = pred_tgt[..., ::2, ::2]
+
+    # unnormalize images
+    img_src = img_src * 0.25 + 0.5
+    img_tgt = img_tgt * 0.25 + 0.5
+    img_src = img_src.detach().permute(0, 1, 3, 4, 2).cpu().numpy() # (bs, T, H, W, 3)
+    img_tgt = img_tgt.detach().permute(0, 2, 3, 1).cpu().numpy() # (bs, H, W, 3)
+    lbl_src = lbl_src.detach().cpu().numpy() # (bs, T, n_notions, H, W)
+    lbl_tgt = lbl_tgt.squeeze(1).detach().cpu().numpy() # (bs, n_notions, H, W)
+    pred_tgt = pred_tgt.detach().sigmoid().squeeze().cpu().numpy()
+
+    for i in range(bs):
+        for t in range(T-1):
+            vis_img[i*H//2:(i+1)*H//2, t*W//2:(t+1)*W//2] = overlay_masks_on_image(
+                (img_src[i, t] * 255).astype(np.uint8),
+                tgt_name='',
+                alpha=lbl_src[i, t] * 0.5,
+                colors=colors[i],
+            )
+        vis_img[i*H//2:(i+1)*H//2, (T-1)*W//2:T*W//2] = overlay_masks_on_image(
+            (img_tgt[i] * 255).astype(np.uint8),
+            tgt_name='',
+            alpha=lbl_tgt[i] * 0.5,
+            colors=colors[i],
+        )
+        vis_img[i*H//2:(i+1)*H//2, T*W//2:(T+1)*W//2] = overlay_masks_on_image(
+            (img_tgt[i] * 255).astype(np.uint8),    
+            tgt_name='',
+            alpha=pred_tgt[i],
+            colors=colors[i],
+        )
+    img_vis = Image.fromarray(vis_img)
+    os.makedirs(f"{os.environ['HOME']}/Downloads/vis_train", exist_ok=True)
+    img_vis.save(f"{os.environ['HOME']}/Downloads/vis_train/{iter_num}.jpg")
+
+
+
+def vis_train_v2(img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, iter_num, size_per_img=1.0):
+    assert img_src.dim() == 5  # (bs, T, 3, H, W)
+    lbl_src = F.interpolate(
+            lbl_src.flatten(0, 1).float(),
+            img_src.shape[-2:],
+            mode="bilinear",
+            align_corners=False,
+        )
+
+    bs, nsrc, _, H, W = img_src.shape
+    n_notions = lbl_tgt.shape[1]
+    lbl_src = lbl_src.view(bs, nsrc, n_notions, H, W)
     T = img_src.shape[1] + 1
 
     ncol = T * 2 + 1

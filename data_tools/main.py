@@ -43,13 +43,13 @@ def convert_cityscapes(input_path, output_path, fg_ratio=0.05):
         color_map=color_map,
         fg_ratio=fg_ratio
     )
-    converter._parse_data_info(save=True)
-    converter.convert(['test', 'val'])
-    converter.select_cls_samples(n=100)
+    # converter._parse_data_info(save=True)
+    # converter.convert(['test', 'val'])
+    # converter.select_cls_samples(n=100)
     pairing_options = [
-        ("cls_selection_100.json", "cls_selection_100.json"),
-        ("cls_selection_100.json", "test_samples.txt"),
-        ("train_samples.txt", "train_samples.txt"),
+        # ("cls_selection_100.json", "cls_selection_100.json"),
+        # ("cls_selection_100.json", "test_samples.txt"),
+        # ("train_samples.txt", "train_samples.txt"),
         ("train_samples.txt", "test_samples.txt"),
     ]
     for src_file, tgt_file in pairing_options:

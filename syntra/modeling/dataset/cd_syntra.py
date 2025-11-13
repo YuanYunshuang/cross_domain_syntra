@@ -137,14 +137,39 @@ class CrossDomainSynTraDataset(Dataset):
         lbl = Image.open(lbl_path)
         return img, lbl
     
+    def _select_notions(self, cls_name, dataset, src_full_names):
+        if self.num_notions == 1:
+            selected_classes = [cls_name]
+            selected_colors = [self.label_colors[dataset][cls_name]]
+            return selected_classes, selected_colors
+        else:
+            # in addition to the main class, randomly select other classes from the target image to improve diversity
+            cls_ratios = {}
+            for src_full_name in src_full_names:
+                for cls, ratio in self.label_ratios[src_full_name].items():
+                    if ratio == 0.0:
+                        continue
+                    if cls not in cls_ratios:
+                        cls_ratios[cls] = 0.0
+                    cls_ratios[cls] += ratio
+            # select classes based on the max ratios
+            sorted_cls = sorted(cls_ratios.items(), key=lambda x: x[1], reverse=True)
+            selected_classes = [cls_name]
+            for cls, _ in sorted_cls:
+                if cls != cls_name and cls in self.label_colors[dataset]:
+                    selected_classes.append(cls)
+                if len(selected_classes) >= self.num_notions:
+                    break
+            selected_colors = [self.label_colors[dataset].get(c, None) for c in selected_classes]
+        return selected_classes, selected_colors
+    
     def __getitem__(self, index):
         cls_name, tgt_full_name = self.file_list[index].split("/")
         dataset, img_name = tgt_full_name.rsplit(".", 1)
 
         src_full_names = self._select_src_samples(cls_name, tgt_full_name)
 
-        selected_cls = cls_name
-        selected_colors = [self.label_colors[dataset][selected_cls] if selected_cls is not None else None]                 
+        selected_classes, selected_colors = self._select_notions(cls_name, dataset, src_full_names)               
 
         # load images and labels
         imgs = []
@@ -159,12 +184,14 @@ class CrossDomainSynTraDataset(Dataset):
             selected_color_inds = [palette.index(color) if color is not None else None for color in selected_colors]
             assert 0 < len(selected_color_inds) <= self.num_notions, \
                 f"Number of selected notions {len(selected_color_inds)} should be > 0 and < {self.num_notions}."
-            multi_notion_lbl = np.zeros((lbl.size[1], lbl.size[0], self.num_notions,), dtype=bool)
+            multi_notion_lbl = np.zeros((lbl.size[1], lbl.size[0], self.num_notions,), dtype=np.uint8)
             lbl = np.array(lbl.convert("P"))
             # uniq_lbls.append(np.unique(lbl).tolist())
             for i, color_idx in enumerate(selected_color_inds):
                 if color_idx is not None:
-                    multi_notion_lbl[..., i] = lbl == color_idx
+                    multi_notion_lbl[..., i][lbl == color_idx] = 1
+                # add the ignore mask
+                multi_notion_lbl[..., i][lbl == 255] = 255
             imgs.append(img)
             lbls.append(multi_notion_lbl)
 
@@ -178,7 +205,7 @@ class CrossDomainSynTraDataset(Dataset):
         tgt_lbl = lbls[0]
         src_lbls = src_lbls[..., ::4, ::4]
         # tgt_lbl = tgt_lbl[::4, ::4]
-        aux = {'src_name': src_full_names, 'tgt_name': tgt_full_name, 'cls_name': selected_cls}
+        aux = {'src_name': src_full_names, 'tgt_name': tgt_full_name, 'cls_name': selected_classes, 'cls_color': selected_colors}
         # print(src_img_name, tgt_image_name)
         return src_imgs, src_lbls, tgt_img, tgt_lbl, aux
 

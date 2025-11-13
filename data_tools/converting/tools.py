@@ -63,5 +63,5 @@ if __name__ == "__main__":
 
 
     syncronize_two_folders(
-        "/home/yuan/data/syntra",
-        "/koko/datasets/syntra")
+        "/home/yuan/data/syntra/forest_monitoring",
+        "/koko/datasets/syntra/forest_monitoring")
