@@ -43,13 +43,32 @@ def convert_cityscapes(input_path, output_path, fg_ratio=0.05):
         color_map=color_map,
         fg_ratio=fg_ratio
     )
-    # converter._parse_data_info(save=True)
     # converter.convert(['test', 'val'])
     # converter.select_cls_samples(n=100)
     pairing_options = [
         # ("cls_selection_100.json", "cls_selection_100.json"),
         # ("cls_selection_100.json", "test_samples.txt"),
         # ("train_samples.txt", "train_samples.txt"),
+        ("train_samples.txt", "test_samples.txt"),
+    ]
+    for src_file, tgt_file in pairing_options:
+        converter.pairing_intra_cls(src_info_file=src_file, tgt_info_file=tgt_file)
+
+
+def convert_kitti(input_path, output_path, fg_ratio=0.05):
+    from converting.kitti import KittiConverter, color_map
+    converter = KittiConverter(
+        syntra_data_path=output_path,
+        customized_data_path=input_path,
+        color_map=color_map,
+        fg_ratio=fg_ratio
+    )
+    converter.convert(['train', 'test'])
+    converter.select_cls_samples(n=100)
+    pairing_options = [
+        ("cls_selection_100.json", "cls_selection_100.json"),
+        ("cls_selection_100.json", "test_samples.txt"),
+        ("train_samples.txt", "train_samples.txt"),
         ("train_samples.txt", "test_samples.txt"),
     ]
     for src_file, tgt_file in pairing_options:
@@ -78,6 +97,12 @@ if __name__ == "__main__":
         >> )
 
     """
+
+    convert_kitti(
+        input_path="/koko/datasets/kitti/data_scene_flow",
+        output_path="/home/yuan/data/syntra/autonomous_driving/kitti",
+        fg_ratio=0.05,
+    )
 
     convert_cityscapes(
         input_path="/home/yuan/data/cityscapes",

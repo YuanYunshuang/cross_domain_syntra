@@ -22,8 +22,9 @@ class KittiConverter(SyntraDataConverter):
                         fg_ratio=fg_ratio,
                         syntra_img_size=img_size)
     
-    def _parse_split_img_lbl(self, split, skip_unlabeled=True):
+    def _parse_split_img_lbl(self, split):
         assert split in ['train', 'test']
+        skip_unlabeled=False if split=='test' else True
         img_files = glob(os.path.join(self.customized_data_path, f'{split}ing/image_2', "*.png"))
 
         samples = []
@@ -32,10 +33,11 @@ class KittiConverter(SyntraDataConverter):
             base_name = os.path.basename(img_file)
             lbl_file = os.path.join(self.customized_data_path, f'{split}ing/semantic', base_name)
             if not os.path.exists(lbl_file):
-                print(f"Label file {lbl_file} does not exist for image {img_file}, skip.")
-                lbl_file = None
+                print(f"Label file does not exist for image {img_file}, skip lbl.")
                 if skip_unlabeled:
                     continue
+                else:
+                    lbl_file = None
             samples.append( (img_file, lbl_file))
         return samples
     

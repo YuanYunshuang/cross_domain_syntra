@@ -1,12 +1,11 @@
 TRAIN:
   # common
-  task_name: syntra_cityscapes
-  root_dir: /home/yuan/data/syntra/autonomous_driving
+  task_name: syntra_hismap
+  root_dir: /home/yuan/data/syntra/hismap
   data_info: pairing_cls_selection_100_cls_selection_100_intracls
   batch_size: 8
   num_workers: 8
   accum_steps: 4
-  vis_freq: 2000
 
   # model
   model_name: smol
@@ -36,7 +35,8 @@ TEST:
   num_notions: 1
   num_src: 7
   data_info: pairing_cls_selection_100_test_samples_intracls
-  data_keywords: cityscapes
-  checkpoint: syntra/logs/syntra_cityscapes/model_latest.pth
+  data_keywords: null
+  checkpoint: logs/syntra_hismap/model_latest.pth
   save_result: true
+  output_dir: null # will be set to the checkpoint's parent directory
 

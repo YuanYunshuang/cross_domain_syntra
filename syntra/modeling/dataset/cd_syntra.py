@@ -75,7 +75,7 @@ class CrossDomainSynTraDataset(Dataset):
                     Warning(f"Info file {info_file} does not exist in dataset folder {ds_path}. Skip this dataset.")
                     continue
                 with open(os.path.join(ds_path, info_file)) as f:
-                    self.src_pool.update(json.load(f))
+                    self.src_pool.update({f"{k}.{ds}": v for k, v in json.load(f).items()})
                 with open(os.path.join(ds_path, f"{ds}.json")) as f:
                     self.label_ratios.update(json.load(f))
                 with open(os.path.join(ds_path, f"color_map.json")) as f:
@@ -94,12 +94,13 @@ class CrossDomainSynTraDataset(Dataset):
         self.file_list = []
         pos_file_list = []
         neg_file_list = []
-        for cls_name, samples in self.src_pool.items():
+        for cls_full_name, samples in self.src_pool.items():
+            cls_name = cls_full_name.split(".")[0]
             for sample in samples:
                 if self.label_ratios[sample].get(cls_name, 0.0) > self.fg_ratio:
-                    pos_file_list.append(f"{cls_name}/{sample}")
+                    pos_file_list.append(f"{cls_full_name}/{sample}")
                 else:
-                    neg_file_list.append(f"{cls_name}/{sample}")
+                    neg_file_list.append(f"{cls_full_name}/{sample}")
         # pos/neg sample ratio 0.8:0.2
         num_pos = len(pos_file_list) 
         num_neg = int(num_pos * (1 - self.pos_prob) / self.pos_prob)
@@ -137,7 +138,8 @@ class CrossDomainSynTraDataset(Dataset):
         lbl = Image.open(lbl_path)
         return img, lbl
     
-    def _select_notions(self, cls_name, dataset, src_full_names):
+    def _select_notions(self, cls_full_name, dataset, src_full_names):
+        cls_name = cls_full_name.split(".")[0]
         if self.num_notions == 1:
             selected_classes = [cls_name]
             selected_colors = [self.label_colors[dataset][cls_name]]
@@ -213,7 +215,8 @@ class CrossDomainSynTraDataset(Dataset):
         # Derive subdataset id from filename prefix before the first '.'
         # Example: "locA.some_image_name_001.png" -> "locA"
         def get_loc(fname):
-            loc = fname.split(".")[0]
+            cls_full_name = fname.split('/')[0]
+            loc = '.'.join(cls_full_name.split('.')[:2])  
             return loc
         fname = self.file_list[index]
         loc = get_loc(fname)
@@ -222,6 +225,7 @@ class CrossDomainSynTraDataset(Dataset):
             # build mapping once
             uniq: List[str] = sorted({get_loc(f) for f in self.file_list})
             self._loc2id = {v: i for i, v in enumerate(uniq)}
+            print(f"Sampling groups: {self._loc2id}")
         return self._loc2id[loc]
 
     @staticmethod
