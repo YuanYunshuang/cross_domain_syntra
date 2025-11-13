@@ -186,7 +186,7 @@ class CrossDomainSynTraDataset(Dataset):
         # Derive subdataset id from filename prefix before the first '.'
         # Example: "locA.some_image_name_001.png" -> "locA"
         def get_loc(fname):
-            loc = fname.split("/")[0]
+            loc = fname.split(".")[0]
             return loc
         fname = self.file_list[index]
         loc = get_loc(fname)

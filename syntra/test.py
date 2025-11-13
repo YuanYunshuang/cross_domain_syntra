@@ -172,7 +172,7 @@ def main():
     # %% set up model
     os.makedirs(out_dir, exist_ok=True)
     logger = logging.getLogger("SYNTRA")
-    logging.basicConfig(filename=join(out_dir, f"test_{os.path.basename(args.checkpoint).split('.')[0]}.txt"), 
+    logging.basicConfig(filename=join(out_dir, f"test_{os.path.basename(args.checkpoint).split('.')[0]}_{args.data_keywords}.txt"), 
                         level=logging.INFO, filemode="a")
 
     model = build_segmentation_model(**vars(args)).to(device)
@@ -184,7 +184,7 @@ def main():
     # cross entropy loss
     ce_loss = nn.BCEWithLogitsLoss(reduction="mean")
 
-    assert os.path.isfile(args.checkpoint)
+    assert os.path.isfile(args.checkpoint), f"Checkpoint {args.checkpoint} does not exist."
     ## Map model to be loaded to specified single GPU
     checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=True)
     model.load_trainable_state_dict(checkpoint["model"])

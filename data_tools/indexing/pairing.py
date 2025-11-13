@@ -103,6 +103,8 @@ def parse_class_samples(data_info, samples, class_names, fg_ratio=0.05):
     class_samples = {x: [] for x in class_names}
     for sample in samples:
         for cls, ratio in data_info[sample].items():
+            if cls in ['background', 'nonlabeled']:
+                continue
             if ratio > fg_ratio:
                 class_samples[cls].append(sample)
     return class_samples

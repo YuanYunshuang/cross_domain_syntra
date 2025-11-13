@@ -28,7 +28,7 @@ TRAIN:
   lr: 1e-3
   lr_scheduler: exp
   warmup_iters: 1000
-  output_dir: syntra/logs/syntra_trees
+  output_dir: logs
   disable_runid: true
 
 TEST:
@@ -37,6 +37,6 @@ TEST:
   data_info: pairing_train_samples_test_samples_intracls
   data_keywords: trees
   checkpoint: logs/syntra_trees/model_latest.pth
-  save_result: true
+  save_result: false
   output_dir: null # will be set to the checkpoint's parent directory
 

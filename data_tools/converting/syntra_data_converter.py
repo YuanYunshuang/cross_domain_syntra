@@ -15,12 +15,11 @@ class SyntraDataConverter:
     """
 
     def __init__(self, 
-                 syntra_data_path, 
-                 syntra_img_size=384,
-                 cls_names=None, 
-                 cls_colors=None, 
-                 customized_data_path=None, 
-                 fg_ratio=0.05):
+                 syntra_data_path: str, 
+                 syntra_img_size: int=384,
+                 color_map: dict=None, 
+                 customized_data_path: str=None, 
+                 fg_ratio: float=0.05):
         """
         Initializes the SyntraDataConverter with paths to the customized dataset and Syntra dataset.
 
@@ -34,25 +33,41 @@ class SyntraDataConverter:
         self.dataset_name = os.path.basename(syntra_data_path.rstrip('/'))
         self.fg_ratio = fg_ratio
         self.syntra_img_size = syntra_img_size
+
+        self.prepare_img_lbl_dirs()
+
         # if the data is already converted the color map is available
         color_map_path = os.path.join(syntra_data_path, "color_map.json")
-        if cls_names is None:
+        if color_map is None:
             assert os.path.isfile(color_map_path), f"Color map file not found at {color_map_path}, please provide cls_names."
             with open(color_map_path, 'r') as f:
                 self.color_map = json.load(f)
+                self.color_map = {k: v for k, v in self.color_map.items() if k not in ['background', 'nonlabeled']}
         else:
             # initialize color map for the customized dataset
             assert customized_data_path is not None, "Customized dataset path and cls_names should both be given to initialize the converter for the first time."
-            if cls_colors is None:
-                # generate random colors for each class
-                self.color_map = {cls_name: [random.randint(0, 255) for _ in range(3)] for cls_name in cls_names}
-                # save color map
-                with open(color_map_path, 'w') as f:
-                    json.dump(self.color_map, f, indent=4)
+            for cls_name, color in color_map.items():
+                if color is None:
+                    color_map[cls_name] = [random.randint(0, 255) for _ in range(3)]
+            # save color map
+            self.color_map = color_map
+            with open(color_map_path, 'w') as f:
+                json.dump(self.color_map, f, indent=4)
 
         self._construct_color_palette()
+    
+    @property
+    def cls_id_to_name(self):
+        return {i+1: name for i, name in enumerate(self.color_map.keys())}
+    
+    def prepare_img_lbl_dirs(self):
+        """
+        Prepares the image and label directories within the Syntra dataset path.
+        """
         self.img_dir = os.path.join(self.syntra_data_path, "imgs")
         self.lbl_dir = os.path.join(self.syntra_data_path, "lbls")
+        os.makedirs(self.img_dir, exist_ok=True)
+        os.makedirs(self.lbl_dir, exist_ok=True)
     
     def _construct_color_palette(self):
         """
@@ -97,6 +112,123 @@ class SyntraDataConverter:
         os.makedirs(self.img_dir, exist_ok=True)
         os.makedirs(self.lbl_dir, exist_ok=True)
         assert self.customized_data_path is not None, "Customized dataset path must be provided."
+
+    def _parse_split_img_lbl(self, split):
+        raise NotImplementedError("This method should be implemented in subclasses." \
+        "It should return a list of (img_file, lbl_file) tuples for the given split.")
+    
+    def _get_crop_indices(self, width, height, overide_crop_size=None):
+        """
+        The default cropping strategy is to use non-overlapping crops.
+        The last crop in each row/column may overlap with the previous one to ensure full coverage.
+        Args:
+            width (int): Width of the image.
+            height (int): Height of the image.
+            overide_crop_size (int, optional): Crop size to override the default syntra_img_size. Defaults to None.
+        Returns:
+            tuple: Two lists containing the x and y indices for cropping.
+        """
+        crop_size = self.syntra_img_size if overide_crop_size is None else overide_crop_size
+        w_indices = list(range(0, width, crop_size))
+        h_indices = list(range(0, height, crop_size))
+        if w_indices[-1] + crop_size > width:
+            w_indices[-1] = width - crop_size
+        if h_indices[-1] + crop_size > height:
+            h_indices[-1] = height - crop_size
+        return w_indices, h_indices
+
+    def _load_original_img(self, img_file):
+        """THe default loading function assumes the image is stored as a png image."""
+        assert os.path.isfile(img_file), f"Image file '{img_file}' not found."
+        assert img_file.endswith('.png'), "The default loading function only supports png image files. " \
+        "Please implement a custom loading function."
+        img = Image.open(img_file).convert("RGB")
+        return img
+    
+    def _load_original_lbl(self, lbl_file):
+        """THe default loading function assumes the label is stored as a png image."""
+        assert os.path.isfile(lbl_file), f"Label file '{lbl_file}' not found."
+        assert lbl_file.endswith('.png'), "The default loading function only supports png label files. " \
+        "Please implement a custom loading function."
+        lbl = Image.open(lbl_file)
+        return lbl
+    
+    def _parse_base_name(self, img_file):
+        raise NotImplementedError("This method should be implemented in subclasses." \
+        "It should return the base name (new formatting for syntra) of the image file without extensions or suffixes.")
+    
+    def _get_id_map(self):
+        raise NotImplementedError("This method should be implemented in subclasses." \
+        "It should return a mapping from original class ids to new class ids.")
+    
+    def _parse_label_ratios(self, lbl_array):
+        total_pixels = lbl_array.size
+        class_ratios = {}
+        for cls_id, cls_name in self.cls_id_to_name.items():
+            cls_pixels = np.sum(lbl_array == cls_id)
+            class_ratios[cls_name] = cls_pixels / total_pixels
+        return class_ratios
+    
+    def _parse_data_info(self, save=False):
+        lbl_files = glob(os.path.join(self.lbl_dir, "*.png"))
+        data_info = {}
+        for lbl_file in lbl_files:
+            full_name = f"{self.dataset_name}.{os.path.basename(lbl_file).rsplit('.', 1)[0]}"
+            data_info[full_name] = self._parse_label_ratios(np.array(Image.open(lbl_file)))
+        if save:
+            self.save_data_info(data_info)
+        return data_info
+    
+
+    def convert(self, split_list=['train', 'test', 'val']):
+        self._prepare_convertion()
+
+        # load processed data info if exists
+        try:
+            data_info = self.load_data_info()
+        except:
+            data_info = {}
+        id_to_train_id = self._get_id_map()
+
+        for split in split_list:
+            print(f"Processing split: {split} data")
+            cur_samples = self._parse_split_img_lbl(split)
+            assert len(cur_samples) > 0, f"No samples found for split {split} in {self.customized_data_path}" \
+            f". Please check the dataset structure."
+            print(f"Found {len(cur_samples)} samples for split {split}. Starting conversion...")
+
+            split_samples = []
+
+            for img_file, lbl_file in tqdm(cur_samples):
+                img = self._load_original_img(img_file)
+                if lbl_file is None:
+                    lbl = None
+                else:
+                    lbl = self._load_original_lbl(lbl_file)
+                    lbl = self._convert_annotation(np.array(lbl), id_to_train_id)
+
+                crop_w_indices, crop_h_indices = self._get_crop_indices(img.height, img.width)
+
+                for h in crop_h_indices:
+                    for w in crop_w_indices:
+                        base_name = self._parse_base_name(img_file)
+                        crop_name = f"{base_name}_{h}_{w}"
+                        sample_full_name = f"{self.dataset_name}.{crop_name}"
+                        split_samples.append(sample_full_name)
+
+                        img_crop = img.crop((h, w, h + self.syntra_img_size, w + self.syntra_img_size))
+                        img_crop.save(os.path.join(self.img_dir, crop_name + '.png'))
+                        if lbl is None:
+                            continue
+                        lbl_crop = lbl.crop((h, w, h + self.syntra_img_size, w + self.syntra_img_size))
+                        lbl_crop.save(os.path.join(self.lbl_dir, crop_name + '.png'))
+
+                        # generate data info
+                        data_info[sample_full_name] = self._parse_label_ratios(np.array(lbl_crop))
+                        
+
+            self.save_samples(split_samples, split)
+            self.save_data_info(data_info) # save at finishing every split to avoid data loss
 
     def save_samples(self, samples, split):
         """
@@ -162,17 +294,32 @@ class SyntraDataConverter:
                 print(f"Warning: {sample} not in data info.")
             class_ratios = data_info[sample]
             for cls_name, ratio in class_ratios.items():
+                if cls_name in ['background', 'nonlabeled']:
+                    continue
                 class_counts[cls_name] += ratio
         with open(os.path.join(self.syntra_data_path, f'{split}_class_distribution.json'), 'w') as f:
             json.dump(class_counts, f, indent=4)
 
+    def split_train_test(self, sample_file, train_ratio=0.5):
+        """
+        Splits the dataset into training and testing sets.
 
-    def convert(self):
+        Args:
+            sample_file (str): Path to the file containing all sample names.
+            train_ratio (float): Ratio of samples to be used for training.
         """
-        Converts Syntra dataset annotations to a standardized format.
-        """
-        
-        raise NotImplementedError("This method should be implemented to convert customized dataset to Syntra format.")
+        with open(os.path.join(self.syntra_data_path, sample_file), 'r') as f:
+            all_samples = f.readlines()
+        all_samples = [line.strip() for line in all_samples]
+        random.shuffle(all_samples)
+        split_idx = int(len(all_samples) * train_ratio)
+        train_samples = all_samples[:split_idx]
+        test_samples = all_samples[split_idx:]
+        self.save_samples(train_samples, split="train")
+        self.save_samples(test_samples, split="test")
+
+        self.summarize_class_distribution(split="train")
+        self.summarize_class_distribution(split="test")
     
     def select_samples(self, n, enhance_sample_balance=False):
         """
@@ -225,10 +372,11 @@ class SyntraDataConverter:
             for sample in selected_samples:
                 f.write(sample + '\n')
     
-    def select_cls_samples(self, n):
+    def select_cls_samples(self, n, sample_file=None):
         """
         Select n samples for each class from the training dataset.
         """
+        sample_file = sample_file if sample_file is not None else "train_samples.txt"
         train_samples_file = os.path.join(self.syntra_data_path, "train_samples.txt")
         assert os.path.isfile(train_samples_file), "Training samples, 'train_samples.txt' file not found."
 
@@ -251,6 +399,8 @@ class SyntraDataConverter:
         # select n samples for each class
         selected_samples = {}
         for cls_name, samples in cls_to_samples.items():
+            if cls_name in ['background', 'nonlabeled']:
+                continue
             if len(samples) == 0:
                 print(f"Warning: No samples found for class '{cls_name}'. Skip.")
                 continue
@@ -261,7 +411,8 @@ class SyntraDataConverter:
         with open(os.path.join(self.syntra_data_path, f"cls_selection_{n}.json"), 'w') as f:
             json.dump(selected_samples, f, indent=4)
 
-    def pairing_intra_cls(self, tgt_info_file, src_info_file=None, k=8):
+    def pairing_intra_cls(self, tgt_info_file, src_info_file=None, k=8, skip_if_lt_k=False):
+      
         if src_info_file is None:
             src_info_file = tgt_info_file
 
@@ -271,20 +422,27 @@ class SyntraDataConverter:
         src_samples = load_samples(os.path.join(self.syntra_data_path, src_info_file), keep_cls_structure=True)
         ext = "." + os.listdir(self.img_dir)[0].rsplit('.', 1)[-1]
         if isinstance(src_samples, list):
-            src_samples = parse_class_samples(self.load_data_info(), src_samples, list(self.color_map.keys()))
+            src_samples = parse_class_samples(self.load_data_info(), src_samples, list(self.color_map.keys()), fg_ratio=self.fg_ratio)
         if not 'test' in tgt_info_file and isinstance(tgt_samples, list):
             # for test samples, visible classes are not known, we pair for all classes
-            tgt_samples = parse_class_samples(self.load_data_info(), tgt_samples, list(self.color_map.keys()))
+            tgt_samples = parse_class_samples(self.load_data_info(), tgt_samples, list(self.color_map.keys()), fg_ratio=self.fg_ratio)
         
         pairing_info = {}
         for cls_name in class_names:
             if cls_name not in src_samples or len(src_samples[cls_name]) == 0:
                 print(f"Warning: No source samples found for class {cls_name}. Skip.")
                 continue
-            print(f"Processing class: {cls_name}")
+            print('*' * 30 + f"Processing class: {cls_name}")
             pairing_info[cls_name] = {}
             cur_src_samples = src_samples[cls_name]
             cur_tgt_samples = tgt_samples[cls_name] if isinstance(tgt_samples, dict) else tgt_samples
+            if len(cur_src_samples) < 8:
+                if skip_if_lt_k:
+                    print(f"Warning: class {cls_name} has less than 8 source samples. Skip pairing.")
+                    continue
+                else:
+                    print(f"Warning: class {cls_name} has less than 8 source samples. Select all.")
+
             # build index db for current source samples
             map_dataloader = BaseDataloaders(os.path.dirname(self.syntra_data_path), cur_src_samples, batch_size=4, ext=ext)
             index_db = IndexDatabase(map_dataloader=map_dataloader, img_encoder=img_encoder, merge_patch_token=False)
@@ -293,13 +451,11 @@ class SyntraDataConverter:
                 sample_name = sample.rsplit('.', 1)[1] 
                 sample_img_path = os.path.join(self.img_dir, f"{sample_name}{ext}")
                 distances, indices =  index_db.external_search(
-                    self.dataset_name, sample_img_path, k=k) 
+                    self.dataset_name, sample_img_path, k=min(k, len(cur_src_samples))) 
                 # remove self from the pairing list
                 mask = distances>1e-3
                 distances = distances[mask]
                 indices = indices[mask]
-                if len(indices) < k - 1:
-                    print(f"Warning: sample {sample} has less than {k-1} neighbors. Final selected neighbors: {len(indices)}")
                 # update pairing info
                 pairing_info[cls_name][sample] = {
                     'src_samples': [cur_src_samples[i] for i in indices],
