@@ -59,7 +59,7 @@ def syncronize_two_folders(folder_src, folder_tgt):
     subprocess.run(f"rsync -av --progress {folder_src}/ {folder_tgt}/", shell=True, check=True)
 
 
-def remote_syncronize_two_folders(folder_src, folder_tgt, remote_user, remote_host, ignore_list=None):
+def syncronize_to_remote(folder_src, folder_tgt, remote_user, remote_host, ignore_list=None):
     """Sync all files from folder_src to folder_tgt on a remote machine recursively."""
     import subprocess
     if ignore_list:
@@ -69,23 +69,40 @@ def remote_syncronize_two_folders(folder_src, folder_tgt, remote_user, remote_ho
         subprocess.run(f"rsync -av --progress {folder_src}/ {remote_user}@{remote_host}:{folder_tgt}/", shell=True, check=True)
 
 
+def syncronize_from_remote(folder_src, folder_tgt, remote_user, remote_host, ignore_list=None):
+    """Sync all files from folder_src on a remote machine to folder_tgt recursively."""
+    import subprocess
+    if ignore_list:
+        ignore_args = ' '.join([f"--exclude='{item}'" for item in ignore_list])
+        subprocess.run(f"rsync -av --progress {ignore_args} {remote_user}@{remote_host}:{folder_src}/ {folder_tgt}/", shell=True, check=True)
+    else:
+        subprocess.run(f"rsync -av --progress {remote_user}@{remote_host}:{folder_src}/ {folder_tgt}/", shell=True, check=True)
+
+
 if __name__ == "__main__":
 
 
     # syncronize_two_folders(
-    #     "/home/yuan/data/syntra/forest_monitoring",
-    #     "/koko/datasets/syntra/forest_monitoring")
+    #     "/home/yuan/data/syntra/hismap",
+    #     "/koko/datasets/syntra/hismap")
 
-    local_path = "/home/yuan/code/CD_SYNTRA"
-    remote_path = "/home/yuang/data/SYNTRA"
-    # read from gitignore
-    with open(os.path.join(local_path, ".gitignore"), "r") as f:
-        ignore_list = [line.strip() for line in f.readlines() if line.strip() and not line.startswith("#")]
+    # local_path = "/home/yuan/code/CD_SYNTRA"
+    # remote_path = "/home/yuang/data/SYNTRA"
+    # # read from gitignore
+    # with open(os.path.join(local_path, ".gitignore"), "r") as f:
+    #     ignore_list = [line.strip() for line in f.readlines() if line.strip() and not line.startswith("#")]
 
-    remote_syncronize_two_folders(
-        local_path,
-        remote_path,
-        "yuang",
-        "130.75.51.199",
-        ignore_list=ignore_list
+    # remote_syncronize_two_folders(
+    #     local_path,
+    #     remote_path,
+    #     "yuang",
+    #     "130.75.51.199",
+    #     ignore_list=ignore_list
+    # )
+
+    syncronize_from_remote(
+        "/home/yuan/data/syntra/hismap",
+         "/koko/datasets/syntra/hismap",
+        "yuan",
+        "130.75.51.193"
     )

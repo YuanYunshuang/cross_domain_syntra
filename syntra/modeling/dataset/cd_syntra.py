@@ -97,14 +97,14 @@ class CrossDomainSynTraDataset(Dataset):
         removed_count = 0
         for cls_full_name, samples in self.src_pool.items():
             cls_name = cls_full_name.split(".")[0]
-            for sample in samples:
-                if len(sample['src_samples']) == 0:
+            for sample_name, sample_info in samples.items():
+                if len(sample_info['src_samples']) == 0:
                     removed_count += 1
                     continue
-                if self.label_ratios[sample].get(cls_name, 0.0) > self.fg_ratio:
-                    pos_file_list.append(f"{cls_full_name}/{sample}")
+                if self.label_ratios[sample_name].get(cls_name, 0.0) > self.fg_ratio:
+                    pos_file_list.append(f"{cls_full_name}/{sample_name}")
                 else:
-                    neg_file_list.append(f"{cls_full_name}/{sample}")
+                    neg_file_list.append(f"{cls_full_name}/{sample_name}")
         print(f"Removed {removed_count} samples with no source samples.")
         # pos/neg sample ratio 0.8:0.2
         num_pos = len(pos_file_list) 
