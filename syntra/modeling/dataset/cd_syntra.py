@@ -105,7 +105,7 @@ class CrossDomainSynTraDataset(Dataset):
                     pos_file_list.append(f"{cls_full_name}/{sample_name}")
                 else:
                     neg_file_list.append(f"{cls_full_name}/{sample_name}")
-        print(f"Removed {removed_count} samples with no source samples.")
+        print(f"Removed {removed_count} samples with no source examples.")
         # pos/neg sample ratio 0.8:0.2
         num_pos = len(pos_file_list) 
         num_neg = int(num_pos * (1 - self.pos_prob) / self.pos_prob)
