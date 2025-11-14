@@ -111,7 +111,7 @@ class CrossDomainSynTraDataset(Dataset):
     
     def _select_src_samples(self, cls_name, tgt_full_name):
         src_samples = self.src_pool[cls_name][tgt_full_name]['src_samples']
-        assert len(src_samples) >= 0, f"No source samples found for target image {tgt_full_name} and class {cls_name}."
+        assert len(src_samples) > 0, f"No source samples found for target image {tgt_full_name} and class {cls_name}."
         src_full_names = np.random.choice(
             src_samples, 
             self.num_src, 
