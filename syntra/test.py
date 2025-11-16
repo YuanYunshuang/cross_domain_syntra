@@ -149,7 +149,7 @@ def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_lo
     for notion_name,  avg_eval in avg_eval_dict.items():
         eval_out.append(avg_eval)
         out_info += \
-            f"Notion set {i+1}, {notion_name}: \n" + \
+            f"Notion set : {notion_name}: \n" + \
             f"  IoU (FG): {avg_eval[0]*100:.2f}\n" + \
             f"  Precision (FG): {avg_eval[1]*100:.2f}\n" + \
             f"  Recall (FG): {avg_eval[2]*100:.2f}\n" + \
