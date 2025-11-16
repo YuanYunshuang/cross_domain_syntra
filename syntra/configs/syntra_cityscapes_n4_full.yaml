@@ -37,6 +37,6 @@ TEST:
   num_src: 7
   data_info: pairing_train_samples_test_samples_intracls
   data_keywords: cityscapes
-  checkpoint: null # will be set to the path ./logs/<task_name>/model_latest.pth
+  checkpoint: null # will be set to the path ./output_dir/<task_name>/model_latest.pth
   save_result: true
 
