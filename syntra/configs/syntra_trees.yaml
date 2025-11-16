@@ -38,6 +38,6 @@ TEST:
   data_info: pairing_train_samples_test_samples_intracls
   data_keywords: null
   checkpoint: logs/syntra_trees_n4/model_latest.pth
-  save_result: false
+  save_result: true
   output_dir: null # will be set to the checkpoint's parent directory
 
