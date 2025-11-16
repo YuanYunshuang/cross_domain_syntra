@@ -5,8 +5,17 @@ DATADIR=${WORK_DIR}/syntra/autonomous_driving
 CONFIG=cityscapes_n4_full
 
 
+docker run --gpus all --rm \
+  -v /home/yuang/data:/workspace \
+  -w /workspace/SYNTRA  \
+  --shm-size=16g \
+  opheliayuan/syntra:latest \
+  bash -c "PYTHONPATH=. python syntra/train_one_gpu.py \
+  --config syntra_cityscapes_n4_full.yaml -d ../syntra/autonomous_driving"
+
+
 # Run training directly (replace args as needed)
-docker run --gpus all --rm -it \
+docker run --gpus all --rm \
   -v "$WORKDIR":/workspace \
   -w /workspace/SYNTRA  \
   --shm-size=16g \
