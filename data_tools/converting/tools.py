@@ -104,13 +104,13 @@ def sync_to_kisski(local_path, remote_path, uid, remote_host_shortcut, is_code_r
 
 if __name__ == "__main__":
 
-    # sync_to_kisski(
-    #     local_path="/mars/projects20/cross_domain_syntra/syntra",
-    #     remote_path="/user/yunshuang.yuan/u23994/cross_domain_syntra/syntra",
-    #     uid="u23994",
-    #     remote_host_shortcut="KISSKI",
-    #     is_code_repo=True
-    # )
+    sync_to_kisski(
+        local_path="/home/yuan/data/syntra/medical",
+        remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/syntra_data/medical",
+        uid="u23994",
+        remote_host_shortcut="KISSKI",
+        is_code_repo=False
+    )
 
     # syncronize_two_folders(
     #     "/home/yuan/data/syntra/hismap",
@@ -122,13 +122,13 @@ if __name__ == "__main__":
     # with open(os.path.join(local_path, ".gitignore"), "r") as f:
     #     ignore_list = [line.strip() for line in f.readlines() if line.strip() and not line.startswith("#")]
 
-    syncronize_to_remote(
-        "/home/yuan/data/syntra/autonomous_driving/cityscapes",
-        "/home/yuang/data/syntra/autonomous_driving/cityscapes",
-        "yuang",
-        "130.75.51.199",
-        ignore_list=["imgs/", "lbls/"]
-    )
+    # syncronize_to_remote(
+    #     "/home/yuan/data/syntra/autonomous_driving/cityscapes",
+    #     "/home/yuang/data/syntra/autonomous_driving/cityscapes",
+    #     "yuang",
+    #     "130.75.51.199",
+    #     ignore_list=["imgs/", "lbls/"]
+    # )
 
     # syncronize_from_remote(
     #     "/home/yuan/data/syntra/hismap",
