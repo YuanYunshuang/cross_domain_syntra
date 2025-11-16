@@ -9,16 +9,20 @@ CONFIG=cityscapes_n4_full
 docker run --gpus all --rm -it \
   -v "$WORKDIR":/workspace \
   -w /workspace \
+  # set env variables
+  -e PYTHONPATH /workspace/SYNTRA \
   --shm-size=16g \
   opheliayuan/syntra:latest \
-  PYTHONPATH=${WORKDIR}/SYNTRA python ${WORKDIR}/SYNTRA/syntra/train_one_gpu.py \
+  python ${WORKDIR}/SYNTRA/syntra/train_one_gpu.py \
   --config syntra_${CONFIG}.yaml -d ${DATADIR} 
 
 # Run testing directly (replace args as needed)
 docker run --gpus all --rm -it \
   -v "$WORKDIR":/workspace \
   -w /workspace \
+  # set env variables
+  -e PYTHONPATH /workspace/SYNTRA \
   --shm-size=16g \
   opheliayuan/syntra:latest \
-  PYTHONPATH=${WORKDIR}/SYNTRA python ${WORKDIR}/SYNTRA/syntra/test.py \
+  python ${WORKDIR}/SYNTRA/syntra/test.py \
   --config syntra_${CONFIG}.yaml -d ${DATADIR}
