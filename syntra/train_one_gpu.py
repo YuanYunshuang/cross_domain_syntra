@@ -32,7 +32,6 @@ from syntra.utils.train_utils import adjust_learning_rate_cosine, adjust_learnin
 from syntra.utils.sampler import get_sampler
 from syntra.utils.debug_utils import *
 from hydra.core.global_hydra import GlobalHydra
-from hydra.utils import get_original_cwd
 
 
 # torch.distributed.init_process_group(backend="gloo")
@@ -111,13 +110,6 @@ def parse_args():
     # print all available hydra config files
     if not GlobalHydra().is_initialized():
         initialize_config_module(config_module="syntra.configs", version_base=None)
-
-    cfg_dir = get_original_cwd()
-    print(f"Available Hydra config files in {cfg_dir}/syntra/configs:")
-    for root, dirs, files in os.walk(f"{cfg_dir}/syntra/configs"):
-        for file in files:
-            if file.endswith(".yaml"):
-                print(os.path.relpath(os.path.join(root, file), cfg_dir))
     
     cfg = compose(config_name=args.config)['TRAIN']
 

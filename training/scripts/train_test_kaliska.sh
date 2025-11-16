@@ -7,7 +7,7 @@ CONFIG=cityscapes_n4_full
 
 docker run --gpus all --rm \
   -v /home/yuang/data:/workspace \
-  -w /workspace/SYNTRA  \
+  -w /workspace/cross_domain_syntra  \
   --shm-size=16g \
   opheliayuan/syntra:latest \
   bash -c "PYTHONPATH=. python syntra/train_one_gpu.py \
