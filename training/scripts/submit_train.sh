@@ -1,11 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=train-nn-gpu
-#SBATCH -t 00:20:00                  # estimated time # TODO: adapt to your needs/ the full training run will take approx. 5 h on an A100
-#SBATCH -p kisski                    # the partition you are training on (i.e., which nodes), for nodes see sinfo -o "%25N  %5c  %10m  %32f  %10G %18P " | grep gpu
-#SBATCH -G A100:1                    # requesting GPU slices, see https://docs.hpc.gwdg.de/usage_guide/slurm/gpu_usage/index.html for more options
-#SBATCH --nodes=1                    # total number of nodes
-#SBATCH --ntasks=1                   # total number of tasks
-#SBATCH --cpus-per-task 8            # number of CPU cores per task
+#SBATCH -t 10:00:00                  # estimated time # TODO: adapt to your needs/ the full training run will take approx. 5 h on an A100
+#SBATCH -p kisski            # the partition you are training on (i.e., which nodes), for nodes see sinfo -o "%25N  %5c  %10m  %32f  %10G %18P " | grep gpu
+#SBATCH -G A100:1                # request one A100 GPU
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8         # 8 CPU cores
+#SBATCH --mem-per-cpu=8000          # Request 8GB of shared memory per CPU core (total 64GB per node)
 #SBATCH --mail-type=all              # send mail when job begins and ends
 #SBATCH --output=./slurm_files/slurm-%x-%j.out     # where to write output, %x give job name, %j names job id
 #SBATCH --error=./slurm_files/slurm-%x-%j.err      # where to write slurm error
@@ -15,10 +16,17 @@
 export PREFERRED_SOFTWARE_STACK=nhr-lmod
 source /sw/etc/profile/profile.sh
 
+export TMPDIR=$TMPDIR
+export PYTHONPATH=${HOME}/cross_domain_syntra
+export DATADIR=/mnt/vast-kisski/projects/kisski-gauss-zentrum/syntra_data
+echo $PYTHONPATH
+ulimit 65535
 
-module load miniforge3
-module load cuda
-conda activate syntra # Or whatever you called your environment.
+
+module load apptainer
+module load gcc/11.5.0
+module load cuda/11.8.0
+# source activate dl-gpu # Or whatever you called your environment.
 
 # Printing out some info.
 echo "Submitting job with sbatch from directory: ${SLURM_SUBMIT_DIR}"
@@ -26,13 +34,12 @@ echo "Home directory: ${HOME}"
 echo "Working directory: $PWD"
 echo "Current node: ${SLURM_NODELIST}"
 
-# For debugging purposes.
-python --version
-python -m torch.utils.collect_env
-nvcc -V
+# Run the script:
+apptainer run --bind ${HOME}:${HOME},${DATADIR}:${DATADIR} --nv ${HOME}/syntra.sif \
+        python -u ${PYTHONPATH}/syntra/train_one_gpu.py --config syntra_medical_n4_full.yaml -d ${DATADIR}/medical
 
 # Run the script:
-python -u syntra/train_one_gpu.py --config syntra_hismap_n4_s100.yaml --root_dir ${PROJECT}/dyntra_data/hismap
+# PYTHONPATH=. python -u syntra/train_one_gpu.py --config syntra_cityscapes_n4_slurm.yaml -d ${PROJECT}/dyntra_data/cityscapes
 
 # Run the script with logger:
 #python -u train_with_logger.py -l ~/${SLURM_JOB_NAME}_${SLURM_JOB_ID}  -t True -p True -d True -s True -f True
