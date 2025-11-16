@@ -85,10 +85,7 @@ def setup_parser():
 def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_loss, logger, out_dir):
     if args.save_result:
         from syntra.utils.vis import save_results
-    if args.debug:
-        from syntra.utils.vis import vis_train
     losses = []
-    evals = []
     test_dataset = get_dataset(args.dataset_name,
                                data_root=args.root_dir,
                                info_file=args.data_info,
@@ -112,8 +109,9 @@ def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_lo
     )
 
     evaluator = Evaluator()
-
-    title = f"Testing { '' if args.data_keywords is None else args.data_keywords} {'' if fixed_src_cls is None else fixed_src_cls}"
+    dkw = 'all' if args.data_keywords is None else args.data_keywords
+    src_cls_str = '' if fixed_src_cls is None else fixed_src_cls
+    title = f" Testing {dkw} {src_cls_str}"
     title = ">" * 20 + title + "<" * 20
     logger.info(title)
     print(title)
@@ -135,7 +133,7 @@ def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_lo
             if args.save_result:
                 cur_dataset = meta[0]['tgt_name'].rsplit('.', 1)[0]
                 color_map = test_dataset.label_colors[cur_dataset]
-                save_results(os.path.join(out_dir, f"{str(args.data_keywords)}"), 
+                save_results(os.path.join(out_dir, f"{str(dkw)}"), 
                                 img_src, lbl_src, img_tgt, lbl_tgt, model_pred, 
                                 meta, color_map=color_map)
             losses.append(loss.item())
@@ -164,15 +162,19 @@ def main():
     args = setup_parser()
     if args.output_dir is not None:
         out_dir = args.output_dir
-    else:
+    elif args.checkpoint is not None:
         out_dir = os.path.dirname(args.checkpoint)
+    else:
+        out_dir = os.path.join("logs", os.path.splitext(args.config)[0])
+        args.checkpoint = os.path.join(out_dir, "model_latest.pth") # set to default checkpoint
     device = torch.device(args.device)
 
     # %% set up model
     os.makedirs(out_dir, exist_ok=True)
     logger = logging.getLogger("SYNTRA")
-    logging.basicConfig(filename=join(out_dir, f"test_{os.path.basename(args.checkpoint).split('.')[0]}_{args.data_keywords}.txt"), 
-                        level=logging.INFO, filemode="a")
+    dkw = 'all' if args.data_keywords is None else args.data_keywords
+    log_filename = f"test_{os.path.basename(args.checkpoint).split('.')[0]}_{dkw}.txt"
+    logging.basicConfig(filename=join(out_dir, log_filename), level=logging.INFO, filemode="a")
 
     model = build_segmentation_model(**vars(args)).to(device)
     model.eval()

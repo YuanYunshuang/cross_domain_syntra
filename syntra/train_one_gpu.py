@@ -265,7 +265,7 @@ def main():
                 ## AMP
                 with torch.autocast(device_type="cuda", dtype=torch.float16):
                     mapsam_pred = model(img_src, lbl_src, img_tgt)
-                    loss = loss_fn(mapsam_pred, lbl_tgt) / args.accum_steps
+                    loss = loss_fn(mapsam_pred, lbl_tgt **{'aux': aux}) / args.accum_steps
                     # loss = ce_loss(mapsam_pred, lbl_tgt.float())
                 scaler.scale(loss).backward()
                 if iter_num % args.accum_steps == 0:
@@ -274,7 +274,7 @@ def main():
                     optimizer.zero_grad()
             else:
                 mapsam_pred = model(img_src, lbl_src, img_tgt)
-                loss = loss_fn(mapsam_pred, lbl_tgt) / args.accum_steps
+                loss = loss_fn(mapsam_pred, lbl_tgt, **{'aux': aux}) / args.accum_steps
                 # loss = ce_loss(mapsam_pred, lbl_tgt.float().unsqueeze(1))
                 loss.backward()
                 if iter_num % args.accum_steps == 0:

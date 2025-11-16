@@ -214,7 +214,8 @@ class CrossDomainSynTraDataset(Dataset):
         tgt_lbl = lbls[0]
         src_lbls = src_lbls[..., ::4, ::4]
         # tgt_lbl = tgt_lbl[::4, ::4]
-        aux = {'src_name': src_full_names, 'tgt_name': tgt_full_name, 'cls_name': selected_classes, 'cls_color': selected_colors}
+        full_cls_names = [f"{dataset}/{x}" for x in selected_classes] 
+        aux = {'src_name': src_full_names, 'tgt_name': tgt_full_name, 'cls_name': full_cls_names, 'cls_color': selected_colors}
         # print(src_img_name, tgt_image_name)
         return src_imgs, src_lbls, tgt_img, tgt_lbl, aux
 

@@ -1,7 +1,7 @@
 TRAIN:
   # common
   task_name: null # will be set to the config file name
-  root_dir: /home/yuan/data/syntra/hismap
+  root_dir: /home/yuan/data/syntra
   data_info: pairing_cls_selection_100_cls_selection_100_intracls
   batch_size: 8
   num_workers: 8
@@ -20,7 +20,7 @@ TRAIN:
   num_notions: 4
   foreground_ratio: 0.05
   sampler: group_fixed_m1 # grouped_prob | uniform | prob
-  # data-keywords: facies
+  data-keywords: hismap
 
   # train
   num_epochs: 200
@@ -35,8 +35,8 @@ TEST:
   num_notions: 1
   num_src: 7
   data_info: pairing_cls_selection_100_test_samples_intracls
-  data_keywords: null
-  checkpoint: logs/syntra_hismap/model_latest.pth
+  data_keywords: hismap
+  checkpoint: null # will be set to the path ./logs/<task_name>/model_latest.pth
   save_result: true
   output_dir: null # will be set to the checkpoint's parent directory
 

@@ -23,6 +23,14 @@ class Evaluator:
         self.n[notion_id] = 0
         self.notions.append(notion_id)
     
+    def _parse_notion_id(self, cls_full_name):
+        if isinstance(cls_full_name, list):
+            return [self._parse_notion_id(x) for x in cls_full_name]
+        sub_dataset_name, cls_name = cls_full_name.split('/')
+        dataset_name= sub_dataset_name.split('.')[0]
+        return f"{dataset_name}.{cls_name}"
+
+    
     def _add_one_sample(self, pred_cls, target, notion_id):
         if isinstance(notion_id, list):
             for p, t, n_id in zip(pred_cls, target, notion_id):
@@ -50,7 +58,7 @@ class Evaluator:
         else:
             assert len(meta) == B
             assert 'cls_name' in meta[0]
-            notion_ids = [x['cls_name'] for x in meta]
+            notion_ids = [self._parse_notion_id(x['cls_name']) for x in meta]
 
         pred_cls = pred > thresh
 
