@@ -3,6 +3,7 @@ from PIL import Image
 from tifffile import imread
 from pathlib import Path
 import os
+import subprocess
 
 
 def float32_to_rgba_bytes(arr: np.ndarray) -> np.ndarray:
@@ -71,7 +72,7 @@ def syncronize_to_remote(folder_src, folder_tgt, remote_user, remote_host, ignor
 
 def syncronize_from_remote(folder_src, folder_tgt, remote_user, remote_host, ignore_list=None):
     """Sync all files from folder_src on a remote machine to folder_tgt recursively."""
-    import subprocess
+    
     if ignore_list:
         ignore_args = ' '.join([f"--exclude='{item}'" for item in ignore_list])
         subprocess.run(f"rsync -av --progress {ignore_args} {remote_user}@{remote_host}:{folder_src}/ {folder_tgt}/", shell=True, check=True)
@@ -79,8 +80,37 @@ def syncronize_from_remote(folder_src, folder_tgt, remote_user, remote_host, ign
         subprocess.run(f"rsync -av --progress {remote_user}@{remote_host}:{folder_src}/ {folder_tgt}/", shell=True, check=True)
 
 
+def sync_to_kisski(local_path, remote_path, uid, remote_host_shortcut, is_code_repo=False):
+    assert remote_host_shortcut in ["Emmy", "Emmy-p2", "Emmy-p3", "KISSKI"], "Unknown remote host."
+    assert uid.startswith("u"), "User ID should start with 'u'"
+    if is_code_repo:
+        ignore_list = [".git/", "__pycache__/", "*.pyc", ".vscode/", ".idea/", ".DS_Store"]
+        # read from gitignore
+        if os.path.exists(os.path.join(local_path, ".gitignore")):
+            with open(os.path.join(local_path, ".gitignore"), "r") as f:
+                ignore_list += [line.strip() for line in f.readlines() if line.strip() and not line.startswith("#")]
+        exclude_args = ' '.join([f"--exclude='{item}'" for item in ignore_list])
+        cmd = [
+            "rsync", "-av", "--progress", "-e", "ssh",
+            exclude_args,
+            f"{local_path}/",
+            f"{remote_host_shortcut}:{remote_path}/"
+        ]
+        subprocess.run(' '.join(cmd), shell=True, check=True)
+    else:
+        subprocess.run(f"rsync -av --progress -e ssh {local_path}/ {uid}@{remote_host_shortcut}:{remote_path}/", shell=True, check=True)
+
+
+
 if __name__ == "__main__":
 
+    sync_to_kisski(
+        local_path="/mars/projects20/cross_domain_syntra/syntra",
+        remote_path="/user/yunshuang.yuan/u23994/cross_domain_syntra/syntra",
+        uid="u23994",
+        remote_host_shortcut="KISSKI",
+        is_code_repo=True
+    )
 
     # syncronize_two_folders(
     #     "/home/yuan/data/syntra/hismap",
