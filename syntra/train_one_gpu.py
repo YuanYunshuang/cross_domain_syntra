@@ -62,7 +62,7 @@ def parse_args():
     
     parser.add_argument("--config", type=str, required=True, help="path to config file")
     # common parameters
-    parser.add_argument("-t", "--task-name", type=str, default="default", help="task name")
+    parser.add_argument("-t", "--task-name", type=str, default=None, help="task name")
     parser.add_argument("-w", "--checkpoint", type=str, default=f"{cur_path}/../model_zoo/sam/sam_vit_b_01ec64.pth")
     parser.add_argument("-o", "--output-dir", type=str, default=f"{cur_path}/logs")
     # model
@@ -126,6 +126,8 @@ def main():
     args = parse_args()
     run_id = datetime.now().strftime("%Y%m%d-%H%M")
     set_seeds(1234)
+    if args.task_name is None:
+        args.task_name = os.path.splitext(args.config)[0]
     if args.disable_runid:
         model_save_path = join(args.output_dir, args.task_name)
     else:

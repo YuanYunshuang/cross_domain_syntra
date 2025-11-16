@@ -24,24 +24,29 @@ class Evaluator:
         self.notions.append(notion_id)
     
     def _add_one_sample(self, pred_cls, target, notion_id):
-        if notion_id not in self.notions:
-            self._add_new_notions(notion_id)
-        # iou
-        tp = torch.logical_and(pred_cls, target)
-        union = torch.logical_or(pred_cls, target)
-        self.n[notion_id] += 1
-        self.overall_tp[notion_id] += (pred_cls == target).sum() / target.numel()
-        self.tp[notion_id] += torch.sum(tp)
-        self.union[notion_id] += torch.sum(union)
-        self.pos_pred[notion_id] += torch.sum(pred_cls)
-        self.pos_gt[notion_id] += torch.sum(target)
+        if isinstance(notion_id, list):
+            for p, t, n_id in zip(pred_cls, target, notion_id):
+                self._add_one_sample(p, t, n_id)
+        else:
+            assert isinstance(notion_id, str)
+            if notion_id not in self.notions:
+                    self._add_new_notions(notion_id)
+            # iou
+            tp = torch.logical_and(pred_cls, target)
+            union = torch.logical_or(pred_cls, target)
+            self.n[notion_id] += 1
+            self.overall_tp[notion_id] += (pred_cls == target).sum() / target.numel()
+            self.tp[notion_id] += torch.sum(tp)
+            self.union[notion_id] += torch.sum(union)
+            self.pos_pred[notion_id] += torch.sum(pred_cls)
+            self.pos_gt[notion_id] += torch.sum(target)
 
     def add_sample(self, pred, target, thresh=0.5, meta=None):
         assert pred.shape == target.shape
-        B = pred.shape[0]
+        B, N = target.shape[:2]
 
         if meta is None:
-            notion_ids = [f"notion_{len(self.notions) + 1}"] * B
+            notion_ids = [[f"notion_{len(self.notions) + 1}"]] * B
         else:
             assert len(meta) == B
             assert 'cls_name' in meta[0]

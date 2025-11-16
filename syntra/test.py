@@ -111,9 +111,9 @@ def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_lo
         collate_fn=test_dataset.collate_fn,
     )
 
-    evaluator = [Evaluator() for _ in range(num_notions)]
+    evaluator = Evaluator()
 
-    title = f"Testing {args.data_keywords} {'' if fixed_src_cls is None else fixed_src_cls}"
+    title = f"Testing { '' if args.data_keywords is None else args.data_keywords} {'' if fixed_src_cls is None else fixed_src_cls}"
     title = ">" * 20 + title + "<" * 20
     logger.info(title)
     print(title)
@@ -129,8 +129,7 @@ def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_lo
             lbl_pred = model_pred.sigmoid()
             loss = (seg_loss(model_pred, lbl_tgt.unsqueeze(2)) +
                     ce_loss(model_pred, lbl_tgt.float().unsqueeze(2)))
-            for i in range(num_notions):
-                evaluator[i].add_sample(lbl_pred.squeeze(2)[:, i], lbl_tgt[:, i], meta=meta)
+            evaluator.add_sample(lbl_pred.squeeze(2), lbl_tgt, meta=meta)
 
             pbar.set_postfix({ 'Loss': f'{loss:.6f}'})
             if args.save_result:
@@ -145,17 +144,17 @@ def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_lo
     eval_out = []
     out_info = f"Average Loss: {avg_loss:.6f}\n" + "=" * 20 +\
         " Evaluation Results " + "=" * 20 + "\n"
-    for i in range(num_notions):
-        avg_eval_dict = evaluator[i].eval()
-        for notion_name,  avg_eval in avg_eval_dict.items():
-            eval_out.append(avg_eval)
-            out_info += \
-                f"Notion set {i+1}, {notion_name}: \n" + \
-                f"  IoU (FG): {avg_eval[0]*100:.2f}\n" + \
-                f"  Precision (FG): {avg_eval[1]*100:.2f}\n" + \
-                f"  Recall (FG): {avg_eval[2]*100:.2f}\n" + \
-                f"  Accuracy (BG&FG): {avg_eval[3]*100:.2f}\n" + \
-                "-" * 40 + "\n"
+    
+    avg_eval_dict = evaluator.eval()
+    for notion_name,  avg_eval in avg_eval_dict.items():
+        eval_out.append(avg_eval)
+        out_info += \
+            f"Notion set {i+1}, {notion_name}: \n" + \
+            f"  IoU (FG): {avg_eval[0]*100:.2f}\n" + \
+            f"  Precision (FG): {avg_eval[1]*100:.2f}\n" + \
+            f"  Recall (FG): {avg_eval[2]*100:.2f}\n" + \
+            f"  Accuracy (BG&FG): {avg_eval[3]*100:.2f}\n" + \
+            "-" * 40 + "\n"
     logger.info(out_info)
     print(out_info)
     return eval_out

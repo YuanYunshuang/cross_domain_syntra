@@ -86,8 +86,8 @@ def save_results(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta, re
     names = [m['tgt_name'] for m in meta]
 
     for i in range(1):
-        cur_cls = meta[i]['cls_name']
-        cur_colors = [color_map[cur_cls]]
+        cur_classes = meta[i]['cls_name']
+        cur_colors = [color_map[cls] for cls in cur_classes]
         midbar = np.zeros_like(img_tgt[0, :, :10]) + 128
         row1, row2 = [], []
         for t in range(T):
@@ -138,7 +138,7 @@ def save_results(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta, re
                 img = Image.fromarray(img)
                 img = img.resize((int(img.width * rescale), int(img.height * rescale)), 
                                  resample=Image.Resampling.BILINEAR)
-                img.save(os.path.join(out_dir, names[i] + f'_{cur_cls}.png'))
+                img.save(os.path.join(out_dir, names[i] + f"_{','.join(cur_classes)}.png"))
         except:
             print(f"Failed to save {names[i]}")
 

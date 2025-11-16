@@ -14,8 +14,9 @@ def generate_for_one_dataset(converter_name, input_path, output_path, tasks:list
 
     for t in tasks:
         print('*' * 30 + f"\nStarting task: {t['task']} with args: {t.get('args', {})}")
-        assert t['task'] in ['convert', 'select_cls_samples', 'pairing_intra_cls', 'split_train_test'], f"Unknown task: {t}"
+        assert hasattr(converter, t['task']), f"Unknown task: {t}"
         getattr(converter, t['task'])(**t['args'])
+        print(f"Done. \n" + '*' * 30)
 
 
 def generate_pairing_for_one_dataset(
@@ -88,24 +89,34 @@ if __name__ == "__main__":
         >>     input_path=input_directory,
         >>     output_path=output_directory,
         >>     fg_ratio=fg_ratio,
-        >>     tasks={
+        >>     tasks=[
         >>         {'task': 'convert', 'args': {}},
         >>         {'task': 'split_train_test', 'args': {'sample_file': 'train_samples_original.txt', 'train_ratio': 0.5}},
         >>         {'task': 'select_cls_samples', 'args': {'n': 100}},
         >>         {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_100.json", 'tgt_info_file': "test_samples.txt"}},
-        >>     }
+        >>     ]
         >> )
 
     """
 
-    convert_kitti(
-        input_path="/koko/datasets/kitti/data_scene_flow",
-        output_path="/home/yuan/data/syntra/autonomous_driving/kitti",
-        fg_ratio=0.05,
-    )
+    # convert_kitti(
+    #     input_path="/koko/datasets/kitti/data_scene_flow",
+    #     output_path="/home/yuan/data/syntra/autonomous_driving/kitti",
+    #     fg_ratio=0.05,
+    # )
 
-    convert_cityscapes(
-        input_path="/home/yuan/data/cityscapes",
-        output_path="/home/yuan/data/syntra/autonomous_driving/cityscapes",
+    # convert_cityscapes(
+    #     input_path="/home/yuan/data/cityscapes",
+    #     output_path="/home/yuan/data/syntra/autonomous_driving/cityscapes",
+    #     fg_ratio=0.05,
+    # )
+
+    generate_for_one_dataset(
+        converter_name="SyntraDataConverter",
+        input_path=None,
+        output_path="/home/yuan/data/syntra/hismap/hameln.3921_2017",
         fg_ratio=0.05,
+        tasks=[
+            {'task': '_parse_data_info', 'args': {'save': True}},
+        ]
     )
