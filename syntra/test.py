@@ -168,6 +168,7 @@ def main():
         out_dir = os.path.join("logs", os.path.splitext(args.config)[0])
     if args.checkpoint is None:
         args.checkpoint = os.path.join(out_dir, "model_latest.pth") # set to default checkpoint
+        print(f"Set checkpoint to default latest model: {args.checkpoint}")
     device = torch.device(args.device)
 
     # %% set up model
