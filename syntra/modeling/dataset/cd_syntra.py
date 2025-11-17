@@ -70,6 +70,7 @@ class CrossDomainSynTraDataset(Dataset):
                 ds = os.path.basename(ds_path)
                 self.dataset_full_paths[ds] = ds_path
                 if self.filtering_keys is not None and not any([k in ds_path for k in self.filtering_keys]):
+                    print(f"Dataset {ds_path} does not contain any filtering keys {self.filtering_keys}. Skip this dataset.")
                     continue
                 if not os.path.isfile(os.path.join(ds_path, info_file)):
                     Warning(f"Info file {info_file} does not exist in dataset folder {ds_path}. Skip this dataset.")
