@@ -12,12 +12,22 @@ from torchvision.transforms.v2 import functional as F
 from torchvision.transforms import InterpolationMode
 from typing import List
 from .trainsform import MapTransformTrain, MapTransformTest
+from typing import Dict, Optional
 
 
 class CrossDomainSynTraDataset(Dataset):
     INVALID_CLS = ['background', 'nonlabeled']
-    def __init__(self, data_root, info_file, img_size=384, num_notions=1, num_src=1, mode="train", 
-                 fg_ratio=0.05, pos_prob=0.9, filtering_keys=None, **kwargs):
+    def __init__(self, 
+                 data_root : str, 
+                 info_file : str | Dict[str, List[str]],
+                 img_size : int = 384, 
+                 num_notions : int = 1, 
+                 num_src : int = 1, 
+                 mode : str = "train", 
+                 fg_ratio : float | Dict[str, float] = 0.05,
+                 pos_prob : float = 0.9, 
+                 filtering_keys : str = None, 
+                 **kwargs):
         """
         Initializes an instance of the class with dataset information, loads file lists,
         and initializes transformations.
@@ -42,7 +52,7 @@ class CrossDomainSynTraDataset(Dataset):
         self.num_notions = num_notions
         self.num_src = num_src
         self.mode = mode
-        self.fg_ratio = fg_ratio
+        self.fg_ratio = {}
         self.pos_prob = pos_prob
         self.img_size = img_size
 
@@ -86,12 +96,20 @@ class CrossDomainSynTraDataset(Dataset):
                 if os.path.isfile(os.path.join(ds_path, "meta_info.json")):
                     with open(os.path.join(ds_path, "meta_info.json")) as f:
                         self.meta_info[ds] = json.load(f)
+                if isinstance(fg_ratio, float):
+                    self.fg_ratio[ds] = fg_ratio
+                else:
+                    for k, v in fg_ratio.items():
+                        if k in ds_path:
+                            self.fg_ratio[ds] = v
+                            continue
         print(f"Datasets loaded for mode {mode}: {self.dataset_full_paths.keys()}")
         self._parse_samples()
 
         self.transform = MapTransformTrain(image_size=self.img_size) if 'train' in mode else MapTransformTest(image_size=self.img_size)
         assert len(self.file_list) > 0, f"No samples found in info files {info_file_dict} for mode {mode} with filtering keys {self.filtering_keys}."
-        print(f"Number of {mode} images: {len(self.file_list)}")
+        print(f"Number of {mode} samples: {len(self.file_list)}")
+        print(f"Number of non-repetative {mode} images: {len(set([x.split('/')[1] for x in self.file_list]))}")
     
     def _parse_samples(self):
         self.file_list = []
@@ -105,7 +123,7 @@ class CrossDomainSynTraDataset(Dataset):
                     removed_count += 1
                     continue
                 if self.mode == 'train':
-                    if self.label_ratios[sample_name].get(cls_name, 0.0) > self.fg_ratio:
+                    if self.label_ratios[sample_name].get(cls_name, 0.0) > self.fg_ratio[sample_name.rsplit(".", 1)[0]]:
                         pos_file_list.append(f"{cls_full_name}/{sample_name}")
                     else:
                         neg_file_list.append(f"{cls_full_name}/{sample_name}")

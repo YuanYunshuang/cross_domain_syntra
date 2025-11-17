@@ -114,13 +114,13 @@ def sync_to_kisski(local_path, remote_path, uid, remote_host_shortcut, is_code_r
 
 if __name__ == "__main__":
 
-    # sync_to_kisski(
-    #     local_path="/home/yuan/data/syntra/medical",
-    #     remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/syntra_data/medical",
-    #     uid="u23994",
-    #     remote_host_shortcut="KISSKI",
-    #     is_code_repo=False
-    # )
+    sync_to_kisski(
+        local_path="/home/yuan/data/syntra",
+        remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/syntra_data",
+        uid="u23994",
+        remote_host_shortcut="KISSKI",
+        is_code_repo=False
+    )
 
     # syncronize_two_folders(
     #     "/home/yuan/data/syntra/hismap",
@@ -149,9 +149,9 @@ if __name__ == "__main__":
 
     # list_files("/home/yuan/data/OpenEarthMap/xview2")
 
-    syncronize_to_remote(
-        "/home/yuan/data/syntra/autonomous_driving",
-        "data/syntra/autonomous_driving",
-        "yuang",
-        "130.75.51.199"
-    )
+    # syncronize_to_remote(
+    #     "/home/yuan/data/syntra/autonomous_driving",
+    #     "data/syntra/autonomous_driving",
+    #     "yuang",
+    #     "130.75.51.199"
+    # )

@@ -96,6 +96,64 @@ def convert_demo(convert_obj, input_path, output_path, color_map, fg_ratio=0.05,
         converter.pairing_intra_cls(src_info_file=src_file, tgt_info_file=tgt_file)
 
 
+def update_lbls():
+    from PIL import Image
+    import numpy as np
+    from glob import glob
+    data_path = "/home/yuan/data/syntra"
+    data_paths = glob(os.path.join(data_path, "**/color_map.json"), recursive=True)
+    for dataset_path in data_paths:
+        dataset_path = os.path.dirname(dataset_path)
+        print(f"Processing dataset at {dataset_path}")
+        converter = SyntraDataConverter(
+            syntra_data_path=dataset_path,
+            customized_data_path=None,
+            fg_ratio=0.05
+        )
+        color_map_palette = None
+        lbl_palette = None
+        lbl_start_index = None
+        update = False
+        for i, lbl_file in enumerate(os.listdir(f"{dataset_path}/lbls")):
+            lbl_file = os.path.join(dataset_path, 'lbls', lbl_file)
+            lbl = Image.open(lbl_file)
+            if i == 0:
+                uniq_lbls = np.unique(np.array(lbl))
+                color_map_palette = np.array(converter.palette)
+                lbl_palette = np.array(lbl.getpalette())
+                if 'railway' in converter.color_map:
+                    lbl_start_index = 5  # railway is index 0
+                elif 'vineyard' in converter.color_map:
+                    lbl_start_index = 6  # vineyard is index 0
+                else:
+                    lbl_start_index = lbl_palette.reshape(-1, 3).sum(1).nonzero()[0][0]
+                print("color map:", converter.palette[:30])
+                print("lbl palette:", lbl.getpalette()[:30])
+                print("unique labels in image:", uniq_lbls)
+                print("label start index:", lbl_start_index)
+
+                if (color_map_palette != lbl_palette).any():
+                    update = True
+                else:
+                    print("Palettes match. No update needed.")
+                    break
+            if update:
+                uniq_lbls = np.unique(np.array(lbl))
+                # print('uniq_lbls before update:', uniq_lbls)
+                if uniq_lbls.max() > len(converter.color_map):
+                    lbl = np.array(lbl)
+                    if 'bayern' in lbl_file:
+                        lbl[lbl == 4] = 3
+                    else:
+                        for idx in range(len(converter.color_map)):
+                            lbl[lbl == lbl_start_index + idx] = idx + 1
+                    lbl = Image.fromarray(lbl, mode="P")
+                
+                lbl.putpalette(converter.palette)
+                lbl.save(lbl_file)
+                print(f"Updated palette for {lbl_file}")
+
+
 if __name__ == "__main__":
     """
     Example usage for function generate_for_one_dataset:  
@@ -131,16 +189,16 @@ if __name__ == "__main__":
     #     fg_ratio=0.05,
     # )
 
-    # generate_for_one_dataset(
-    #     converter_name="SyntraDataConverter",
-    #     input_path=None,
-    #     output_path="/home/yuan/data/syntra/autonomous_driving/cityscapes",
-    #     fg_ratio=0.05,
-    #     tasks=[
-    #         {'task': 'pairing_intra_cls', 'args': {'src_info_file': "train_samples.txt", 'tgt_info_file': "val_samples.txt"}},
-    #         {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_100.json", 'tgt_info_file': "val_samples.txt"}},
-    #     ]
-    # )
+    generate_for_one_dataset(
+        converter_name="SyntraDataConverter",
+        input_path=None,
+        output_path="/home/yuan/data/syntra/remote_sensing/oem",
+        fg_ratio=0.05,
+        tasks=[
+            {'task': 'pairing_intra_cls', 'args': {'src_info_file': "train_samples.txt", 'tgt_info_file': "val_samples.txt"}},
+            {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_100.json", 'tgt_info_file': "val_samples.txt"}},
+        ]
+    )
 
     # from converting.open_earth_map import OEMonverter, color_map
     # convert_demo(
@@ -152,17 +210,8 @@ if __name__ == "__main__":
     #     force_cast_img_to_uint8=True
     # )
 
-    from converting.cityscapes import color_map
-    from PIL import Image
-    converter = SyntraDataConverter(
-        syntra_data_path="/home/yuan/data/syntra/autonomous_driving/cityscapes",
-        customized_data_path=None,
-        fg_ratio=0.05
-    )
-    for lbl_file in os.listdir("/home/yuan/data/syntra/autonomous_driving/cityscapes/lbls"):
-        lbl_file = os.path.join("/home/yuan/data/syntra/autonomous_driving/cityscapes/lbls", lbl_file)
-        lbl = Image.open(lbl_file)
-        lbl.putpalette(converter.palette)
-        lbl.save(lbl_file)
+
+
+     
 
 

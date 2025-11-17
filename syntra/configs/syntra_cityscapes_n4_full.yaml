@@ -25,7 +25,7 @@ TRAIN:
 
   # train
   num_epochs: 200
-  max_iterations: 400000
+  max_iterations: 200000
   lr: 1e-3
   lr_scheduler: exp
   warmup_iters: 1000

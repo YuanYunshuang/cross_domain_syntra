@@ -22,8 +22,8 @@
 #   --config syntra_cityscapes_n4_full.yaml -d ../syntra/autonomous_driving -o /workspace/logs"
 
 export WORKDIR=/home/yuang/data
-export DATA_SUBDIR=autonomous_driving
-export CONFIG=cityscapes_n4_full
+export DATA_SUBDIR=remote_sensing
+export CONFIG=remote_sensing_n4_full
 
 # Run training directly (replace args as needed)
 docker run --gpus all --rm \
