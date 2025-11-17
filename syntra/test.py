@@ -85,6 +85,8 @@ def setup_parser():
         if hasattr(args, key):
             setattr(args, key, value)
 
+    print(args)
+
     return args
 
 
