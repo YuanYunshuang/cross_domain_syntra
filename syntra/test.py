@@ -72,10 +72,16 @@ def setup_parser():
 
     # Override args with traincfg arguments
     for key, value in cfg['TRAIN'].items():
+        arg_list = ['root_dir', 'output_dir', 'resume']
+        if key in arg_list and getattr(args, key) is not None:
+            continue
         if hasattr(args, key):
             setattr(args, key, value)
     # Override args with test cfg arguments
     for key, value in cfg['TEST'].items():
+        arg_list = ['root_dir', 'output_dir', 'checkpoint']
+        if key in arg_list and getattr(args, key) is not None:
+            continue
         if hasattr(args, key):
             setattr(args, key, value)
 
