@@ -87,7 +87,7 @@ class CrossDomainSynTraDataset(Dataset):
         self._parse_samples()
 
         self.transform = MapTransformTrain() if 'train' in mode else MapTransformTest()
-        assert len(self.file_list) > 0, f"No samples found for mode {mode} with filtering keys {self.filtering_keys}."
+        assert len(self.file_list) > 0, f"No samples found in info files {info_file_dict} for mode {mode} with filtering keys {self.filtering_keys}."
         print(f"Number of {mode} images: {len(self.file_list)}")
     
     def _parse_samples(self):
