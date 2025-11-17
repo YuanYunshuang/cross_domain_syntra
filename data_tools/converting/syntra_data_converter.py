@@ -4,6 +4,7 @@ import random
 
 import numpy as np
 from PIL import Image
+from tifffile import imread
 
 from indexing.pairing import *
 
@@ -19,7 +20,9 @@ class SyntraDataConverter:
                  syntra_img_size: int=384,
                  color_map: dict=None, 
                  customized_data_path: str=None, 
-                 fg_ratio: float=0.05):
+                 fg_ratio: float=0.05,
+                 force_cast_img_to_uint8: bool=False,
+        ):
         """
         Initializes the SyntraDataConverter with paths to the customized dataset and Syntra dataset.
 
@@ -27,12 +30,16 @@ class SyntraDataConverter:
             syntra_data_path (str): Path to the Syntra dataset.
             color_map (dict, optional): A mapping of class names to colors. Defaults to None.
             customized_data_path (str, optional): Path to the customized dataset. Defaults to None.
+            fg_ratio (float, optional): Minimum foreground ratio for a class to be considered present in a sample. Defaults to 0.05.
+            syntra_img_size (int, optional): The size of the images in the Syntra dataset. Defaults to 384.
+            force_cast_img_to_uint8 (bool, optional): Whether to force cast images to uint8. Defaults to False.
         """
         self.customized_data_path = customized_data_path
         self.syntra_data_path = syntra_data_path
         self.dataset_name = os.path.basename(syntra_data_path.rstrip('/'))
         self.fg_ratio = fg_ratio
         self.syntra_img_size = syntra_img_size
+        self.force_cast_img_to_uint8 = force_cast_img_to_uint8
 
         self.prepare_img_lbl_dirs()
 
@@ -138,19 +145,44 @@ class SyntraDataConverter:
         return w_indices, h_indices
 
     def _load_original_img(self, img_file):
-        """THe default loading function assumes the image is stored as a png image."""
+        """Load png or tif image file."""
         assert os.path.isfile(img_file), f"Image file '{img_file}' not found."
-        assert img_file.endswith('.png'), "The default loading function only supports png image files. " \
-        "Please implement a custom loading function."
-        img = Image.open(img_file).convert("RGB")
+        if img_file.endswith('.png'):
+            img = Image.open(img_file).convert("RGB")
+        elif img_file.endswith('.tif') or img_file.endswith('.tiff'):
+            img = imread(img_file)
+            if img.dtype != np.uint8 and self.force_cast_img_to_uint8:
+                if img.dtype == np.uint16:
+                    print(f"Warning: casting image '{img_file}' from {img.dtype} to uint8.")
+                    img = img.astype(np.uint8)
+                elif img.dtype == np.int16:
+                    assert img.min() >= 0, f"Image '{img_file}' has negative values, cannot cast to uint8."
+                    print(f"Warning: casting image '{img_file}' from {img.dtype} to uint8.")
+                    img = img.astype(np.uint8)
+                else:
+                    raise ValueError(f"Unsupported image dtype '{img.dtype}' for file '{img_file}'.")
+            else:
+                assert img.dtype == np.uint8, f"Image dtype must be uint8, got {img.dtype}."
+
+            if img.ndim == 2:
+                img = np.stack([img]*3, axis=-1)
+            img = Image.fromarray(img)
+        else:
+            raise ValueError(f"Unsupported image format for file '{img_file}'.")
         return img
     
     def _load_original_lbl(self, lbl_file):
-        """THe default loading function assumes the label is stored as a png image."""
+        """Load png or tif image file."""
         assert os.path.isfile(lbl_file), f"Label file '{lbl_file}' not found."
-        assert lbl_file.endswith('.png'), "The default loading function only supports png label files. " \
-        "Please implement a custom loading function."
-        lbl = Image.open(lbl_file)
+        if lbl_file.endswith('.png'):
+            lbl = Image.open(lbl_file)
+        elif lbl_file.endswith('.tif') or lbl_file.endswith('.tiff'):
+            lbl = imread(lbl_file)
+            assert lbl.dtype == np.uint8, f"Label dtype must be uint8, got {lbl.dtype}."
+            assert lbl.ndim == 2, f"Label image must be 2D, got shape {lbl.shape}."
+            lbl = Image.fromarray(lbl)
+        else:
+            raise ValueError(f"Unsupported image format for file '{lbl_file}'.")
         return lbl
     
     def _parse_base_name(self, img_file):

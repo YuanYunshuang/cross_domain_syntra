@@ -76,6 +76,26 @@ def convert_kitti(input_path, output_path, fg_ratio=0.05):
         converter.pairing_intra_cls(src_info_file=src_file, tgt_info_file=tgt_file)
 
 
+def convert_demo(convert_obj, input_path, output_path, color_map, fg_ratio=0.05, **kwargs):
+    converter = convert_obj(
+        syntra_data_path=output_path,
+        customized_data_path=input_path,
+        color_map=color_map,
+        fg_ratio=fg_ratio,
+        **kwargs
+    )
+    converter.convert(['train', 'test', 'val'])
+    converter.select_cls_samples(n=100)
+    pairing_options = [
+        ("cls_selection_100.json", "cls_selection_100.json"),
+        ("cls_selection_100.json", "test_samples.txt"),
+        ("train_samples.txt", "train_samples.txt"),
+        ("train_samples.txt", "test_samples.txt"),
+    ]
+    for src_file, tgt_file in pairing_options:
+        converter.pairing_intra_cls(src_info_file=src_file, tgt_info_file=tgt_file)
+
+
 if __name__ == "__main__":
     """
     Example usage for function generate_for_one_dataset:  
@@ -111,12 +131,22 @@ if __name__ == "__main__":
     #     fg_ratio=0.05,
     # )
 
-    generate_for_one_dataset(
-        converter_name="SyntraDataConverter",
-        input_path=None,
-        output_path="/home/yuan/data/syntra/hismap/hameln.3921_2017",
+    # generate_for_one_dataset(
+    #     converter_name="SyntraDataConverter",
+    #     input_path=None,
+    #     output_path="/home/yuan/data/syntra/hismap/hameln.3921_2017",
+    #     fg_ratio=0.05,
+    #     tasks=[
+    #         {'task': '_parse_data_info', 'args': {'save': True}},
+    #     ]
+    # )
+
+    from converting.open_earth_map import OEMonverter, color_map
+    convert_demo(
+        convert_obj=OEMonverter,
+        input_path="/home/yuan/data/OpenEarthMap",
+        output_path="/home/yuan/data/syntra/remote_sensing/oem",
+        color_map=color_map,
         fg_ratio=0.05,
-        tasks=[
-            {'task': '_parse_data_info', 'args': {'save': True}},
-        ]
+        force_cast_img_to_uint8=True
     )

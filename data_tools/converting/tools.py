@@ -6,6 +6,16 @@ import os
 import subprocess
 
 
+def list_files(startpath):
+    for root, dirs, files in os.walk(startpath):
+        level = root.replace(startpath, '').count(os.sep)
+        indent = ' ' * 4 * (level)
+        print('{}{}/'.format(indent, os.path.basename(root)))
+        subindent = ' ' * 4 * (level + 1)
+        for f in files:
+            print('{}{}'.format(subindent, f))
+
+
 def float32_to_rgba_bytes(arr: np.ndarray) -> np.ndarray:
     """
     Pack a 2D float32 array into a 3D uint8 RGBA array (H, W, 4), little-endian.
@@ -104,13 +114,13 @@ def sync_to_kisski(local_path, remote_path, uid, remote_host_shortcut, is_code_r
 
 if __name__ == "__main__":
 
-    sync_to_kisski(
-        local_path="/home/yuan/data/syntra/medical",
-        remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/syntra_data/medical",
-        uid="u23994",
-        remote_host_shortcut="KISSKI",
-        is_code_repo=False
-    )
+    # sync_to_kisski(
+    #     local_path="/home/yuan/data/syntra/medical",
+    #     remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/syntra_data/medical",
+    #     uid="u23994",
+    #     remote_host_shortcut="KISSKI",
+    #     is_code_repo=False
+    # )
 
     # syncronize_two_folders(
     #     "/home/yuan/data/syntra/hismap",
@@ -136,3 +146,5 @@ if __name__ == "__main__":
     #     "yuan",
     #     "130.75.51.193"
     # )
+
+    list_files("/home/yuan/data/OpenEarthMap/xview2")

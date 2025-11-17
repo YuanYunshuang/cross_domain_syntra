@@ -11,6 +11,8 @@
 #SBATCH --output=./slurm_files/slurm-%x-%j.out     # where to write output, %x give job name, %j names job id
 #SBATCH --error=./slurm_files/slurm-%x-%j.err      # where to write slurm error
 
+# path = . will be the directory from which you submit the job with sbatch
+
 # load new software stack
 # see https://docs.hpc.gwdg.de/software_stacks/index.html
 export PREFERRED_SOFTWARE_STACK=nhr-lmod
@@ -38,7 +40,7 @@ echo "Current node: ${SLURM_NODELIST}"
 apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${HOME}/syntra.sif \
         python -u ${PYTHONPATH}/syntra/train_one_gpu.py \
         --config syntra_medical_n4_full.yaml -d ${PROJECTDIR}/syntra_data/medical \
-        -o ${PROJECTDIR}/train_logs --resume ${PROJECTDIR}/logs/syntra_medical_n4_full/model_latest.pth
+        -o ${PROJECTDIR}/logs --resume ${PROJECTDIR}/logs/syntra_medical_n4_full/model_latest.pth
 
 # Run the script:
 # PYTHONPATH=. python -u syntra/train_one_gpu.py --config syntra_cityscapes_n4_slurm.yaml -d ${PROJECT}/dyntra_data/cityscapes

@@ -21,9 +21,9 @@
 #   sh -lc "umask 000 && PYTHONPATH=. python syntra/train_one_gpu.py \
 #   --config syntra_cityscapes_n4_full.yaml -d ../syntra/autonomous_driving -o /workspace/logs"
 
-WORKDIR=/home/yuang/data
-DATA_SUBDIR=autonomous_driving
-CONFIG=cityscapes_n4_full
+export WORKDIR=/home/yuang/data
+export DATA_SUBDIR=autonomous_driving
+export CONFIG=cityscapes_n4_full
 
 # Run training directly (replace args as needed)
 docker run --gpus all --rm \
@@ -35,7 +35,7 @@ docker run --gpus all --rm \
   --config syntra_${CONFIG}.yaml -d ../syntra/${DATA_SUBDIR} -o /workspace/logs"
 
 # Run testing directly (replace args as needed)
-docker run --gpus all --rm -it \
+docker run --gpus all --rm \
   -v "$WORKDIR":/workspace \
   -w /workspace/cross_domain_syntra  \
   --shm-size=16g \
