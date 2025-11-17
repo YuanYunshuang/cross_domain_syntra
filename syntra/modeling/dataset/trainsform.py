@@ -46,7 +46,7 @@ class PadToTargetSize:
 
 
 class MapTransformTrain:
-    def __init__(self, image_size=384, rot_degrees=30, color_jitter=0.01):
+    def __init__(self, image_size=384, rot_degrees=30, mean=[0.5, 0.5, 0.5], std=[0.25, 0.25, 0.25]):
         # store params for reproducible geometry sampling per pair
         self.rot_degrees = rot_degrees
         self.img_size = image_size
@@ -54,8 +54,7 @@ class MapTransformTrain:
         self.img_transforms = v2.Compose([
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
-            v2.Normalize(mean=[0.5, 0.5, 0.5], std=[0.25, 0.25, 0.25]),
-            # v2.ColorJitter(color_jitter, color_jitter, color_jitter),
+            v2.Normalize(mean=mean, std=std),
         ])
 
         self.lbl_transforms = v2.Compose([
@@ -160,11 +159,11 @@ class MapTransformTrain:
 
 
 class MapTransformTest:
-    def __init__(self, image_size=384):
+    def __init__(self, image_size=384, mean=[0.5, 0.5, 0.5], std=[0.25, 0.25, 0.25]):
         self.img_transforms = v2.Compose([
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
-            v2.Normalize(mean=[0.5, 0.5, 0.5], std=[0.25, 0.25, 0.25]),
+            v2.Normalize(mean=mean, std=std),
         ])
 
         self.lbl_transforms = v2.Compose([

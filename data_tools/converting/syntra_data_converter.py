@@ -83,7 +83,7 @@ class SyntraDataConverter:
             list: A flat list representing the color palette.
         """
         palette = [0, 0, 0]  # background color
-        for cls_name in sorted(self.color_map.keys()):
+        for cls_name in self.color_map.keys():
             palette.extend(self.color_map[cls_name])
         # pad the palette to have 256 colors
         palette.extend([0, 0, 0] * (256 - len(self.color_map) - 1))

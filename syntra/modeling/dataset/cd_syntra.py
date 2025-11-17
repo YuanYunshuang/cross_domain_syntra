@@ -11,12 +11,12 @@ import random
 from torchvision.transforms.v2 import functional as F
 from torchvision.transforms import InterpolationMode
 from typing import List
-from syntra.modeling.dataset.trainsform import MapTransformTrain, MapTransformTest
+from .trainsform import MapTransformTrain, MapTransformTest
 
 
 class CrossDomainSynTraDataset(Dataset):
     INVALID_CLS = ['background', 'nonlabeled']
-    def __init__(self, data_root, info_file, num_notions=1, num_src=1, mode="train", 
+    def __init__(self, data_root, info_file, img_size=384, num_notions=1, num_src=1, mode="train", 
                  fg_ratio=0.05, pos_prob=0.9, filtering_keys=None, **kwargs):
         """
         Initializes an instance of the class with dataset information, loads file lists,
@@ -27,6 +27,8 @@ class CrossDomainSynTraDataset(Dataset):
             The root directory of the dataset containing all related files.
         info_file: str
             Path to the json file containing the dataset information.
+        img_size: int, optional
+            The size to which images will be resized. Default is 384.
         mode: str
             Indicates the mode in which the dataset is being used. Default is "train".
         fg_ratio: float, optional
@@ -42,6 +44,7 @@ class CrossDomainSynTraDataset(Dataset):
         self.mode = mode
         self.fg_ratio = fg_ratio
         self.pos_prob = pos_prob
+        self.img_size = img_size
 
         # load samples
         self.src_pool = {}
@@ -70,7 +73,6 @@ class CrossDomainSynTraDataset(Dataset):
                 ds = os.path.basename(ds_path)
                 self.dataset_full_paths[ds] = ds_path
                 if self.filtering_keys is not None and not any([k in ds_path for k in self.filtering_keys]):
-                    print(f"Dataset {ds_path} does not contain any filtering keys {self.filtering_keys}. Skip this dataset.")
                     continue
                 if not os.path.isfile(os.path.join(ds_path, info_file)):
                     Warning(f"Info file {info_file} does not exist in dataset folder {ds_path}. Skip this dataset.")
@@ -87,7 +89,7 @@ class CrossDomainSynTraDataset(Dataset):
         print(f"Datasets loaded for mode {mode}: {self.dataset_full_paths.keys()}")
         self._parse_samples()
 
-        self.transform = MapTransformTrain() if 'train' in mode else MapTransformTest()
+        self.transform = MapTransformTrain(image_size=self.img_size) if 'train' in mode else MapTransformTest(image_size=self.img_size)
         assert len(self.file_list) > 0, f"No samples found in info files {info_file_dict} for mode {mode} with filtering keys {self.filtering_keys}."
         print(f"Number of {mode} images: {len(self.file_list)}")
     
@@ -102,10 +104,13 @@ class CrossDomainSynTraDataset(Dataset):
                 if len(sample_info['src_samples']) == 0:
                     removed_count += 1
                     continue
-                if self.label_ratios[sample_name].get(cls_name, 0.0) > self.fg_ratio:
-                    pos_file_list.append(f"{cls_full_name}/{sample_name}")
+                if self.mode == 'train':
+                    if self.label_ratios[sample_name].get(cls_name, 0.0) > self.fg_ratio:
+                        pos_file_list.append(f"{cls_full_name}/{sample_name}")
+                    else:
+                        neg_file_list.append(f"{cls_full_name}/{sample_name}")
                 else:
-                    neg_file_list.append(f"{cls_full_name}/{sample_name}")
+                    pos_file_list.append(f"{cls_full_name}/{sample_name}")
         if removed_count > 0:
             print(f"Removed {removed_count} samples with no source examples.")
         # pos/neg sample ratio 0.8:0.2
@@ -206,19 +211,35 @@ class CrossDomainSynTraDataset(Dataset):
             lbls.append(multi_notion_lbl)
 
         # print(cls_name, uniq_lbls, selected_color_inds)
-        # self.visualize(img, lbl)
+        # self.vis_data(imgs, lbls, selected_classes)
         imgs, lbls = self.transform(imgs, lbls)
         # self.visualize(src_img, src_lbl, tgt_img, tgt_lbl)
         src_imgs = torch.stack(imgs[1:], 0)
         tgt_img = imgs[0]
         src_lbls = torch.stack(lbls[1:], 0)
         tgt_lbl = lbls[0]
-        src_lbls = src_lbls[..., ::4, ::4]
-        # tgt_lbl = tgt_lbl[::4, ::4]
         full_cls_names = [f"{dataset}/{x}" for x in selected_classes] 
         aux = {'src_name': src_full_names, 'tgt_name': tgt_full_name, 'cls_name': full_cls_names, 'cls_color': selected_colors}
         # print(src_img_name, tgt_image_name)
-        return src_imgs, src_lbls, tgt_img, tgt_lbl, aux
+
+        return src_imgs, src_lbls[..., ::4, ::4], tgt_img, tgt_lbl, aux
+    
+    def vis_data(self, imgs, lbls, selected_classes):
+        import matplotlib.pyplot as plt
+        num_imgs = len(imgs)
+        fig, axs = plt.subplots(2, num_imgs, figsize=(4*num_imgs, 8))
+        for i in range(num_imgs):
+            axs[0, i].imshow(imgs[i])
+            axs[0, i].set_title(f"Image {i}")
+            axs[0, i].axis('off')
+            lbl = lbls[i]
+            lbl[lbl == 1] = 128
+            axs[1, i].imshow(lbl[..., 0].astype(float) / 255, cmap='jet', vmin=0, vmax=1)
+            axs[1, i].set_title(f"Label {i}: {selected_classes}")
+            axs[1, i].axis('off')
+        plt.tight_layout()
+        plt.show()
+        plt.close()
 
     def subdataset_id(self, index: int) -> int:
         # Derive subdataset id from filename prefix before the first '.'
@@ -246,4 +267,6 @@ class CrossDomainSynTraDataset(Dataset):
         tgt_lbl = torch.stack(tgt_lbl, dim=0)
         
         return src_img, src_lbl, tgt_img, tgt_lbl, aux
+
+
 

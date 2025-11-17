@@ -77,6 +77,7 @@ def parse_args():
     parser.add_argument("--dataset-name", type=str, default="syntra", help="dataset name: smol or syntra")
     parser.add_argument("--data-mode", type=str, default="nshot100", help="sample list file (.txt).")
     parser.add_argument("--data-info", type=str, help="data info file (.json)")
+    parser.add_argument("--img-size", type=int, default=384, help="input image size")
     parser.add_argument("--num-src", type=int, default=1, help="number of source images")
     parser.add_argument("--num-notions", type=int, default=1, help="number of notions")
     parser.add_argument("-fg", "--foreground-ratio", type=float, default=0.05)
@@ -179,7 +180,8 @@ def main():
                                mode="train",
                                info_file=args.data_info,
                                fg_ratio=args.foreground_ratio,
-                               filtering_keys=args.data_keywords)
+                               filtering_keys=args.data_keywords,
+                               img_size=args.img_size)
     logger.info(f"# training samples: {len(train_dataset)}")
     sampler, batch_sampler = get_sampler(train_dataset, batch_size=args.batch_size, sampler_name=args.sampler) 
     if batch_sampler is None:

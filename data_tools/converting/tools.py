@@ -147,4 +147,11 @@ if __name__ == "__main__":
     #     "130.75.51.193"
     # )
 
-    list_files("/home/yuan/data/OpenEarthMap/xview2")
+    # list_files("/home/yuan/data/OpenEarthMap/xview2")
+
+    syncronize_to_remote(
+        "/home/yuan/data/syntra/autonomous_driving",
+        "data/syntra/autonomous_driving",
+        "yuang",
+        "130.75.51.199"
+    )

@@ -62,6 +62,7 @@ def setup_parser():
     parser.add_argument("--dataset-name", type=str, default='syntra')
     parser.add_argument("--data-info", type=str, default="pairing_train_100shot_test_intercls.json")
     parser.add_argument("--src-data-info", type=str, default="pairing_train_100shot_train_100shot_intercls.json")
+    parser.add_argument("--img-size", type=int, default=384)
     parser.add_argument("--num-src", type=int, default=1, help="number of source images")
     parser.add_argument("--num-notions", type=int, default=1, help="number of notions")
     parser.add_argument("-fg", "--foreground-ratio", type=float, default=0.1)
@@ -103,7 +104,8 @@ def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_lo
                                fg_ratio=args.foreground_ratio,
                                filtering_keys=args.data_keywords,
                                mode="test",
-                               src_cls=fixed_src_cls,)
+                               src_cls=fixed_src_cls,
+                               img_size=args.img_size,)
     num_samples = len(test_dataset)
 
     logger.info(f"# testing samples: {num_samples}")
@@ -168,15 +170,14 @@ def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_lo
 
 def main():
     args = setup_parser()
-    if args.output_dir is not None:
-        out_dir = args.output_dir
-    elif args.checkpoint is not None:
-        out_dir = os.path.dirname(args.checkpoint)
-    else:
-        out_dir = os.path.join("logs", os.path.splitext(args.config)[0])
     if args.checkpoint is None:
+        assert args.output_dir is not None, "Either checkpoint or output_dir must be provided."
+        out_dir = os.path.join(args.output_dir, args.config.split('.')[0])
         args.checkpoint = os.path.join(out_dir, "model_latest.pth") # set to default checkpoint
         print(f"Set checkpoint to default latest model: {args.checkpoint}")
+    else:
+        out_dir = os.path.dirname(args.checkpoint)
+
     device = torch.device(args.device)
 
     # %% set up model

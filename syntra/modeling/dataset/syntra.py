@@ -11,7 +11,7 @@ import random
 from torchvision.transforms.v2 import functional as F
 from torchvision.transforms import InterpolationMode
 from typing import List
-from syntra.modeling.dataset.trainsform import MapTransformTrain, MapTransformTest
+from .trainsform import MapTransformTrain, MapTransformTest
 
 
 class SynTraDataset(Dataset):

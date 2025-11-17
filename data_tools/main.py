@@ -127,26 +127,42 @@ if __name__ == "__main__":
 
     # convert_cityscapes(
     #     input_path="/home/yuan/data/cityscapes",
-    #     output_path="/home/yuan/data/syntra/autonomous_driving/cityscapes",
+    #     output_path="c",
     #     fg_ratio=0.05,
     # )
 
     # generate_for_one_dataset(
     #     converter_name="SyntraDataConverter",
     #     input_path=None,
-    #     output_path="/home/yuan/data/syntra/hismap/hameln.3921_2017",
+    #     output_path="/home/yuan/data/syntra/autonomous_driving/cityscapes",
     #     fg_ratio=0.05,
     #     tasks=[
-    #         {'task': '_parse_data_info', 'args': {'save': True}},
+    #         {'task': 'pairing_intra_cls', 'args': {'src_info_file': "train_samples.txt", 'tgt_info_file': "val_samples.txt"}},
+    #         {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_100.json", 'tgt_info_file': "val_samples.txt"}},
     #     ]
     # )
 
-    from converting.open_earth_map import OEMonverter, color_map
-    convert_demo(
-        convert_obj=OEMonverter,
-        input_path="/home/yuan/data/OpenEarthMap",
-        output_path="/home/yuan/data/syntra/remote_sensing/oem",
-        color_map=color_map,
-        fg_ratio=0.05,
-        force_cast_img_to_uint8=True
+    # from converting.open_earth_map import OEMonverter, color_map
+    # convert_demo(
+    #     convert_obj=OEMonverter,
+    #     input_path="/home/yuan/data/OpenEarthMap",
+    #     output_path="/home/yuan/data/syntra/remote_sensing/oem",
+    #     color_map=color_map,
+    #     fg_ratio=0.05,
+    #     force_cast_img_to_uint8=True
+    # )
+
+    from converting.cityscapes import color_map
+    from PIL import Image
+    converter = SyntraDataConverter(
+        syntra_data_path="/home/yuan/data/syntra/autonomous_driving/cityscapes",
+        customized_data_path=None,
+        fg_ratio=0.05
     )
+    for lbl_file in os.listdir("/home/yuan/data/syntra/autonomous_driving/cityscapes/lbls"):
+        lbl_file = os.path.join("/home/yuan/data/syntra/autonomous_driving/cityscapes/lbls", lbl_file)
+        lbl = Image.open(lbl_file)
+        lbl.putpalette(converter.palette)
+        lbl.save(lbl_file)
+
+

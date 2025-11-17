@@ -25,7 +25,7 @@ TRAIN:
 
   # train
   num_epochs: 200
-  max_iterations: 100000
+  max_iterations: 400000
   lr: 1e-3
   lr_scheduler: exp
   warmup_iters: 1000
@@ -35,7 +35,7 @@ TRAIN:
 TEST:
   num_notions: 1
   num_src: 7
-  data_info: pairing_train_samples_test_samples_intracls
+  data_info: pairing_train_samples_val_samples_intracls
   data_keywords: cityscapes
   checkpoint: null # will be set to the path ./output_dir/<task_name>/model_latest.pth
   save_result: true
