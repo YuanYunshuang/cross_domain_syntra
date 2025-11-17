@@ -10,7 +10,7 @@ TRAIN:
 
   # model
   model_name: smol
-  dora_rank: 16
+  dora_rank: 32
   backbone: vit_b
   prompt_encoder: example
   mask_decoder: default
