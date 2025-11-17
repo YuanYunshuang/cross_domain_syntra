@@ -84,7 +84,7 @@ class CrossDomainSynTraDataset(Dataset):
                 if os.path.isfile(os.path.join(ds_path, "meta_info.json")):
                     with open(os.path.join(ds_path, "meta_info.json")) as f:
                         self.meta_info[ds] = json.load(f)
-
+        print(f"Datasets loaded for mode {mode}: {self.dataset_full_paths.keys()}")
         self._parse_samples()
 
         self.transform = MapTransformTrain() if 'train' in mode else MapTransformTest()
