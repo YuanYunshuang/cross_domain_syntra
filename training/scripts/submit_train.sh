@@ -35,7 +35,7 @@ echo "Working directory: $PWD"
 echo "Current node: ${SLURM_NODELIST}"
 
 # Run the script:
-apptainer run --bind ${HOME}:${HOME},${DATADIR}:${DATADIR} --nv ${HOME}/syntra.sif \
+apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${HOME}/syntra.sif \
         python -u ${PYTHONPATH}/syntra/train_one_gpu.py \
         --config syntra_medical_n4_full.yaml -d ${PROJECTDIR}/syntra_data/medical \
         -o ${PROJECTDIR}/train_logs --resume ${PROJECTDIR}/logs/syntra_medical_n4_full/model_latest.pth
