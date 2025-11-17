@@ -18,7 +18,7 @@ source /sw/etc/profile/profile.sh
 
 export TMPDIR=$TMPDIR
 export PYTHONPATH=${HOME}/cross_domain_syntra
-export DATADIR=/mnt/vast-kisski/projects/kisski-gauss-zentrum/syntra_data
+export PROJECTDIR=/mnt/vast-kisski/projects/kisski-gauss-zentrum
 echo $PYTHONPATH
 ulimit 65535
 
@@ -36,7 +36,9 @@ echo "Current node: ${SLURM_NODELIST}"
 
 # Run the script:
 apptainer run --bind ${HOME}:${HOME},${DATADIR}:${DATADIR} --nv ${HOME}/syntra.sif \
-        python -u ${PYTHONPATH}/syntra/train_one_gpu.py --config syntra_medical_n4_full.yaml -d ${DATADIR}/medical
+        python -u ${PYTHONPATH}/syntra/train_one_gpu.py \
+        --config syntra_medical_n4_full.yaml -d ${PROJECTDIR}/syntra_data/medical \
+        -o ${PROJECTDIR}/train_logs --resume ${PROJECTDIR}/logs/syntra_medical_n4_full/model_latest.pth
 
 # Run the script:
 # PYTHONPATH=. python -u syntra/train_one_gpu.py --config syntra_cityscapes_n4_slurm.yaml -d ${PROJECT}/dyntra_data/cityscapes

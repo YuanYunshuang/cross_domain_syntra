@@ -96,7 +96,7 @@ def parse_args():
     parser.add_argument("--warmup-itrs", type=int, default=1000, metavar="warmup epochs", help="total number of warmup epochs")
     parser.add_argument("--use-wandb", type=bool, default=False, help="use wandb to monitor training")
     parser.add_argument("--use-amp", action="store_true", default=False, help="use amp")
-    parser.add_argument("--resume", type=str, default="", help="Resuming training from checkpoint")
+    parser.add_argument("--resume", type=str, default=None, help="Resuming training from checkpoint")
     parser.add_argument("--device", type=str, default="cuda:0")
     parser.add_argument("--plot-loss", action="store_true", default=False)
     parser.add_argument("--vis-freq", type=int, default=None, help="visualization frequency (in iterations)")
@@ -116,7 +116,7 @@ def parse_args():
     # Override args with cfg arguments
     for key, value in cfg.items():
         # args that have higher priority in cmd args than cfg to facilitate quick root dir switching
-        arg_list = ['root_dir', 'output_dir']
+        arg_list = ['root_dir', 'output_dir', 'resume']
         if key in arg_list and getattr(args, key) is not None:
             continue
         if hasattr(args, key):
@@ -288,10 +288,10 @@ def main():
             inter_avg_loss += loss.item()
             pbar.update(1)
             pbar.set_postfix({'Epoch/Step': f'{epoch}/{step + 1}', 'ITR': iter_num, 'LR': f'{cur_lr:e}', 'Loss': f'{inter_avg_loss / (step + 1):.6f}'})
-
-            if (step + 1) % 10 == 0:
-                logger.info({'Epoch/Step': f'{epoch}/{step + 1}', 'ITR': iter_num, 'LR': f'{cur_lr:e}', 'Loss': f'{inter_avg_loss / (step + 1):.6f}'})
             iter_num += 1
+            if iter_num % 10 == 0:
+                logger.info({'Epoch/Step': f'{epoch}/{step + 1}', 'ITR': iter_num, 'LR': f'{cur_lr:e}', 'Loss': f'{inter_avg_loss / (step + 1):.6f}'})
+            
 
             if args.vis_freq is not None and iter_num % args.vis_freq == 0:
                 vis_train(img_src, lbl_src, img_tgt, lbl_tgt, mapsam_pred, aux, iter_num)
