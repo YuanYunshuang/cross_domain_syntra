@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=train-nn-gpu
-#SBATCH -t 00:01:00                  # estimated time # TODO: adapt to your needs/ the full training run will take approx. 5 h on an A100
+#SBATCH -t 00:10:00                  # estimated time # TODO: adapt to your needs/ the full training run will take approx. 5 h on an A100
 #SBATCH -p kisski            # the partition you are training on (i.e., which nodes), for nodes see sinfo -o "%25N  %5c  %10m  %32f  %10G %18P " | grep gpu
 #SBATCH -G A100:1                # request one A100 GPU
 #SBATCH --nodes=1
@@ -36,13 +36,14 @@ echo "Home directory: ${HOME}"
 echo "Working directory: $PWD"
 echo "Current node: ${SLURM_NODELIST}"
 
-apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${PROJECTDIR}/syntra.sif df -h /dev/shm
+# apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${PROJECTDIR}/syntra.sif df -h /dev/shm
 
 # Run the script:
-# apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${PROJECTDIR}/syntra.sif \
-#         python -u ${PYTHONPATH}/syntra/train_one_gpu.py \
-#         --config syntra_all.yaml -d ${PROJECTDIR}/syntra_data \
-#         -o ${PROJECTDIR}/logs --resume ${PROJECTDIR}/logs/syntra_all/model_latest.pth
+apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${PROJECTDIR}/syntra.sif \
+        ulimit -f unlimited && \
+        python -u ${PYTHONPATH}/syntra/train_one_gpu.py \
+        --config syntra_all.yaml -d ${PROJECTDIR}/syntra_data \
+        -o ${PROJECTDIR}/logs --resume ${PROJECTDIR}/logs/syntra_all/model_latest.pth
 
 # Run the script:
 # PYTHONPATH=. python -u syntra/train_one_gpu.py --config syntra_cityscapes_n4_slurm.yaml -d ${PROJECT}/dyntra_data/cityscapes
