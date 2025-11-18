@@ -3,8 +3,8 @@ TRAIN:
   task_name: null # will be set to the config file name
   root_dir: /home/yuan/data/syntra
   data_info: pairing_train_samples_train_samples_intracls
-  batch_size: 8
-  num_workers: 8
+  batch_size: 32
+  num_workers: 4
   accum_steps: 4
   # vis_freq: 2000
 

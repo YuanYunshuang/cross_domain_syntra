@@ -121,7 +121,7 @@ def parse_args():
     # Override args with cfg arguments
     for key, value in cfg.items():
         # args that have higher priority in cmd args than cfg to facilitate quick root dir switching
-        arg_list = ['root_dir', 'output_dir', 'resume']
+        arg_list = ['root_dir', 'output_dir', 'resume', 'num_workers', 'device']
         if key in arg_list and getattr(args, key) is not None:
             continue
         if hasattr(args, key):

@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=syntra-all
+#SBATCH --job-name=train-w4
 #SBATCH -t 01:00:00                  # estimated time # TODO: adapt to your needs/ the full training run will take approx. 5 h on an A100
 #SBATCH -p kisski            # the partition you are training on (i.e., which nodes), for nodes see sinfo -o "%25N  %5c  %10m  %32f  %10G %18P " | grep gpu
 #SBATCH -G A100:1                # request one A100 GPU
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=32        # 8 CPU cores
-#SBATCH --mem-per-cpu=8000          # Request 8GB of shared memory per CPU core (total 64GB per node)
+#SBATCH --cpus-per-task=4        # 8 CPU cores
+#SBATCH --mem=128G        # or 128G if available and you want extra safety          
 #SBATCH --mail-type=all              # send mail when job begins and ends
 #SBATCH --output=./slurm_files/slurm-%x-%j.out     # where to write output, %x give job name, %j names job id
 #SBATCH --error=./slurm_files/slurm-%x-%j.err      # where to write slurm error
@@ -42,7 +42,7 @@ echo "Current node: ${SLURM_NODELIST}"
 # Run the script:
 apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${PROJECTDIR}/syntra.sif \
         python -u ${PYTHONPATH}/syntra/train_one_gpu.py \
-        --config syntra_all.yaml -d ${PROJECTDIR}/syntra_data --cache-data \
+        --config syntra_all.yaml -d ${PROJECTDIR}/syntra_data --cache-data -nw 4 \
         -o ${PROJECTDIR}/logs --resume ${PROJECTDIR}/logs/syntra_all/model_latest.pth
 
 # Run the script:
