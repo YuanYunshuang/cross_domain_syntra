@@ -39,11 +39,11 @@ echo "Current node: ${SLURM_NODELIST}"
 # apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${PROJECTDIR}/syntra.sif df -h /dev/shm
 
 # Run the script:
-apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${PROJECTDIR}/syntra.sif \
-        ulimit -f unlimited && \
+apptainer exec --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${PROJECTDIR}/syntra.sif \
+        bash -lc "ulimit -f unlimited; \
         python -u ${PYTHONPATH}/syntra/train_one_gpu.py \
         --config syntra_all.yaml -d ${PROJECTDIR}/syntra_data \
-        -o ${PROJECTDIR}/logs --resume ${PROJECTDIR}/logs/syntra_all/model_latest.pth
+        -o ${PROJECTDIR}/logs --resume ${PROJECTDIR}/logs/syntra_all/model_latest.pth"
 
 # Run the script:
 # PYTHONPATH=. python -u syntra/train_one_gpu.py --config syntra_cityscapes_n4_slurm.yaml -d ${PROJECT}/dyntra_data/cityscapes
