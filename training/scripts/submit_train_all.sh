@@ -42,7 +42,7 @@ echo "Current node: ${SLURM_NODELIST}"
 # Run the script:
 apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${PROJECTDIR}/syntra.sif \
         python -u ${PYTHONPATH}/syntra/train_one_gpu.py \
-        --config syntra_all.yaml -d ${PROJECTDIR}/syntra_data \
+        --config syntra_all.yaml -d ${PROJECTDIR}/syntra_data --cache-data \
         -o ${PROJECTDIR}/logs --resume ${PROJECTDIR}/logs/syntra_all/model_latest.pth
 
 # Run the script:

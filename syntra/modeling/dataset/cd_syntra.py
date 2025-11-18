@@ -27,6 +27,7 @@ class CrossDomainSynTraDataset(Dataset):
                  fg_ratio : float | Dict[str, float] = 0.05,
                  pos_prob : float = 0.9, 
                  filtering_keys : str = None, 
+                 cache_data: bool = False,
                  **kwargs):
         """
         Initializes an instance of the class with dataset information, loads file lists,
@@ -47,6 +48,7 @@ class CrossDomainSynTraDataset(Dataset):
             Probability of selecting a class that is present in both source and target images. Default is 0.75.
         filtering_keys: str, optional
             Comma-separated keys to filter the sub-datasets that contain the given keys. Default is None to select all.
+        cache_data: bool, optional
         """
         self.data_root = data_root
         self.num_notions = num_notions
@@ -55,6 +57,7 @@ class CrossDomainSynTraDataset(Dataset):
         self.fg_ratio = {}
         self.pos_prob = pos_prob
         self.img_size = img_size
+        self.cache_data = cache_data
 
         # load samples
         self.src_pool = {}
@@ -110,6 +113,23 @@ class CrossDomainSynTraDataset(Dataset):
         assert len(self.file_list) > 0, f"No samples found in info files {info_file_dict} for mode {mode} with filtering keys {self.filtering_keys}."
         print(f"Number of {mode} samples: {len(self.file_list)}")
         print(f"Number of non-repetative {mode} images: {len(set([x.split('/')[1] for x in self.file_list]))}")
+
+        if cache_data:
+            self.load_all_data_to_cache()
+    
+    def load_all_data_to_cache(self):
+        print("Caching all data into memory...")
+        self.cache = {}
+        files_to_load = set()
+        for f in self.file_list:
+            cls_name, tgt_full_name = f.split("/")
+            src_full_names = self.src_pool[cls_name][tgt_full_name]['src_samples']
+            files_to_load.add(tgt_full_name)
+            files_to_load.update(set(src_full_names))
+        for full_name in files_to_load:
+            self.cache[full_name] = self._load_image_label(full_name)
+
+        print(f"Cached {len(self.cache)} images.")
     
     def _parse_samples(self):
         self.file_list = []
@@ -150,6 +170,8 @@ class CrossDomainSynTraDataset(Dataset):
         return src_full_names
     
     def _load_image_label(self, full_name):
+        if self.cache_data and full_name in self.cache:
+            return self.cache[full_name]
         ds, img_name = full_name.rsplit(".", 1)
         meta = self.meta_info.get(ds, None)
         img_ext = meta.get("image_format", "png") if meta is not None else "png"
@@ -167,6 +189,9 @@ class CrossDomainSynTraDataset(Dataset):
             img = img[..., np.newaxis].repeat(3, axis=-1)
         
         lbl = Image.open(lbl_path)
+
+        if self.cache_data:
+            self.cache[full_name] = (img, lbl)
         return img, lbl
     
     def _select_notions(self, cls_full_name, dataset, src_full_names):

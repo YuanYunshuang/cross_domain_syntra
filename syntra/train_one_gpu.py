@@ -94,6 +94,7 @@ def parse_args():
     parser.add_argument("-nw", "--num-workers", type=int, default=4)
     parser.add_argument("-a", "--accum-steps", type=int, default=4)
     parser.add_argument("--freeze-prompt-encoder", action="store_true", default=False, help="Train prompt encoder parameters")
+    parser.add_argument("--cache-data", action="store_true", default=False, help="cache dataset into memory")
     # Optimizer parameters
     parser.add_argument("--weight-decay", type=float, default=0.01, help="weight decay (default: 0.01)")
     parser.add_argument("--lr", type=float, default=1e-3, metavar="LR", help="learning rate (absolute lr)")
@@ -184,7 +185,8 @@ def main():
                                info_file=args.data_info,
                                fg_ratio=args.foreground_ratio,
                                filtering_keys=args.data_keywords,
-                               img_size=args.img_size)
+                               img_size=args.img_size,
+                               cache_data=args.cache_data)
     logger.info(f"# training samples: {len(train_dataset)}")
     sampler, batch_sampler = get_sampler(train_dataset, batch_size=args.batch_size, sampler_name=args.sampler) 
     if batch_sampler is None:
@@ -293,10 +295,10 @@ def main():
                     optimizer.zero_grad()
 
             inter_avg_loss += loss.item()
-            pbar.update(1)
-            pbar.set_postfix({'Epoch/Step': f'{epoch}/{step + 1}', 'ITR': iter_num, 'LR': f'{cur_lr:e}', 'Loss': f'{inter_avg_loss / (step + 1):.6f}'})
             iter_num += 1
             if iter_num % 10 == 0:
+                pbar.update(10)
+                pbar.set_postfix({'Epoch/Step': f'{epoch}/{step + 1}', 'ITR': iter_num, 'LR': f'{cur_lr:e}', 'Loss': f'{inter_avg_loss / (step + 1):.6f}'})
                 logger.info({'Epoch/Step': f'{epoch}/{step + 1}', 'ITR': iter_num, 'LR': f'{cur_lr:e}', 'Loss': f'{inter_avg_loss / (step + 1):.6f}'})
             
 
