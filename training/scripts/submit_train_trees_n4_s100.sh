@@ -37,7 +37,7 @@ echo "Working directory: $PWD"
 echo "Current node: ${SLURM_NODELIST}"
 
 # Run the script:
-apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --memory 128G --nv ${PROJECTDIR}/syntra.sif \
+apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${PROJECTDIR}/syntra.sif \
         python -u ${PYTHONPATH}/syntra/train_one_gpu.py \
         --config syntra_trees_n4_s100.yaml -d ${PROJECTDIR}/syntra_data \
         -o ${PROJECTDIR}/logs --resume ${PROJECTDIR}/logs/syntra_trees_n4_s100/model_latest.pth
