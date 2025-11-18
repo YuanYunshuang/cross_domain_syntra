@@ -36,7 +36,7 @@ echo "Home directory: ${HOME}"
 echo "Working directory: $PWD"
 echo "Current node: ${SLURM_NODELIST}"
 
-apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} -nv ${PROJECTDIR}/syntra.sif df -h /dev/shm
+apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${PROJECTDIR}/syntra.sif df -h /dev/shm
 
 # Run the script:
 # apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${PROJECTDIR}/syntra.sif \
