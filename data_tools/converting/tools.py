@@ -111,16 +111,29 @@ def sync_to_kisski(local_path, remote_path, uid, remote_host_shortcut, is_code_r
         subprocess.run(f"rsync -av --progress -e ssh {local_path}/ {uid}@{remote_host_shortcut}:{remote_path}/", shell=True, check=True)
 
 
+def sync_from_kisski(local_path, remote_path, uid, remote_host_shortcut):
+    assert remote_host_shortcut in ["Emmy", "Emmy-p2", "Emmy-p3", "KISSKI"], "Unknown remote host."
+    assert uid.startswith("u"), "User ID should start with 'u'"
+    subprocess.run(f"rsync -av --progress -e ssh {uid}@{remote_host_shortcut}:{remote_path}/ {local_path}/", shell=True, check=True)
+
+
 
 if __name__ == "__main__":
 
     sync_to_kisski(
-        local_path="/home/yuan/data/syntra",
-        remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/syntra_data",
+        local_path="/home/yuan/data/syntra/forest_monitoring",
+        remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/syntra_data/forest_monitoring",
         uid="u23994",
         remote_host_shortcut="KISSKI",
         is_code_repo=False
     )
+
+    # sync_from_kisski(
+    #     local_path="logs/syntra_medical_n4_full",
+    #     remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/logs/syntra_medical_n4_full",
+    #     uid="u23994",
+    #     remote_host_shortcut="KISSKI"
+    # )
 
     # syncronize_two_folders(
     #     "/home/yuan/data/syntra/hismap",

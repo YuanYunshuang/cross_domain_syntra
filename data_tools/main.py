@@ -189,26 +189,26 @@ if __name__ == "__main__":
     #     fg_ratio=0.05,
     # )
 
-    generate_for_one_dataset(
-        converter_name="SyntraDataConverter",
-        input_path=None,
-        output_path="/home/yuan/data/syntra/remote_sensing/oem",
-        fg_ratio=0.05,
-        tasks=[
-            {'task': 'pairing_intra_cls', 'args': {'src_info_file': "train_samples.txt", 'tgt_info_file': "val_samples.txt"}},
-            {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_100.json", 'tgt_info_file': "val_samples.txt"}},
-        ]
-    )
-
-    # from converting.open_earth_map import OEMonverter, color_map
-    # convert_demo(
-    #     convert_obj=OEMonverter,
-    #     input_path="/home/yuan/data/OpenEarthMap",
+    # generate_for_one_dataset(
+    #     converter_name="SyntraDataConverter",
+    #     input_path=None,
     #     output_path="/home/yuan/data/syntra/remote_sensing/oem",
-    #     color_map=color_map,
     #     fg_ratio=0.05,
-    #     force_cast_img_to_uint8=True
+    #     tasks=[
+    #         {'task': 'pairing_intra_cls', 'args': {'src_info_file': "train_samples.txt", 'tgt_info_file': "val_samples.txt"}},
+    #         {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_100.json", 'tgt_info_file': "val_samples.txt"}},
+    #     ]
     # )
+
+    from converting.forest_monitoring_trees import ForestMonitoringTreesConverter, color_map
+    convert_demo(
+        convert_obj=ForestMonitoringTreesConverter,
+        input_path="/home/yuan/data/forest_monitoring/tree_data",
+        output_path="/home/yuan/data/syntra/forest_monitoring/trees_september",
+        color_map=color_map,
+        fg_ratio=0.05,
+        # force_cast_img_to_uint8=True
+    )
 
 
 

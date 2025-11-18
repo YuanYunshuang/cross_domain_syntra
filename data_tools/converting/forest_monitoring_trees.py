@@ -20,70 +20,79 @@ color_map = {
   "LALA": [236, 57, 174],
   "Mort": [123, 123, 123],
   "Picea": [21, 96, 150],
+  "PIST": [50, 150, 50],
+  "Populus": [255, 255, 0],
+  "THOC": [210, 105, 30],
+  "TSCA": [128, 0, 128],
 }
 
 
 
+
 class ForestMonitoringTreesConverter(SyntraDataConverter):
-    def __init__(self, syntra_data_path, customized_data_path=None, fg_ratio=0.05):
-        if customized_data_path is None:
-            super().__init__(syntra_data_path, fg_ratio=fg_ratio)
-        else:
-            cls_names = list(color_map.keys())
-            cls_colors = [color_map[cls_name] for cls_name in cls_names]
-            super().__init__(syntra_data_path, 
-                            cls_names=cls_names, 
-                            cls_colors=cls_colors,
-                            customized_data_path=customized_data_path, 
-                            fg_ratio=fg_ratio)
+    def __init__(self, syntra_data_path, customized_data_path, color_map, fg_ratio=0.05, img_size=384, month='september', **kwargs):
+        """
+        Note: This dataset is downloaded from https://zenodo.org/records/13126114. The label has hierachical structure, 
+        but we only use the species-level (the first channel of the label images) labels for conversion. Besides, we only
+        use the data from september for segmentation.
+
+        Data structure in customized_data_path:
+        ├── classes_onlymyriam_augmented.json
+        ├── image_time_series_data
+        ├── slurm-5085538.out
+        ├── test
+        ├── test_768.csv
+        ├── train
+        ├── train_768.csv
+        ├── treemonitoring_classes_weights.npy
+        └── val_768.csv
+        """
+        # use the scene flow data folder as input
+        super().__init__(syntra_data_path, 
+                        color_map=color_map, 
+                        customized_data_path=customized_data_path, 
+                        fg_ratio=fg_ratio,
+                        syntra_img_size=img_size,
+                        **kwargs)
+        self.month = month
 
 
-    def convert(self, ):
-        self._prepare_convertion()
-        input_dir = self.customized_data_path
-        output_dir = self.syntra_data_path
+    def _parse_split_img_lbl(self, split):
+        assert split in ['train', 'val', 'test'], f"Invalid split name: {split}. Must be one of 'train', 'val', or 'test'."
 
-        data_info = {}
-        cls_id_to_name = {i+1: name for i, name in enumerate(color_map.keys())}
+        with open(os.path.join(self.customized_data_path, f"{split}_768.csv"), 'r') as f:
+            lines = f.readlines()
 
-        for split in ['train', 'test']:
-            cur_samples = []
-            input_split_dir = os.path.join(input_dir, split)
-            img_files = glob(os.path.join(input_split_dir, "images", "*/*.png"))
+        samples = []
+        for line in lines[1:]:
+            items = line.strip().split(',')
+            for item in items[:-1]:
+                if self.month in item:
+                    img_file = os.path.join(self.customized_data_path, item)
+                    lbl_file = os.path.join(self.customized_data_path, items[-1])
+                    if os.path.exists(img_file) and os.path.exists(lbl_file):
+                        samples.append((img_file, lbl_file))
+                    else:
+                        print(f"Warning: Missing img or lbl file for {img_file} and {lbl_file}, Skipping.")
 
-            for img_file in img_files:
-                print(img_file)
-                base_name = os.path.basename(img_file)
-                zone = img_file.split('/')[-2]
-                label_file = img_file.replace("images", "labels_merged")
-
-                if not os.path.exists(label_file):
-                    continue
-
-                img = Image.open(img_file).convert("RGB")
-                lbl = np.array(Image.open(label_file))
-                lbl = self._convert_annotation(lbl)
-
-                s = self.syntra_img_size
-                for x in range(img.width // s):
-                    for y in range(img.height // s):
-                        img_crop = img.crop((x * s, y * s, (x + 1) * s, (y + 1) * s))
-                        lbl_crop = lbl.crop((x * s, y * s, (x + 1) * s, (y + 1) * s))
-                        crop_name = f"{base_name.replace('.png', '')}_{zone}_{x}_{y}"
-                        img_crop.save(os.path.join(output_dir, 'imgs', crop_name + '.png'))
-                        lbl_crop.save(os.path.join(output_dir, 'lbls', crop_name + '.png'))
-                        cur_samples.append(f"forest_monitoring.trees.{crop_name}")
-
-                        # generate data info
-                        lbl_array = np.array(lbl_crop)
-                        total_pixels = lbl_array.size
-                        class_ratios = {}
-                        for cls_id, cls_name in cls_id_to_name.items():
-                            class_pixels = np.sum(lbl_array == cls_id)
-                            class_ratios[cls_name] = class_pixels / total_pixels
-                        data_info[f"forest_monitoring.trees.{crop_name}"] = class_ratios
-            self.save_samples(cur_samples, split)
-        self.save_data_info(data_info)
+        
+        return samples
+    
+    def _load_original_lbl(self, lbl_file):
+        """Load png or tif image file."""
+        assert os.path.isfile(lbl_file), f"Label file '{lbl_file}' not found."
+        lbl = Image.open(lbl_file)
+        lbl = np.array(lbl, dtype=np.uint8)[..., 0]  # use only the first channel
+        lbl = Image.fromarray(lbl)
+        return lbl
+    
+    def _parse_base_name(self, img_file):
+        base_name = os.path.basename(img_file).replace('.png', '')
+        zone = img_file.split(os.sep)[-2]
+        return f"{zone}_{base_name}"
+    
+    def _get_id_map(self):
+        return {i:i for i in range(1, len(self.color_map)+1)}
 
 
 
