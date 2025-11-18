@@ -203,6 +203,8 @@ def main():
             batch_sampler=batch_sampler,
             num_workers=args.num_workers,
             pin_memory=True,
+            persistent_workers=True,         # avoids respawning workers each epoch
+            prefetch_factor=2,               # default is 2; lower if you get shm issues
             collate_fn=train_dataset.collate_fn,
         )
 
