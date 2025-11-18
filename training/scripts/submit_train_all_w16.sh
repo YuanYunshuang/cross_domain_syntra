@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=train-w4
+#SBATCH --job-name=train-w16
 #SBATCH -t 01:00:00                  # estimated time # TODO: adapt to your needs/ the full training run will take approx. 5 h on an A100
 #SBATCH -p kisski            # the partition you are training on (i.e., which nodes), for nodes see sinfo -o "%25N  %5c  %10m  %32f  %10G %18P " | grep gpu
 #SBATCH -G A100:1                # request one A100 GPU
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4        # 8 CPU cores
+#SBATCH --cpus-per-task=16        # 8 CPU cores
 #SBATCH --mem=128G        # or 128G if available and you want extra safety          
 #SBATCH --mail-type=all              # send mail when job begins and ends
 #SBATCH --output=./slurm_files/slurm-%x-%j.out     # where to write output, %x give job name, %j names job id
