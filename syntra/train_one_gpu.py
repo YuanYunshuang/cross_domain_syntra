@@ -33,8 +33,8 @@ from syntra.utils.sampler import get_sampler
 from syntra.utils.debug_utils import *
 from hydra.core.global_hydra import GlobalHydra
 
-import torch.multiprocessing as mp
-mp.set_sharing_strategy("file_system")
+# import torch.multiprocessing as mp
+# mp.set_sharing_strategy("file_system")
 
 
 # torch.distributed.init_process_group(backend="gloo")
@@ -203,8 +203,8 @@ def main():
             batch_sampler=batch_sampler,
             num_workers=args.num_workers,
             pin_memory=True,
-            persistent_workers=True,         # avoids respawning workers each epoch
-            prefetch_factor=2,               # default is 2; lower if you get shm issues
+            # persistent_workers=True,         # avoids respawning workers each epoch
+            # prefetch_factor=2,               # default is 2; lower if you get shm issues
             collate_fn=train_dataset.collate_fn,
         )
 
