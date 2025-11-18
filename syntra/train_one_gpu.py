@@ -33,6 +33,9 @@ from syntra.utils.sampler import get_sampler
 from syntra.utils.debug_utils import *
 from hydra.core.global_hydra import GlobalHydra
 
+import torch.multiprocessing as mp
+mp.set_sharing_strategy("file_system")
+
 
 # torch.distributed.init_process_group(backend="gloo")
 
