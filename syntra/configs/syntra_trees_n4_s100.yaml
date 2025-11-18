@@ -4,7 +4,7 @@ TRAIN:
   root_dir: /koko/datasets/syntra/forest_monitoring
   data_info: pairing_cls_selection_100_cls_selection_100_intracls
   batch_size: 32
-  num_workers: 16
+  num_workers: 8
   accum_steps: 1
   # vis_freq: 2000
 

@@ -5,7 +5,7 @@
 #SBATCH -G A100:1                # request one A100 GPU
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16         # 32 CPU cores
+#SBATCH --cpus-per-task=8         # 32 CPU cores
 #SBATCH --mem-per-cpu=8000          # Request 8GB of shared memory per CPU core 
 #SBATCH --mail-type=all              # send mail when job begins and ends
 #SBATCH --output=./slurm_files/slurm-%x-%j.out     # where to write output, %x give job name, %j names job id
