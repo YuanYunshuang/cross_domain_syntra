@@ -22,7 +22,8 @@ export TMPDIR=$TMPDIR
 export PYTHONPATH=${HOME}/cross_domain_syntra
 export PROJECTDIR=/mnt/vast-kisski/projects/kisski-gauss-zentrum
 echo $PYTHONPATH
-ulimit 65535
+# ulimit 65535
+ulimit -f unlimited
 
 
 module load apptainer
