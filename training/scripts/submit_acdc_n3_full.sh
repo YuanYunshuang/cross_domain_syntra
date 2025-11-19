@@ -5,7 +5,7 @@
 #SBATCH -G A100:1                # request one A100 GPU
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8         # 8 CPU cores
+#SBATCH --cpus-per-task=32         # 8 CPU cores
 #SBATCH --mem-per-cpu=8000          # Request 8GB of shared memory per CPU core (total 64GB per node)
 #SBATCH --mail-type=all              # send mail when job begins and ends
 #SBATCH --output=./slurm_files/slurm-%x-%j.out     # where to write output, %x give job name, %j names job id
@@ -41,7 +41,7 @@ echo "Current node: ${SLURM_NODELIST}"
 apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${PROJECTDIR}/syntra.sif \
         python -u ${PYTHONPATH}/syntra/train_one_gpu.py \
         --config syntra_acdc_n3_full.yaml -d ${PROJECTDIR}/syntra_data \
-        --batch-size 32  --accum-steps 1 --num-workers 8 \
+        --batch-size 32  --accum-steps 1 --num-workers 32 \
         -o ${PROJECTDIR}/logs --cache-data 
 
 # Run the script:
