@@ -42,8 +42,9 @@ class SemSegModelBase(nn.Module):
             full_state_dict[key] = value
         self.load_state_dict(full_state_dict)
 
-    def forward(self, img_src, lbl_src, img_tgt):
+    def forward(self, img_src, lbl_src, img_tgt, aux=None):
         raise NotImplementedError
+    
 
     def postprocess_masks(
         self,

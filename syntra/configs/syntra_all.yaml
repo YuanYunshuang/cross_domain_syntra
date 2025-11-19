@@ -26,6 +26,13 @@ TRAIN:
     geology: 0.01
     forest_monitoring: 0.05
     autonomous_driving: 0.05
+  transform:
+    - name: ToTensor
+    - name: Normalize
+      args:
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+
   
   sampler: group_fixed_m1 # grouped_prob | uniform | prob
   data_keywords: null

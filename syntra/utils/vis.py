@@ -91,7 +91,7 @@ def save_results(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta, re
         midbar = np.zeros_like(img_tgt[0, :, :10]) + 128
         row1, row2 = [], []
         for t in range(T):
-            if 'chaos' in names[i]:
+            if 'chaos' or 'acdc' in names[i]:
                 # convert to gray medical image
                 img_src[i, t] = rgb_img_to_gray_med_img(img_src[i, t])
             row1.append(img_src[i, t])

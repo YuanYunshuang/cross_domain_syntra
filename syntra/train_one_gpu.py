@@ -24,6 +24,7 @@ from hydra import compose, initialize_config_module
 
 
 from syntra.modeling.dataset import get_dataset
+from syntra.modeling.dataset.trainsform import TransformCompose
 from syntra.modeling.losses import get_loss_fn
 from syntra.utils.vis import vis_train
 from syntra.modeling.validator import Validator
@@ -32,6 +33,7 @@ from syntra.utils.train_utils import adjust_learning_rate_cosine, adjust_learnin
 from syntra.utils.sampler import get_sampler
 from syntra.utils.debug_utils import *
 from hydra.core.global_hydra import GlobalHydra
+from omegaconf import open_dict
 
 # import torch.multiprocessing as mp
 # mp.set_sharing_strategy("file_system")
@@ -66,50 +68,45 @@ def parse_args():
     
     parser.add_argument("--config", type=str, required=True, help="path to config file")
     # common parameters
-    parser.add_argument("-t", "--task-name", type=str, default=None, help="task name")
-    parser.add_argument("-w", "--checkpoint", type=str, default=f"{cur_path}/../model_zoo/sam/sam_vit_b_01ec64.pth")
-    parser.add_argument("-o", "--output-dir", type=str, default=f"{cur_path}/logs")
+    parser.add_argument("-t", "--task-name", type=str, help="task name")
+    parser.add_argument("-w", "--checkpoint", type=str, help="path to checkpoint")
+    parser.add_argument("-o", "--output-dir", type=str, help="path to output directory")
     # model
-    parser.add_argument("-r", "--dora-rank", type=int, default=16)
-    parser.add_argument("-mn", "--model-name", type=str, default="smol", help="model name: unet or syntra")
-    parser.add_argument("--backbone", type=str, default="vit_b", help="backbone type: vit_h, vit_l, vit_b, hiera_t, hiera_s, hiera_l, hiera_bp")
-    parser.add_argument("--prompt-encoder", type=str, default="example", help="prompt encoder type: example, notion")
-    parser.add_argument("--mask-decoder", type=str, default="default", help="mask decoder type: default, highres")
+    parser.add_argument("-r", "--dora-rank", type=int, help="dora rank")
+    parser.add_argument("-mn", "--model-name", type=str, help="model name: smol or syntra")
+    parser.add_argument("--backbone", type=str, help="backbone type: vit_h, vit_l, vit_b, hiera_t, hiera_s, hiera_l, hiera_bp")
+    parser.add_argument("--prompt-encoder", type=str, help="prompt encoder type: example, notion")
+    parser.add_argument("--mask-decoder", type=str, help="mask decoder type: default, highres")
     # dataset
-    parser.add_argument("-d", "--root-dir", type=str, default=None, help="path to training datasets")
-    parser.add_argument("--dataset-name", type=str, default="syntra", help="dataset name: smol or syntra")
-    parser.add_argument("--data-mode", type=str, default="nshot100", help="sample list file (.txt).")
+    parser.add_argument("-d", "--root-dir", type=str, help="path to training datasets")
+    parser.add_argument("--dataset-name", type=str, help="dataset name: smol or syntra")
+    parser.add_argument("--data-mode", type=str, help="sample list file (.txt).")
     parser.add_argument("--data-info", type=str, help="data info file (.json)")
-    parser.add_argument("--img-size", type=int, default=384, help="input image size")
-    parser.add_argument("--num-src", type=int, default=1, help="number of source images")
-    parser.add_argument("--num-notions", type=int, default=1, help="number of notions")
-    parser.add_argument("-fg", "--foreground-ratio", type=float, default=0.05)
-    parser.add_argument("-val", "--validation-data", type=str, default=None)
-    parser.add_argument("--sampler", type=str, default="uniform", help="sampler type: uniform or prob")
-    parser.add_argument("-dkw", "--data-keywords", type=str, default=None, help='dataset key words for filtering, e.g., railway, vineyard, bayern, hameln')
+    parser.add_argument("--img-size", type=int, help="input image size")
+    parser.add_argument("--num-src", type=int, help="number of source images")
+    parser.add_argument("--num-notions", type=int, help="number of notions")
+    parser.add_argument("-fg", "--foreground-ratio", type=float, help="foreground ratio in a training patch")
+    parser.add_argument("-val", "--validation-data", type=str, help="path to validation dataset")
+    parser.add_argument("--sampler", type=str, help="sampler name: random, weighted_random, sequential")
+    parser.add_argument("-dkw", "--data-keywords", type=str, help='dataset key words for filtering, e.g., railway, vineyard, bayern, hameln')
     # train
-    parser.add_argument("-e", "--num-epochs", type=int, default=200)
-    parser.add_argument("-itr", "--max-iterations", type=int, default=100000)
-    parser.add_argument("-bs", "--batch-size", type=int, default=16)
-    parser.add_argument("-nw", "--num-workers", type=int, default=4)
-    parser.add_argument("-a", "--accum-steps", type=int, default=4)
-    parser.add_argument("--freeze-prompt-encoder", action="store_true", default=False, help="Train prompt encoder parameters")
-    parser.add_argument("--cache-data", action="store_true", default=False, help="cache dataset into memory")
+    parser.add_argument("-e", "--num-epochs", type=int, help="number of training epochs")
+    parser.add_argument("-itr", "--max-iterations", type=int, help="maximum training iterations")
+    parser.add_argument("-bs", "--batch-size", type=int, help="batch size")
+    parser.add_argument("-nw", "--num-workers", type=int, help="number of data loading workers")
+    parser.add_argument("-a", "--accum-steps", type=int, help="gradient accumulation steps", default=1)
+    parser.add_argument("--cache-data", action="store_true", help="cache dataset into memory")
     # Optimizer parameters
-    parser.add_argument("--weight-decay", type=float, default=0.01, help="weight decay (default: 0.01)")
-    parser.add_argument("--lr", type=float, default=1e-3, metavar="LR", help="learning rate (absolute lr)")
-    parser.add_argument("--warmup-itrs", type=int, default=1000, metavar="warmup epochs", help="total number of warmup epochs")
-    parser.add_argument("--use-wandb", type=bool, default=False, help="use wandb to monitor training")
-    parser.add_argument("--use-amp", action="store_true", default=False, help="use amp")
-    parser.add_argument("--resume", type=str, default=None, help="Resuming training from checkpoint")
-    parser.add_argument("--device", type=str, default="cuda:0")
-    parser.add_argument("--plot-loss", action="store_true", default=False)
-    parser.add_argument("--vis-freq", type=int, default=None, help="visualization frequency (in iterations)")
+    parser.add_argument("--weight-decay", type=float, help="weight decay for optimizer")
+    parser.add_argument("--lr", type=float, metavar="LR", help="learning rate (absolute lr)")
+    parser.add_argument("--warmup-itrs", type=int, metavar="warmup epochs", help="total number of warmup epochs")
+    parser.add_argument("--use-amp", action="store_true", help="use amp")
+    parser.add_argument("--resume", type=str, help="Resuming training from checkpoint")
+    parser.add_argument("--vis-freq", type=int, help="visualization frequency (in iterations)")
     # parser.add_argument("--train-patch-emb", action="store_true", default=False, help="Train patch embedding parameters")
-    parser.add_argument("--lr-scheduler", type=str, default="exp", help="learning rate scheduler: cosine, exp or none")
-    parser.add_argument("--from-scratch", action="store_true", default=False)
-    parser.add_argument("--disable-runid", action="store_true", default=False)
-    parser.add_argument("--save-dora-only", type=bool, default=True)
+    parser.add_argument("--lr-scheduler", type=str, help="learning rate scheduler: cosine, exp or none")
+    parser.add_argument("--from-scratch", action="store_true", help="train from scratch")
+    parser.add_argument("--disable-runid", action="store_true", help="disable run id in output folder name")
     args = parser.parse_args()
 
     # print all available hydra config files
@@ -118,16 +115,13 @@ def parse_args():
     
     cfg = compose(config_name=args.config)['TRAIN']
 
-    # Override args with cfg arguments
-    for key, value in cfg.items():
-        # args that have higher priority in cmd args than cfg to facilitate quick root dir switching
-        arg_list = ['root_dir', 'output_dir', 'resume', 'num_workers', 'device']
-        if key in arg_list and getattr(args, key) is not None:
-            continue
-        if hasattr(args, key):
-            setattr(args, key, value)
+    # Override cfg arguments with args if provided
+    with open_dict(cfg):
+        for key, value in vars(args).items():
+            if value is not None:
+                setattr(cfg, key, value)
     
-    return args
+    return cfg
 
 
 
@@ -141,7 +135,7 @@ def main():
         model_save_path = join(args.output_dir, args.task_name)
     else:
         model_save_path = join(args.output_dir, args.task_name + "-" + run_id)
-    device = torch.device(args.device)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # %% set up model
     os.makedirs(model_save_path, exist_ok=True)
     shutil.copyfile(
@@ -154,7 +148,7 @@ def main():
         args.checkpoint = None
         args.warmup_epochs = 1
 
-    model = build_segmentation_model(**vars(args)).to(device)
+    model = build_segmentation_model(**args).to(device)
     model.train()
 
     logger.info(">>>>>>>>>>>>>>>>>>CONFIGS<<<<<<<<<<<<<<<<")
@@ -164,19 +158,15 @@ def main():
                 f"{sum(p.numel() for p in model.parameters()) / 1024**2:.2f} M")  
     logger.info(f"# trainable parameters: "
                 f"{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1024**2:.2f} M")  
-    if args.freeze_prompt_encoder:
-        opt_params = list(model.image_encoder.parameters()) + list(
-            model.mask_decoder.parameters()
-        )
-    else:
-        opt_params = model.parameters()
     optimizer = torch.optim.AdamW(
-        opt_params, lr=args.lr, weight_decay=args.weight_decay
+        model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
 
     loss_fn = get_loss_fn("SAMLoss")
 
     # dataset
+    uni_transform = TransformCompose(args.uni_transform) if getattr(args, 'uni_transform', None) is not None else None
+    aug_transform = TransformCompose(args.aug_transform) if getattr(args, 'aug_transform', None) is not None else None
     train_dataset = get_dataset(args.dataset_name,
                                data_root=args.root_dir,
                                num_src=args.num_src,
@@ -186,7 +176,9 @@ def main():
                                fg_ratio=args.foreground_ratio,
                                filtering_keys=args.data_keywords,
                                img_size=args.img_size,
-                               cache_data=args.cache_data)
+                               cache_data=args.cache_data,
+                               uni_transform=uni_transform,
+                               aug_transform=aug_transform)
     logger.info(f"# training samples: {len(train_dataset)}")
     sampler, batch_sampler = get_sampler(train_dataset, batch_size=args.batch_size, sampler_name=args.sampler) 
     if batch_sampler is None:
@@ -205,8 +197,8 @@ def main():
             batch_sampler=batch_sampler,
             num_workers=args.num_workers,
             pin_memory=True,
-            # persistent_workers=True,         # avoids respawning workers each epoch
-            # prefetch_factor=2,               # default is 2; lower if you get shm issues
+            persistent_workers=True,         # avoids respawning workers each epoch
+            prefetch_factor=2,               # default is 2; lower if you get shm issues
             collate_fn=train_dataset.collate_fn,
         )
 
@@ -274,11 +266,15 @@ def main():
             # optimizer.zero_grad()
             img_src, lbl_src, img_tgt, lbl_tgt = [d.to(device) for d in data[:4]]
             aux = data[4] if len(data) > 4 else None
+            # Prepare training data on GPU if needed
+            if hasattr(train_dataset, 'prepare_inputs'):
+                img_src, lbl_src, img_tgt, lbl_tgt, aux = train_dataset.prepare_inputs(
+                    img_src, lbl_src, img_tgt, lbl_tgt, aux)
             if args.use_amp:
                 ## AMP
                 with torch.autocast(device_type="cuda", dtype=torch.float16):
-                    mapsam_pred = model(img_src, lbl_src, img_tgt)
-                    loss = loss_fn(mapsam_pred, lbl_tgt **{'aux': aux}) / args.accum_steps
+                    pred = model(img_src, lbl_src, img_tgt, aux)
+                    loss = loss_fn(pred, lbl_tgt **{'aux': aux}) / args.accum_steps
                     # loss = ce_loss(mapsam_pred, lbl_tgt.float())
                 scaler.scale(loss).backward()
                 if iter_num % args.accum_steps == 0:
@@ -286,8 +282,8 @@ def main():
                     scaler.update()
                     optimizer.zero_grad()
             else:
-                mapsam_pred = model(img_src, lbl_src, img_tgt)
-                loss = loss_fn(mapsam_pred, lbl_tgt, **{'aux': aux}) / args.accum_steps
+                pred = model(img_src, lbl_src, img_tgt, aux)
+                loss = loss_fn(pred, lbl_tgt, **{'aux': aux}) / args.accum_steps
                 # loss = ce_loss(mapsam_pred, lbl_tgt.float().unsqueeze(1))
                 loss.backward()
                 if iter_num % args.accum_steps == 0:
@@ -298,12 +294,12 @@ def main():
             iter_num += 1
             if iter_num % 10 == 0:
                 pbar.update(10)
-                pbar.set_postfix({'Epoch/Step': f'{epoch}/{step + 1}', 'ITR': iter_num, 'LR': f'{cur_lr:e}', 'Loss': f'{inter_avg_loss / (step + 1):.6f}'})
-                logger.info({'Epoch/Step': f'{epoch}/{step + 1}', 'ITR': iter_num, 'LR': f'{cur_lr:e}', 'Loss': f'{inter_avg_loss / (step + 1):.6f}'})
+                pbar.set_postfix({'ITR': iter_num, 'LR': f'{cur_lr:e}', 'Loss': f'{inter_avg_loss / (step + 1):.6f}'})
+                logger.info({'ITR': iter_num, 'LR': f'{cur_lr:e}', 'Loss': f'{inter_avg_loss / (step + 1):.6f}'})
             
 
             if args.vis_freq is not None and iter_num % args.vis_freq == 0:
-                vis_train(img_src, lbl_src, img_tgt, lbl_tgt, mapsam_pred, aux, iter_num)
+                vis_train(img_src, lbl_src, img_tgt, lbl_tgt, pred, aux, iter_num)
 
             if iter_num % 100 == 0:
                 inter_avg_loss /= max(step, 1)

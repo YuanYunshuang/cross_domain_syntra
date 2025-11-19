@@ -1,0 +1,56 @@
+TRAIN:
+  # common
+  task_name: null # will be set to the config file name
+  root_dir: /home/yuan/data/syntra
+  data_info: pairing_cls_selection_100_cls_selection_100_intracls
+  batch_size: 8
+  num_workers: 8
+  accum_steps: 4
+  # vis_freq: 2000
+
+  # model
+  model_name: smol
+  dora_rank: 32
+  backbone: vit_b
+  prompt_encoder: example
+  mask_decoder: default
+
+  # data
+  dataset_name: cd_syntra
+  num_src: 3
+  num_notions: 4
+  foreground_ratio: 
+    remote_sensing: 0.05
+    medical: 0.0001
+    hismap: 0.05
+    geology: 0.01
+    forest_monitoring: 0.05
+    autonomous_driving: 0.05
+  transform:
+    - name: ToTensor
+    - name: Normalize
+      args:
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+
+  
+  sampler: group_fixed_m1 # grouped_prob | uniform | prob
+  data_keywords: null
+
+  # train
+  num_epochs: 200
+  max_iterations: 200000
+  lr: 1e-3
+  lr_scheduler: exp
+  warmup_iters: 1000
+  output_dir: logs
+  disable_runid: true
+
+TEST:
+  num_notions: 1
+  num_src: 7
+  data_info: pairing_train_samples_test_samples_intracls
+  data_keywords: null
+  checkpoint: null # will be set to the path ./output_dir/<task_name>/model_latest.pth
+  save_result: true
+

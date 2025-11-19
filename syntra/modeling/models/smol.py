@@ -7,7 +7,10 @@ from . import SemSegModelBase
 
 class SMOLModel(SemSegModelBase):
     
-    def forward(self, img_src, lbl_src, img_tgt):
+    def forward(self, img_src, lbl_src, img_tgt, aux=None):
+         # img_src: (B, T-1, 3, H, W)
+         # lbl_src: (B, T-1, N, H, W)
+         # img_tgt: (B, 3, H, W)
         image = torch.cat([img_tgt.unsqueeze(1), img_src], dim=1) # (B, T, 3, H, W)
         B, T, _, H, W = image.shape
         N = lbl_src.shape[2]

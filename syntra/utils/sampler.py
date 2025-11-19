@@ -42,7 +42,7 @@ def get_sampler(dataset, batch_size, sampler_name='uniform'):
         if len(parts) == 2:
             samples_per_group = int(parts[1])
         else:
-            samples_per_group = 1
+            samples_per_group = math.ceil(batch_size / len(dataset._loc2id))
         labels = [dataset.subdataset_id(i) for i in range(len(dataset))]
         groups = group_indices_by_labels(labels)
         batch_sampler = FixedPerGroupEpochBatchSampler(
@@ -255,6 +255,8 @@ class FixedPerGroupEpochBatchSampler(Sampler[List[int]]):
         self._epoch_size = self.K * self.m
         self._num_batches = math.ceil(self._epoch_size / self.batch_size)
 
+        print(f"FixedPerGroupEpochBatchSampler: {self.K} groups, {self.m} samples/group.")
+
     def __len__(self) -> int:
         return self._num_batches
 
@@ -288,3 +290,5 @@ class FixedPerGroupEpochBatchSampler(Sampler[List[int]]):
         # slice into batches
         for start in range(0, len(epoch_indices), self.batch_size):
             yield epoch_indices[start:start + self.batch_size]
+
+

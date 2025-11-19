@@ -4,16 +4,19 @@ import numpy as np
 from torchvision.transforms.v2 import functional as F
 from torchvision.transforms import InterpolationMode
 from torchvision.transforms import v2
+from typing import Iterable
 
 
     
 
-class PadToTargetSize:
+class Pad:
     def __init__(self, target_size):
         self.target_size = target_size
     
     def pad_one(self, image, label):
-        w, h = image.shape[1:]
+        h, w = image.shape[1:]
+        assert h <= self.target_size and w <= self.target_size, \
+            f"Image size ({w}, {h}) larger than target size {self.target_size}."
         pad_w = max(self.target_size - w, 0)
         pad_h = max(self.target_size - h, 0)
 
@@ -45,6 +48,160 @@ class PadToTargetSize:
         return image, label
 
 
+class Resize:
+    def __init__(self, target_size):
+        self.target_size = target_size
+        self.resize_img = v2.Resize((target_size, target_size), interpolation=InterpolationMode.BILINEAR)
+        self.resize_lbl = v2.Resize((target_size, target_size), interpolation=InterpolationMode.NEAREST)
+    
+    def resize(self, imgs, lbls):
+        """
+        Resize images and labels to target size. Supports either a single image/label
+        or lists of them.
+        Images use bilinear interpolation and labels use nearest.
+        """
+        def apply_one(i, l):
+            i = self.resize_img(i)
+            if l is not None:
+                l = self.resize_lbl(l.unsqueeze(0)).squeeze(0)
+                try:
+                    l = l.to(torch.bool)
+                except Exception:
+                    # fallback if returned type isn't a tensor
+                    pass
+            return i, l
+
+        if isinstance(imgs, list):
+            img_list = []
+            lbl_list = []
+            for i, ll in zip(imgs, lbls):
+                ii, ll = apply_one(i, ll)
+                img_list.append(ii)
+                lbl_list.append(ll)
+            return img_list, lbl_list
+        else:
+            return apply_one(imgs, lbls)
+    
+    def __call__(self, img, lbl):
+        return self.resize(img, lbl)
+    
+
+class Flip:
+    def __init__(self, horizontal=True, vertical=False):
+        self.horizontal = horizontal
+        self.vertical = vertical
+
+    def __call__(self, imgs, lbls):
+        """
+        Apply random horizontal and/or vertical flips to images and labels.
+        Supports either a single image/label or lists of them.
+        Sample once per call so all items get identical transform.
+
+        Args:
+            imgs: single image or list of images
+            lbls: single label or list of labels
+        Returns:
+            Transformed images and labels.
+        """
+        do_h = self.horizontal and (np.random.rand() < 0.5)
+        do_v = self.vertical and (np.random.rand() < 0.5)
+
+        def apply_flip(img, lbl):
+            if do_h:
+                img = F.hflip(img)
+                if lbl is not None:
+                    lbl = F.hflip(lbl)
+            if do_v:
+                img = F.vflip(img)
+                if lbl is not None:
+                    lbl = F.vflip(lbl)
+            return img, lbl
+
+        if isinstance(imgs, list):
+            return zip(*[apply_flip(i, l) for i, l in zip(imgs, lbls)])
+        else:
+            return apply_flip(imgs, lbls)
+        
+
+class ToTensor:
+    def __init__(self, img_dtype=torch.float32, lbl_dtype=torch.uint8, img_scale=True, lbl_scale=False):
+        self.img_dtype = img_dtype
+        self.lbl_dtype = lbl_dtype
+        self.img_scale = img_scale
+        self.lbl_scale = lbl_scale
+
+        self.img_transforms = v2.Compose([
+            v2.ToImage(),
+            v2.ToDtype(img_dtype, scale=True),
+        ])
+
+        self.lbl_transforms = v2.Compose([
+            v2.ToImage(),
+            v2.ToDtype(lbl_dtype, scale=False),
+        ])
+
+    def __call__(self, imgs, lbls):
+        img = self.img_transforms(imgs)
+        lbl = self.lbl_transforms(lbls)
+        return img, lbl
+
+
+class Normalize:
+    def __init__(self, mean=[0.5, 0.5, 0.5], std=[0.25, 0.25, 0.25]):
+        self.mean = mean
+        self.std = std
+        self.normalize = v2.Normalize(mean=mean, std=std)
+
+    def __call__(self, imgs, lbls):
+        img = self.normalize(imgs)
+        return img, lbls
+    
+
+class Rotate:
+    def __init__(self, degrees=30):
+        self.degrees = degrees
+    
+    def __call__(self, imgs, lbls):
+        angle = float(np.random.uniform(-self.degrees, self.degrees))
+
+        def apply_rotation(i, l):
+            i = F.rotate(i, angle=angle, interpolation=InterpolationMode.BILINEAR, expand=False, fill=0)
+            l = F.rotate(l.unsqueeze(0), angle=angle, interpolation=InterpolationMode.NEAREST, 
+                             expand=False, fill=False).squeeze(0)
+            return i, l
+
+        if isinstance(imgs, list):
+            img_list = []
+            lbl_list = []
+            for i, ll in zip(imgs, lbls):
+                ii, ll = apply_rotation(i, ll)
+                img_list.append(ii)
+                lbl_list.append(ll)
+            return img_list, lbl_list
+        else:
+            return apply_rotation(imgs, lbls)
+        
+
+class TransformCompose:
+    def __init__(self, transforms_cfg):
+        assert isinstance(transforms_cfg, Iterable), "transforms_cfg must be a list, each item contains key 'name' and 'args'."
+        transforms = []
+        for t_cfg in transforms_cfg:
+            t_name = t_cfg['name']
+            t_args = t_cfg.get('args', {})
+            if globals().get(t_name) is not None:
+                t_class = globals()[t_name]
+                transforms.append(t_class(**t_args))
+            else:
+                raise ValueError(f"Unknown transform name: {t_name}")
+        self.transforms = transforms
+
+    def __call__(self, img, lbl):
+        for t in self.transforms:
+            img, lbl = t(img, lbl)
+        return img, lbl
+
+
 class MapTransformTrain:
     def __init__(self, image_size=384, rot_degrees=30, mean=[0.5, 0.5, 0.5], std=[0.25, 0.25, 0.25]):
         # store params for reproducible geometry sampling per pair
@@ -65,6 +222,7 @@ class MapTransformTrain:
         # self.pad_transforms = v2.Compose([
         #     PadToTargetSize(image_size),
         # ])
+
         self.resize_img = v2.Resize((image_size, image_size), interpolation=InterpolationMode.BILINEAR)
         self.resize_lbl = v2.Resize((image_size, image_size), interpolation=InterpolationMode.NEAREST)
     
@@ -95,6 +253,7 @@ class MapTransformTrain:
             return img_list, lbl_list
         else:
             return apply_one(imgs, lbls)
+
 
     def geometric_transforms(self, img, lbl):
         """
