@@ -192,7 +192,7 @@ class CrossDomainSynTraDataset(Dataset):
             selected_classes = [cls_name]
             selected_colors = [self.label_colors[dataset][cls_name]]
             selected_cls_ids = [all_cls_names.index(cls_name) + 1]
-            return selected_classes, selected_colors
+            return selected_classes, selected_colors, selected_cls_ids
         else:
             # in addition to the main class, randomly select other classes from the target image to improve diversity
             cls_ratios = {}
