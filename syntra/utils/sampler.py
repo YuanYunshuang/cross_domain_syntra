@@ -39,12 +39,12 @@ def get_sampler(dataset, batch_size, sampler_name='uniform'):
     elif sampler_name.startswith('group_fixed_m'):
         # pattern: "group_fixed_m:<m>" e.g. "group_fixed_m:3"
         parts = sampler_name.split(':')
+        labels = [dataset.subdataset_id(i) for i in range(len(dataset))]
+        groups = group_indices_by_labels(labels)
         if len(parts) == 2:
             samples_per_group = int(parts[1])
         else:
-            samples_per_group = math.ceil(batch_size / len(dataset._loc2id))
-        labels = [dataset.subdataset_id(i) for i in range(len(dataset))]
-        groups = group_indices_by_labels(labels)
+            samples_per_group = math.ceil(batch_size / len(groups))
         batch_sampler = FixedPerGroupEpochBatchSampler(
             groups=groups,
             samples_per_group=samples_per_group,
