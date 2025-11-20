@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from torch.nn import functional as F
 import numpy as np
 from functools import partial
+from tifffile import imwrite
 
 
 def rgb_img_to_gray_med_img(rgb_array, normalize=True, to_uint8=True):
@@ -64,10 +65,26 @@ def overlay_masks_on_image(image, tgt_name, alpha=0.5, colors=None):
 
 
 def save_results(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta, rescale=0.5, color_map=None):
+    "Save the prediction results as a grayscale image."
+    pred_tgt = pred_tgt.detach().sigmoid().cpu().numpy()
+
+    for b, m in enumerate(meta):
+        tgt_name = m['tgt_name'].rsplit('.', 1)[1]
+        for i, name in enumerate(m['cls_name']):
+            dataset, cls_name = name.split('/')
+            assert cls_name in color_map, f"Color map does not contain color for {name}"
+            os.makedirs(os.path.join(out_dir, dataset, cls_name), exist_ok=True)
+            img = (pred_tgt[b, i].squeeze(0) * 255).astype(np.uint8)
+            Image.fromarray(img).save(os.path.join(out_dir, dataset, cls_name, tgt_name + '.png'))
+
+
+
+def save_results_v2(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta, rescale=0.5, color_map=None):
     # overlay_func = partial(overlay_masks_on_image, colors=colors)
     B, T, _, H, W = img_src.shape
     N = lbl_src.shape[2]
 
+    out_dir += "_vis"
     os.makedirs(out_dir, exist_ok=True)
     lbl_src = F.interpolate(
         lbl_src.flatten(0, 1).float(),
@@ -101,7 +118,7 @@ def save_results(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta, re
                                                    colors=cur_colors)
             row2.append(overlayed_img)
             row2.append(midbar)
-        if 'chaos' in names[i]:
+        if 'chaos' or 'acdc' in names[i]:
             img_tgt[i] = rgb_img_to_gray_med_img(img_tgt[i])
         row1.append(img_tgt[i])
         row1.append(midbar)

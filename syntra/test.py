@@ -10,6 +10,7 @@ import os, sys
 import logging
 
 join = os.path.join
+from omegaconf import open_dict
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -19,6 +20,7 @@ import argparse
 
 
 from syntra.modeling.dataset import get_dataset
+from syntra.modeling.dataset.trainsform import TransformCompose
 from syntra.modeling import build_segmentation_model
 from syntra.tools.eval import Evaluator
 from syntra.utils.debug_utils import *
@@ -45,67 +47,61 @@ def setup_parser():
     parser.add_argument("--config", type=str, required=True, help="path to config file")
     parser.add_argument("-w", "--checkpoint", type=str, help="path to model checkpoint")
     parser.add_argument("-o","--output_dir", type=str)
-    parser.add_argument("-nw", "--num_workers", type=int, default=4)
-    parser.add_argument("-bs", "--batch_size", type=int, default=16)
-    parser.add_argument("-s", "--save-result", action="store_true", default=True)
-    parser.add_argument("--device", type=str, default="cuda:0")
+    parser.add_argument("-nw", "--num_workers", type=int)
+    parser.add_argument("-bs", "--batch_size", type=int)
+    parser.add_argument("-s", "--save-result", action="store_true")
     parser.add_argument("--debug", action="store_true", default=False)
     # model
-    parser.add_argument("-r", "--dora-rank", type=int, default=16)
-    parser.add_argument("-mn", "--model-name", type=str, default="smol", help="model name: unet or syntra")
-    parser.add_argument("--backbone", type=str, default="vit_b", help="backbone type: vit_h, vit_l, vit_b, hiera_t, hiera_s, hiera_l, hiera_bp")
-    parser.add_argument("--prompt-encoder", type=str, default="example", help="prompt encoder type: example, notion")
-    parser.add_argument("--mask-decoder", type=str, default="default", help="mask decoder type: default, highres")
+    parser.add_argument("-r", "--dora-rank", type=int, )
+    parser.add_argument("-mn", "--model-name", type=str, help="model name: unet or syntra")
+    parser.add_argument("--backbone", type=str, help="backbone type: vit_h, vit_l, vit_b, hiera_t, hiera_s, hiera_l, hiera_bp")
+    parser.add_argument("--prompt-encoder", type=str, help="prompt encoder type: example, notion")
+    parser.add_argument("--mask-decoder", type=str,  help="mask decoder type: default, highres")
     # dataset
     parser.add_argument("-d", "--root-dir", type=str, default=None, help="path to training dataset; two subfolders: lbls and imgs")
     parser.add_argument("-dkw", "--data-keywords", type=str, default=None, help='dataset key words for filtering')
-    parser.add_argument("--dataset-name", type=str, default='syntra')
-    parser.add_argument("--data-info", type=str, default="pairing_train_100shot_test_intercls.json")
-    parser.add_argument("--src-data-info", type=str, default="pairing_train_100shot_train_100shot_intercls.json")
-    parser.add_argument("--img-size", type=int, default=384)
-    parser.add_argument("--num-src", type=int, default=1, help="number of source images")
-    parser.add_argument("--num-notions", type=int, default=1, help="number of notions")
-    parser.add_argument("-fg", "--foreground-ratio", type=float, default=0.1)
+    parser.add_argument("--dataset-name", type=str, )
+    parser.add_argument("--data-info", type=str, )
+    parser.add_argument("--img-size", type=int)
+    parser.add_argument("--num-src", type=int, help="number of source images")
+    parser.add_argument("--num-notions", type=int, help="number of notions")
+    parser.add_argument("-fg", "--foreground-ratio", type=float, help="minimum foreground ratio in the target image")
     args = parser.parse_args()
 
     initialize_config_module(config_module="syntra.configs", version_base=None)
     cfg = compose(config_name=args.config)
+    cfg_test = cfg['TRAIN'].copy() # initialize with TRAIN config
 
-    # Override args with traincfg arguments
-    for key, value in cfg['TRAIN'].items():
-        arg_list = ['root_dir', 'output_dir', 'resume']
-        if key in arg_list and getattr(args, key) is not None:
-            continue
-        if hasattr(args, key):
-            setattr(args, key, value)
-    # Override args with test cfg arguments
-    for key, value in cfg['TEST'].items():
-        arg_list = ['root_dir', 'output_dir', 'checkpoint']
-        if key in arg_list and getattr(args, key) is not None:
-            continue
-        if hasattr(args, key):
-            setattr(args, key, value)
+    # 1. Override cfg['TRAIN'] parameters with TEST parameters if not None
+    # 2. Override cfg['TRAIN'] parameters with args parameters if not None
+    with open_dict(cfg_test):
+        for key, value in cfg['TEST'].items():
+            setattr(cfg_test, key, value)
+        for key, value in vars(args).items():
+            if value is not None:
+                setattr(cfg_test, key, value)
 
-    print(args)
+    print(cfg_test)
 
-    return args
+    return cfg_test
 
 
 def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_loss, logger, out_dir):
     if args.save_result:
         from syntra.utils.vis import save_results
     losses = []
+    uni_transform = TransformCompose(args.uni_transform) if getattr(args, 'uni_transform', None) is not None else None
     test_dataset = get_dataset(args.dataset_name,
                                data_root=args.root_dir,
                                info_file=args.data_info,
-                               src_info_file=args.src_data_info,
                                num_notions=num_notions,
                                num_src=args.num_src,
                                fg_ratio=args.foreground_ratio,
                                filtering_keys=args.data_keywords,
                                mode="test",
                                src_cls=fixed_src_cls,
-                               img_size=args.img_size,)
+                               img_size=args.img_size,
+                               uni_transform=uni_transform,)
     num_samples = len(test_dataset)
 
     logger.info(f"# testing samples: {num_samples}")
@@ -132,6 +128,9 @@ def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_lo
         for step, data in enumerate(pbar):
             img_src, lbl_src, img_tgt, lbl_tgt = [d.to(device) for d in data[:4]]
             meta = data[4]
+            if hasattr(test_dataset, 'prepare_inputs'):
+                img_src, lbl_src, img_tgt, lbl_tgt, meta = test_dataset.prepare_inputs(
+                    img_src, lbl_src, img_tgt, lbl_tgt, meta)
 
             model_pred = model(img_src, lbl_src, img_tgt)
             lbl_pred = model_pred.sigmoid()
@@ -178,7 +177,7 @@ def main():
     else:
         out_dir = os.path.dirname(args.checkpoint)
 
-    device = torch.device(args.device)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # %% set up model
     os.makedirs(out_dir, exist_ok=True)
@@ -187,7 +186,7 @@ def main():
     log_filename = f"test_{os.path.basename(args.checkpoint).split('.')[0]}_{dkw}.txt"
     logging.basicConfig(filename=join(out_dir, log_filename), level=logging.INFO, filemode="a")
 
-    model = build_segmentation_model(**vars(args)).to(device)
+    model = build_segmentation_model(**args).to(device)
     model.eval()
 
     for k, v in args.__dict__.items():
@@ -203,7 +202,7 @@ def main():
 
     # %% test
     eval_results = []
-    if args.dataset_name == 'cd_syntra' or args.dataset_name == 'syntra':
+    if 'syntra' in args.dataset_name:
         fixed_src_cls = None
         eval_res = single_test(args.num_notions, fixed_src_cls, args, device, model, seg_loss, ce_loss, logger, out_dir)
         eval_results.extend([torch.stack(x, dim=0) for x in eval_res])

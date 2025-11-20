@@ -22,7 +22,7 @@ export TMPDIR=$TMPDIR
 export PYTHONPATH=${HOME}/cross_domain_syntra
 export PROJECTDIR=/mnt/vast-kisski/projects/kisski-gauss-zentrum
 echo $PYTHONPATH
-ulimit 65535
+ulimit f unlimited
 
 
 module load apptainer
@@ -39,7 +39,7 @@ echo "Current node: ${SLURM_NODELIST}"
 # Run the script:
 apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${PROJECTDIR}/syntra.sif \
         python -u ${PYTHONPATH}/syntra/train_one_gpu.py \
-        --config syntra_trees_n4_s100.yaml -d ${PROJECTDIR}/syntra_data \
+        --config syntra_trees_n4_s100.yaml -d ${PROJECTDIR}/syntra_data  --cache-data \
         -o ${PROJECTDIR}/logs --resume ${PROJECTDIR}/logs/syntra_trees_n4_s100/model_latest.pth
 
 # Run the script:

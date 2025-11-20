@@ -58,20 +58,20 @@ def sync_from_kisski(local_path, remote_path, uid, remote_host_shortcut):
 
 if __name__ == "__main__":
 
-    sync_to_kisski(
-        local_path="/home/yuan/data/syntra/medical/medical.acdc",
-        remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/syntra_data/medical/medical.acdc",
-        uid="u23994",
-        remote_host_shortcut="KISSKI",
-        is_code_repo=False
-    )
-
-    # sync_from_kisski(
-    #     local_path="logs/syntra_medical_n4_full",
-    #     remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/logs/syntra_medical_n4_full",
+    # sync_to_kisski(
+    #     local_path="/home/yuan/data/syntra/medical/medical.acdc",
+    #     remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/syntra_data/medical/medical.acdc",
     #     uid="u23994",
-    #     remote_host_shortcut="KISSKI"
+    #     remote_host_shortcut="KISSKI",
+    #     is_code_repo=False
     # )
+
+    sync_from_kisski(
+        local_path="log",
+        remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/logs",
+        uid="u23994",
+        remote_host_shortcut="KISSKI"
+    )
 
     # syncronize_two_folders(
     #     "/home/yuan/data/syntra/hismap",
