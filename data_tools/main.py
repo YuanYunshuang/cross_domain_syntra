@@ -189,17 +189,17 @@ if __name__ == "__main__":
     #     fg_ratio=0.05,
     # )
 
-    generate_for_one_dataset(
-        converter_name="SyntraDataConverter",
-        input_path=None,
-        output_path="/home/yuan/data/syntra/medical/medical.acdc",
-        fg_ratio=0.0001,
-        tasks=[
-            {'task': 'select_cls_samples', 'args': {'n': 50}},
-            {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_50.json", 'tgt_info_file': "cls_selection_50.json"}},
-            {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_50.json", 'tgt_info_file': "test_samples.txt"}},
-        ]
-    )
+    # generate_for_one_dataset(
+    #     converter_name="SyntraDataConverter",
+    #     input_path=None,
+    #     output_path="/home/yuan/data/syntra/medical/medical.acdc",
+    #     fg_ratio=0.0001,
+    #     tasks=[
+    #         {'task': 'select_cls_samples', 'args': {'n': 50}},
+    #         {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_50.json", 'tgt_info_file': "cls_selection_50.json"}},
+    #         {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_50.json", 'tgt_info_file': "test_samples.txt"}},
+    #     ]
+    # )
 
     # from converting.forest_monitoring_trees import ForestMonitoringTreesConverter, color_map
     # convert_demo(
@@ -210,6 +210,15 @@ if __name__ == "__main__":
     #     fg_ratio=0.05,
     #     # force_cast_img_to_uint8=True
     # )
+
+    from converting.acdc import ACDCConverter, color_map
+    convert_demo(
+        convert_obj=ACDCConverter,
+        input_path="/home/yuan/data/ACDC",
+        output_path="/home/yuan/data/syntra_original_size/medical/acdc",
+        color_map=color_map,
+        fg_ratio=0.0001,
+    )
 
 
 
