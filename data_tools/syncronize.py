@@ -66,6 +66,14 @@ if __name__ == "__main__":
     #     is_code_repo=False
     # )
 
+    # sync_from_kisski(
+    #     local_path="log",
+    #     remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/logs",
+    #     uid="u23994",
+    #     remote_host_shortcut="KISSKI",
+    #     is_code_repo=False
+    # )
+
     sync_from_kisski(
         local_path="log",
         remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/logs",
@@ -83,17 +91,17 @@ if __name__ == "__main__":
     # with open(os.path.join(local_path, ".gitignore"), "r") as f:
     #     ignore_list = [line.strip() for line in f.readlines() if line.strip() and not line.startswith("#")]
 
-    # syncronize_to_remote(
-    #     "/home/yuan/data/syntra/autonomous_driving/cityscapes",
-    #     "/home/yuang/data/syntra/autonomous_driving/cityscapes",
-    #     "yuang",
-    #     "130.75.51.199",
-    #     ignore_list=["imgs/", "lbls/"]
-    # )
+    syncronize_to_remote(
+        "/koko/datasets/syntra/medical/acdc",
+        "/home/yuan/data/syntra/medical/acdc",
+        "yuan",
+        "130.75.51.193",
+        # ignore_list=["imgs/", "lbls/"]
+    )
 
     # syncronize_from_remote(
-    #     "/home/yuan/data/syntra/hismap",
-    #      "/koko/datasets/syntra/hismap",
+    #     "/home/yuan/data/syntra_original_size/medical/acdc",
+    #      "/koko/datasets/syntra/medical/acdc",
     #     "yuan",
     #     "130.75.51.193"
     # )

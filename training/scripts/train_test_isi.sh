@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-CONFIG=acdc_n1_s50
+CONFIG=acdc_n3_full
 DATADIR=/home/yuan/data/syntra
 
 PYTHONPATH=. python syntra/train_one_gpu.py \
