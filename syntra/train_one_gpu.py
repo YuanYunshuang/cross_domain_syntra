@@ -100,13 +100,13 @@ def parse_args():
     parser.add_argument("--weight-decay", type=float, help="weight decay for optimizer")
     parser.add_argument("--lr", type=float, metavar="LR", help="learning rate (absolute lr)")
     parser.add_argument("--warmup-itrs", type=int, metavar="warmup epochs", help="total number of warmup epochs")
-    parser.add_argument("--use-amp", action="store_true", help="use amp")
+    parser.add_argument("--use-amp", type=bool, help="use amp")
     parser.add_argument("--resume", type=str, help="Resuming training from checkpoint")
     parser.add_argument("--vis-freq", type=int, help="visualization frequency (in iterations)")
     # parser.add_argument("--train-patch-emb", action="store_true", default=False, help="Train patch embedding parameters")
     parser.add_argument("--lr-scheduler", type=str, help="learning rate scheduler: cosine, exp or none")
-    parser.add_argument("--from-scratch", action="store_true", help="train from scratch")
-    parser.add_argument("--disable-runid", action="store_true", help="disable run id in output folder name")
+    parser.add_argument("--from-scratch", type=bool, help="train from scratch")
+    parser.add_argument("--disable-runid", type=bool, help="disable run id in output folder name")
     args = parser.parse_args()
 
     # print all available hydra config files

@@ -91,13 +91,13 @@ if __name__ == "__main__":
     # with open(os.path.join(local_path, ".gitignore"), "r") as f:
     #     ignore_list = [line.strip() for line in f.readlines() if line.strip() and not line.startswith("#")]
 
-    # syncronize_to_remote(
-    #     "/koko/datasets/syntra/medical/acdc",
-    #     "/home/yuan/data/syntra/medical/acdc",
-    #     "yuan",
-    #     "130.75.51.193",
-    #     # ignore_list=["imgs/", "lbls/"]
-    # )
+    syncronize_to_remote(
+        "/home/yuan/data/syntra/medical/acdc",
+        "/home/yuang/data/syntra/medical/acdc",
+        "yuang",
+        "130.75.51.199",
+        # ignore_list=["imgs/", "lbls/"]
+    )
 
     # syncronize_from_remote(
     #     "/home/yuan/data/syntra_original_size/medical/acdc",
