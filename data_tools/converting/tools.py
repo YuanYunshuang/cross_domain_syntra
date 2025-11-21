@@ -80,4 +80,4 @@ def resize_imgs_and_lbls(dataset_path, size=384):
 
 if __name__ == "__main__":
 
-    resize_imgs_and_lbls("/koko/datasets/syntra/medical/acdc", size=384)
+    resize_imgs_and_lbls("/home/yuan/data/syntra/medical/acdc", size=384)

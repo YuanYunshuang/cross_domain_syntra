@@ -58,13 +58,13 @@ def sync_from_kisski(local_path, remote_path, uid, remote_host_shortcut):
 
 if __name__ == "__main__":
 
-    # sync_to_kisski(
-    #     local_path="/home/yuan/data/syntra/medical/medical.acdc",
-    #     remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/syntra_data/medical/medical.acdc",
-    #     uid="u23994",
-    #     remote_host_shortcut="KISSKI",
-    #     is_code_repo=False
-    # )
+    sync_to_kisski(
+        local_path="/home/yuan/data/syntra/medical/acdc",
+        remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/syntra_data/medical/acdc",
+        uid="u23994",
+        remote_host_shortcut="KISSKI",
+        is_code_repo=False
+    )
 
     # sync_from_kisski(
     #     local_path="log",
@@ -74,12 +74,12 @@ if __name__ == "__main__":
     #     is_code_repo=False
     # )
 
-    sync_from_kisski(
-        local_path="log",
-        remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/logs",
-        uid="u23994",
-        remote_host_shortcut="KISSKI"
-    )
+    # sync_from_kisski(
+    #     local_path="/koko/SYNTRA_logs",
+    #     remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/logs",
+    #     uid="u23994",
+    #     remote_host_shortcut="KISSKI"
+    # )
 
     # syncronize_two_folders(
     #     "/home/yuan/data/syntra/hismap",
@@ -91,13 +91,13 @@ if __name__ == "__main__":
     # with open(os.path.join(local_path, ".gitignore"), "r") as f:
     #     ignore_list = [line.strip() for line in f.readlines() if line.strip() and not line.startswith("#")]
 
-    syncronize_to_remote(
-        "/koko/datasets/syntra/medical/acdc",
-        "/home/yuan/data/syntra/medical/acdc",
-        "yuan",
-        "130.75.51.193",
-        # ignore_list=["imgs/", "lbls/"]
-    )
+    # syncronize_to_remote(
+    #     "/koko/datasets/syntra/medical/acdc",
+    #     "/home/yuan/data/syntra/medical/acdc",
+    #     "yuan",
+    #     "130.75.51.193",
+    #     # ignore_list=["imgs/", "lbls/"]
+    # )
 
     # syncronize_from_remote(
     #     "/home/yuan/data/syntra_original_size/medical/acdc",

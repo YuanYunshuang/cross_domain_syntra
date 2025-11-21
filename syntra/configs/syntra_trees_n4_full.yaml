@@ -6,7 +6,7 @@ TRAIN:
   batch_size: 8
   num_workers: 8
   accum_steps: 4
-  vis_freq: null
+  vis_freq: 10
 
   # model
   model_name: smol
@@ -30,6 +30,14 @@ TRAIN:
       args:
         mean: [0.5, 0.5, 0.5]
         std: [0.25, 0.25, 0.25]
+  aug_transform:
+    - name: RandomFlipBatch
+      args:
+        p_horizontal: 0.5
+        p_vertical: 0.5
+    - name: RandomRotateBatch
+      args:
+        degrees: 30
 
   # train
   num_epochs: 200

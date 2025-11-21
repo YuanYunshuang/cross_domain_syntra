@@ -87,8 +87,8 @@ def convert_demo(convert_obj, input_path, output_path, color_map, fg_ratio=0.05,
     converter.convert(['train', 'test', 'val'])
     converter.select_cls_samples(n=100)
     pairing_options = [
-        ("cls_selection_100.json", "cls_selection_100.json"),
-        ("cls_selection_100.json", "test_samples.txt"),
+        # ("cls_selection_100.json", "cls_selection_100.json"),
+        # ("cls_selection_100.json", "test_samples.txt"),
         ("train_samples.txt", "train_samples.txt"),
         ("train_samples.txt", "test_samples.txt"),
     ]
@@ -217,7 +217,7 @@ if __name__ == "__main__":
         input_path="/home/yuan/data/ACDC",
         output_path="/home/yuan/data/syntra_original_size/medical/acdc",
         color_map=color_map,
-        fg_ratio=0.0001,
+        fg_ratio=0.01,
     )
 
 

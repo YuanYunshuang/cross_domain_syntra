@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=acdc_n1_s50
-#SBATCH -t 12:00:00                  # estimated time # TODO: adapt to your needs/ the full training run will take approx. 5 h on an A100
+#SBATCH -t 24:00:00                  # estimated time # TODO: adapt to your needs/ the full training run will take approx. 5 h on an A100
 #SBATCH -p kisski            # the partition you are training on (i.e., which nodes), for nodes see sinfo -o "%25N  %5c  %10m  %32f  %10G %18P " | grep gpu
 #SBATCH -G A100:1                # request one A100 GPU
 #SBATCH --nodes=1
@@ -41,7 +41,7 @@ echo "Current node: ${SLURM_NODELIST}"
 apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${PROJECTDIR}/syntra.sif \
         python -u ${PYTHONPATH}/syntra/train_one_gpu.py \
         --config syntra_acdc_n1_s50.yaml -d ${PROJECTDIR}/syntra_data \
-        --batch-size 32  --accum-steps 1 --num-workers 8 \
+        --batch-size 8  --accum-steps 4 --num-workers 8 \
         -o ${PROJECTDIR}/logs --cache-data 
 
 # Run the script:

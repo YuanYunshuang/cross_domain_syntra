@@ -118,6 +118,34 @@ class ACDCConverter(SyntraDataConverter):
         if normalize:
             data = (data - data.min()) / (data.max() - data.min())
         return data, nimg.affine, nimg.header
+    
+    def med_img_to_rgb_pil_image(self, img):
+        """
+        Convert medical grayscale image to RGB image. Syntra model takes 3-channel images as input, 
+        with each channel being 8 bits. ADAC images are single-channel images with the maximum 
+        pixel value larger than 255. To keep the accuracy of the original ADAC images, we encode 
+        the pixel values into the three RGB 8-bit channels.
+
+        Parameters
+        ----------
+        img: np.array
+            Grayscale image array. Shape (H, W) 
+
+        Returns
+        -------
+        pil_img: PIL.Image
+            RGB image.
+        """
+        # encode pixel value to 3 8-bit channels
+        v = img.astype(np.uint32)
+        if (v.max() >= (1 << 24)) or (v.min() < 0):
+            raise ValueError("Values must be in [0, 2^24-1] for 3x8-bit RGB lossless packing.")
+        r = (v & 0xFF).astype(np.uint8)
+        g = ((v >> 8) & 0xFF).astype(np.uint8)
+        b = ((v >> 16) & 0xFF).astype(np.uint8)
+        rgb_array = np.stack([r, g, b], axis=-1)
+        pil_img = Image.fromarray(rgb_array, mode='RGB')
+        return pil_img
 
     def convert(self, split_list=['train', 'test']):
         self._prepare_convertion()
@@ -143,7 +171,7 @@ class ACDCConverter(SyntraDataConverter):
                     img_file = os.path.join(patient_folder, f"{patient}_frame{frame_id:02d}.nii.gz")
                     lbl_file = os.path.join(patient_folder, f"{patient}_frame{frame_id:02d}_gt.nii.gz")
 
-                    imgs = self.load_nii(img_file, normalize=True)[0].astype(np.float32)
+                    imgs = self.load_nii(img_file)[0]
                     lbls = self.load_nii(lbl_file)[0].astype(np.uint8)
 
                     for i, (img, lbl) in enumerate(zip(imgs.transpose(2,0,1), lbls.transpose(2,0,1))):
@@ -153,7 +181,7 @@ class ACDCConverter(SyntraDataConverter):
                         else:
                             lbl_fg_ctr = np.array(non_zero_inds).mean(axis=1).astype(np.int32)
 
-                        img_pil = Image.fromarray((img * 255).astype(np.uint8))
+                        img_pil = self.med_img_to_rgb_pil_image(img)
                         lbl_pil = Image.fromarray(lbl)
                         filename = f'{patient}_{phase}_frame{frame_id:02d}_slice{i:03d}'
                         sample_full_name = f"{self.dataset_name}.{filename}"

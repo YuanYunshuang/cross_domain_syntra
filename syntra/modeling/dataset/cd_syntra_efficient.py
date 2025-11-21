@@ -58,12 +58,9 @@ class CrossDomainSynTraDatasetE(CrossDomainSynTraDataset):
             imgs.append(img)
             lbls.append(lbl)
 
-        if self.aug_transform is not None:
-            imgs, lbls = self.aug_transform(imgs, lbls)
-
         src_imgs = torch.stack(imgs[1:], 0)
         tgt_img = imgs[0]
-        src_lbls = torch.cat(lbls[1:], 0)[..., ::4, ::4]
+        src_lbls = torch.cat(lbls[1:], 0)
         tgt_lbl = lbls[0].squeeze(0)
         full_cls_names = [f"{dataset}/{x}" for x in selected_classes] 
         aux = {'src_name': src_full_names, 
@@ -88,6 +85,19 @@ class CrossDomainSynTraDatasetE(CrossDomainSynTraDataset):
         """
         # construct multi-notion labels on the GPU
         B, T_1, C, H, W = src_imgs.shape
+
+        if self.aug_transform is not None:
+            imgs = torch.cat([tgt_img.unsqueeze(1), src_imgs], dim=1)  # (B, T, C, H, W)
+            lbls = torch.cat([tgt_lbl.unsqueeze(1), src_lbls], dim=1)  # (B, T, H, W)
+            imgs, lbls = self.aug_transform(imgs.flatten(0, 1), lbls.flatten(0, 1))
+            imgs = imgs.reshape(B, T_1 + 1, C, H, W)
+            lbls = lbls.reshape(B, T_1 + 1, H, W)
+            tgt_img = imgs[:, 0]
+            src_imgs = imgs[:, 1:]
+            tgt_lbl = lbls[:, 0]
+            src_lbls = lbls[:, 1:, ::4, ::4]
+        else:
+            src_lbls = src_lbls[:, :, ::4, ::4]
 
         selected_cls_ids = [x['cls_id'] + [-1] * (self.num_notions - len(x['cls_id'])) for x in aux]
         selected_cls_ids = torch.tensor(selected_cls_ids, device=src_imgs.device, dtype=torch.int16)  # (B, num_notions)

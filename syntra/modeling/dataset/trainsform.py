@@ -1,7 +1,8 @@
 
+import math
 import torch
 import numpy as np
-from torchvision.transforms.v2 import functional as F
+import torch.nn.functional as F
 from torchvision.transforms import InterpolationMode
 from torchvision.transforms import v2
 from typing import Iterable
@@ -180,7 +181,145 @@ class Rotate:
             return img_list, lbl_list
         else:
             return apply_rotation(imgs, lbls)
-        
+
+class RandomRotateBatch:
+    def __init__(self, degrees=30):
+        assert degrees >= 0, "degrees must be non-negative."
+        self.degrees = abs(degrees)
+
+    def _generate_rotation_matrix(self, images):
+        """
+        Generate random rotation matrices for a batch.
+        Args:
+            images: Tensor of shape (B, C, H, W)
+        """
+        # Degree range
+        min_deg, max_deg = -self.degrees, self.degrees
+
+        # Sample one angle per (image, label) pair
+        B = images.shape[0]
+        angles = (min_deg - max_deg) * torch.rand(B, device=images.device) + max_deg
+        angles = angles.to(dtype=images.dtype)
+
+        # Build rotation matrices
+        radians = angles * math.pi / 180.0
+        cos = torch.cos(radians)
+        sin = torch.sin(radians)
+
+        theta = torch.zeros((B, 2, 3), device=images.device, dtype=images.dtype)
+        theta[:, 0, 0] = cos
+        theta[:, 0, 1] = -sin
+        theta[:, 1, 0] = sin
+        theta[:, 1, 1] = cos
+        return theta
+
+    def __call__(self, imgs, lbls):
+        assert imgs.dim() == 4, "images must be (B, C, H, W)"
+        assert lbls.dim() in [3, 4], "labels must be (B, H, W) or (B, 1, H, W)"
+        B, C, H, W = imgs.shape
+
+        # Make sure labels are 4D for grid_sample
+        squeeze_labels = False
+        if lbls.dim() == 3:
+            lbls = lbls.unsqueeze(1)  # (B, 1, H, W)
+            squeeze_labels = True
+        else:
+            assert lbls.shape[0] == B and lbls.shape[2:] == (H, W), \
+                "labels must match images spatially"
+        # Generate rotation matrices
+        theta = self._generate_rotation_matrix(imgs)
+        # Create sampling grid
+        grid = F.affine_grid(theta, imgs.size(), align_corners=False)
+        # Rotate images
+        rotated_imgs = F.grid_sample(
+            imgs, grid,
+            mode="bilinear",
+            padding_mode="zeros",
+            align_corners=False
+        )
+        # Rotate labels
+        rotated_lbls = F.grid_sample(
+            lbls.to(dtype=imgs.dtype), grid,
+            mode="nearest",
+            padding_mode="zeros",
+            align_corners=False
+        )
+        if squeeze_labels:
+            rotated_lbls = rotated_lbls.squeeze(1)
+        return rotated_imgs, rotated_lbls
+
+
+class RandomFlipBatch:
+    def __init__(self, p_horizontal=0.5, p_vertical=0.0):
+        """
+        Randomly flip images and labels in a batch.
+
+        Args:
+            p_horizontal: probability of horizontal flip per (image, label) pair
+            p_vertical: probability of vertical flip per (image, label) pair
+        """
+        assert 0.0 <= p_horizontal <= 1.0, "p_horizontal must be in [0, 1]."
+        assert 0.0 <= p_vertical <= 1.0, "p_vertical must be in [0, 1]."
+        self.p_horizontal = float(p_horizontal)
+        self.p_vertical = float(p_vertical)
+
+    def __call__(self, imgs, lbls):
+        """
+        Args:
+            imgs: Tensor of shape (B, C, H, W)
+            lbls: Tensor of shape (B, H, W) or (B, 1, H, W)
+
+        Returns:
+            flipped_imgs, flipped_lbls
+        """
+        assert imgs.dim() == 4, "images must be (B, C, H, W)"
+        assert lbls.dim() in [3, 4], "labels must be (B, H, W) or (B, 1, H, W)"
+
+        B, C, H, W = imgs.shape
+
+        # Ensure labels are 4D: (B, 1, H, W)
+        squeeze_labels = False
+        if lbls.dim() == 3:
+            lbls = lbls.unsqueeze(1)
+            squeeze_labels = True
+        else:
+            assert lbls.shape[0] == B and lbls.shape[2:] == (H, W), \
+                "labels must match images spatially"
+
+        device = imgs.device
+
+        # --- Random horizontal flips ---
+        if self.p_horizontal > 0.0:
+            # mask_h[i] == True -> flip sample i horizontally
+            mask_h = (torch.rand(B, device=device) < self.p_horizontal)
+
+            if mask_h.any():
+                # Flip all in batch, then select per-sample via where (no Python loop)
+                imgs_h = torch.flip(imgs, dims=[-1])   # flip width
+                lbls_h = torch.flip(lbls, dims=[-1])
+
+                mask_h_ = mask_h.view(B, 1, 1, 1)      # broadcast over C, H, W
+                imgs = torch.where(mask_h_, imgs_h, imgs)
+                lbls = torch.where(mask_h_, lbls_h, lbls)
+
+        # --- Random vertical flips ---
+        if self.p_vertical > 0.0:
+            # mask_v[i] == True -> flip sample i vertically
+            mask_v = (torch.rand(B, device=device) < self.p_vertical)
+
+            if mask_v.any():
+                imgs_v = torch.flip(imgs, dims=[-2])   # flip height
+                lbls_v = torch.flip(lbls, dims=[-2])
+
+                mask_v_ = mask_v.view(B, 1, 1, 1)
+                imgs = torch.where(mask_v_, imgs_v, imgs)
+                lbls = torch.where(mask_v_, lbls_v, lbls)
+
+        # Restore original label shape if needed
+        if squeeze_labels:
+            lbls = lbls.squeeze(1)
+
+        return imgs, lbls
 
 class TransformCompose:
     def __init__(self, transforms_cfg):

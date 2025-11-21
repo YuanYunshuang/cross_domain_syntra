@@ -40,7 +40,8 @@ echo "Current node: ${SLURM_NODELIST}"
 apptainer run --bind ${HOME}:${HOME},${PROJECTDIR}:${PROJECTDIR} --nv ${PROJECTDIR}/syntra.sif \
         python -u ${PYTHONPATH}/syntra/train_one_gpu.py \
         --config syntra_trees_n4_full.yaml -d ${PROJECTDIR}/syntra_data --cache-data \
-        -o ${PROJECTDIR}/logs --resume ${PROJECTDIR}/logs/syntra_trees_n4_full/model_latest.pth
+        --batch-size 8  --accum-steps 4 --num-workers 8 \
+        -o ${PROJECTDIR}/logs  # --resume ${PROJECTDIR}/logs/syntra_trees_n4_full/model_latest.pth
 
 # Run the script:
 # PYTHONPATH=. python -u syntra/train_one_gpu.py --config syntra_cityscapes_n4_slurm.yaml -d ${PROJECT}/dyntra_data/cityscapes

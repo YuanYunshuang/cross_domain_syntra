@@ -22,6 +22,23 @@ def dice_score(y_true, y_pred, smooth=1e-6):
     dice = (2. * intersection + smooth) / (union + smooth)
     return dice
 
+def iou_score(y_true, y_pred, smooth=1e-6):
+    """
+    Compute the Intersection over Union (IoU) between the ground truth and predicted masks.
+
+    Parameters:
+    y_true (ndarray): Ground truth binary mask.
+    y_pred (ndarray): Predicted binary mask.
+    smooth (float): Smoothing factor to avoid division by zero.
+
+    Returns:
+    float: IoU Score.
+    """
+    intersection = (y_true * y_pred).sum()
+    union = y_true.sum() + y_pred.sum() - intersection
+    iou = (intersection + smooth) / (union + smooth)
+    return iou
+
 def eval(result_folder, data_folder):
     """
     Evaluate segmentation results using Dice Score.
@@ -67,10 +84,17 @@ def eval(result_folder, data_folder):
 
 
 if __name__=="__main__":
-    result_folder = "logs/syntra_acdc_n3_full/acdc/medical.acdc"
-    data_folder = "/home/yuan/data/syntra_original_size/medical/medical.acdc"
+    result_folder = "logs/syntra_acdc_n3_full/acdc/acdc"
+    data_folder = "/home/yuan/data/syntra_original_size/medical/acdc"
     eval(result_folder, data_folder)
 
+# Original without crop to 120x120:
 # Class left ventricle: Mean Dice Score = 0.8206
 # Class right ventricle: Mean Dice Score = 0.8059
 # Class myocardium: Mean Dice Score = 0.8644
+
+# Cropped to 120x120 and normalized to uint8: pred_size/resized
+# No augmentation during training:
+# Class left_ventricle: Mean Dice Score = 0.8350/0.8437
+# Class right_ventricle: Mean Dice Score = 0.8234/0.8311
+# Class myocardium: Mean Dice Score = 0.8793/0.8840
