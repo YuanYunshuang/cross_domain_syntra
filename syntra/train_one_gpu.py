@@ -266,7 +266,7 @@ def main():
             if hasattr(train_dataset, 'prepare_inputs'):
                 img_src, lbl_src, img_tgt, lbl_tgt, aux = train_dataset.prepare_inputs(
                     img_src, lbl_src, img_tgt, lbl_tgt, aux)
-            if args.use_amp:
+            if getattr(args, 'use_amp', False):
                 ## AMP
                 with torch.autocast(device_type="cuda", dtype=torch.float16):
                     pred = model(img_src, lbl_src, img_tgt, aux)
