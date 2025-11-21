@@ -229,7 +229,7 @@ def main():
     max_mean_iou = 0
     start_epoch = 1
 
-    if args.resume is not None:
+    if getattr(args, 'resume', None) is not None:
         if os.path.isfile(args.resume):
             ## Map model to be loaded to specified single GPU
             checkpoint = torch.load(args.resume, map_location=device, weights_only=False)
@@ -237,7 +237,7 @@ def main():
             optimizer.load_state_dict(checkpoint["optimizer"])
             start_epoch = checkpoint["epoch"] + 1
             iter_num = len(train_dataloader) * checkpoint["epoch"] + 1
-    if args.use_amp:
+    if getattr(args, 'use_amp', False):
         scaler = torch.cuda.amp.GradScaler()
 
     logger.info(">>>>>>>>>>>>>>>>>>START TRAINING <<<<<<<<<<<<<<<<<<")
