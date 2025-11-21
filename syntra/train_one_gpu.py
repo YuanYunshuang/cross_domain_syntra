@@ -144,10 +144,6 @@ def main():
     logger = logging.getLogger("SYNTRA")
     logging.basicConfig(filename=join(model_save_path, "log.txt"), level=logging.INFO)
 
-    if args.from_scratch:
-        args.checkpoint = None
-        args.warmup_epochs = 1
-
     model = build_segmentation_model(**args).to(device)
     model.train()
 
