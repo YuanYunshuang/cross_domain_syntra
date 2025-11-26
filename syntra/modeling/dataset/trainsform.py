@@ -5,6 +5,7 @@ import numpy as np
 import torch.nn.functional as F
 from torchvision.transforms import InterpolationMode
 from torchvision.transforms import v2
+from torchvision.transforms.v2 import functional as TF
 from typing import Iterable
 
 
@@ -409,20 +410,20 @@ class MapTransformTrain:
         def apply_one(i, l):
             # horizontal flip
             if do_h:
-                i = F.hflip(i)
+                i = TF.hflip(i)
                 if l is not None:
-                    l = F.hflip(l)
+                    l = TF.hflip(l)
             # vertical flip
             if do_v:
-                i = F.vflip(i)
+                i = TF.vflip(i)
                 if l is not None:
-                    l = F.vflip(l)
+                    l = TF.vflip(l)
 
             # rotation: images bilinear, labels nearest
-            i = F.rotate(i, angle=angle, interpolation=InterpolationMode.BILINEAR, expand=False, fill=0)
+            i = TF.rotate(i, angle=angle, interpolation=InterpolationMode.BILINEAR, expand=False, fill=0)
             if l is not None:
                 # use nearest to preserve mask values; ensure bool dtype after
-                l = F.rotate(l.unsqueeze(0), angle=angle, interpolation=InterpolationMode.NEAREST, 
+                l = TF.rotate(l.unsqueeze(0), angle=angle, interpolation=InterpolationMode.NEAREST, 
                              expand=False, fill=False).squeeze(0)
                 try:
                     l = l.to(torch.bool)

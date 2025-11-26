@@ -33,7 +33,7 @@ from syntra.utils.train_utils import adjust_learning_rate_cosine, adjust_learnin
 from syntra.utils.sampler import get_sampler
 from syntra.utils.debug_utils import *
 from hydra.core.global_hydra import GlobalHydra
-from omegaconf import open_dict
+from omegaconf import open_dict, OmegaConf
 
 # import torch.multiprocessing as mp
 # mp.set_sharing_strategy("file_system")
@@ -94,7 +94,7 @@ def parse_args():
     parser.add_argument("-itr", "--max-iterations", type=int, help="maximum training iterations")
     parser.add_argument("-bs", "--batch-size", type=int, help="batch size")
     parser.add_argument("-nw", "--num-workers", type=int, help="number of data loading workers")
-    parser.add_argument("-a", "--accum-steps", type=int, help="gradient accumulation steps", default=1)
+    parser.add_argument("-a", "--accum-steps", type=int, help="gradient accumulation steps")
     parser.add_argument("--cache-data", action="store_true", help="cache dataset into memory")
     # Optimizer parameters
     parser.add_argument("--weight-decay", type=float, help="weight decay for optimizer")
@@ -120,7 +120,6 @@ def parse_args():
         for key, value in vars(args).items():
             if value is not None:
                 setattr(cfg, key, value)
-    
     return cfg
 
 
@@ -138,6 +137,12 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # %% set up model
     os.makedirs(model_save_path, exist_ok=True)
+
+    # save cfg to yaml file
+    yaml_str = OmegaConf.to_yaml(args)
+    with open(join(model_save_path, "config.yaml"), "w") as f:
+        f.write(yaml_str)
+
     shutil.copyfile(
         __file__, join(model_save_path, run_id + "_" + os.path.basename(__file__))
     )

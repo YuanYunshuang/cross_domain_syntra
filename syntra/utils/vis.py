@@ -108,7 +108,7 @@ def save_results_v2(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta,
         midbar = np.zeros_like(img_tgt[0, :, :10]) + 128
         row1, row2 = [], []
         for t in range(T):
-            if 'chaos' or 'acdc' in names[i]:
+            if 'chaos' in names[i] or 'acdc' in names[i]:
                 # convert to gray medical image
                 img_src[i, t] = rgb_img_to_gray_med_img(img_src[i, t])
             row1.append(img_src[i, t])
@@ -118,7 +118,7 @@ def save_results_v2(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta,
                                                    colors=cur_colors)
             row2.append(overlayed_img)
             row2.append(midbar)
-        if 'chaos' or 'acdc' in names[i]:
+        if 'chaos' in names[i] or 'acdc' in names[i]:
             img_tgt[i] = rgb_img_to_gray_med_img(img_tgt[i])
         row1.append(img_tgt[i])
         row1.append(midbar)
@@ -146,8 +146,8 @@ def save_results_v2(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta,
                                                     colors=cur_colors)
         row2.append(overlayed_pred_img)
 
-        row1 = np.concatenate(row1, axis=1)[..., ::-1]
-        row2 = np.concatenate(row2, axis=1)[..., ::-1]
+        row1 = np.concatenate(row1, axis=1)
+        row2 = np.concatenate(row2, axis=1)
         midbar = np.zeros_like(row1[:10, :]) + 128
         img = np.concatenate([row1, midbar, row2], axis=0)
         try:
@@ -155,7 +155,7 @@ def save_results_v2(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta,
                 img = Image.fromarray(img)
                 img = img.resize((int(img.width * rescale), int(img.height * rescale)), 
                                  resample=Image.Resampling.BILINEAR)
-                img.save(os.path.join(out_dir, names[i] + f"_{','.join(cur_classes)}.png"))
+            img.save(os.path.join(out_dir, names[i] + f"_{','.join(cur_classes)}.png"))
         except:
             print(f"Failed to save {names[i]}")
 
@@ -227,7 +227,7 @@ def vis_train(img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, aux, iter_num, size_
     lbl_src = lbl_src.view(bs, nsrc, n_notions, H, W)
     T = img_src.shape[1] + 1
 
-    ncol = T + 1
+    ncol = 2*T + 1
     vis_img = np.zeros((bs * H // 2, ncol * W // 2, 3), dtype=np.uint8)
     # generate random colors for each notion
     if 'cls_color' in aux[0]:
@@ -253,20 +253,22 @@ def vis_train(img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, aux, iter_num, size_
 
     for i in range(bs):
         for t in range(T-1):
-            vis_img[i*H//2:(i+1)*H//2, t*W//2:(t+1)*W//2] = overlay_masks_on_image(
-                (img_src[i, t] * 255).astype(np.uint8),
+            vis_img[i*H//2:(i+1)*H//2, 2*t*W//2:(2*t+1)*W//2] = (img_src[i, t] * 255).astype(np.uint8)
+            vis_img[i*H//2:(i+1)*H//2, (2*t+1)*W//2:(2*t+2)*W//2] = overlay_masks_on_image(
+                np.zeros_like(img_src[i, t]).astype(np.uint8),
                 tgt_name='',
-                alpha=lbl_src[i, t] * 0.5,
+                alpha=lbl_src[i, t],
                 colors=colors[i],
             )
-        vis_img[i*H//2:(i+1)*H//2, (T-1)*W//2:T*W//2] = overlay_masks_on_image(
-            (img_tgt[i] * 255).astype(np.uint8),
+        vis_img[i*H//2:(i+1)*H//2, (T*2-2)*W//2:(T*2-1)*W//2] = (img_tgt[i] * 255).astype(np.uint8)
+        vis_img[i*H//2:(i+1)*H//2, (T*2-1)*W//2:(T*2)*W//2] = overlay_masks_on_image(
+            np.zeros_like(img_tgt[i]).astype(np.uint8),    
             tgt_name='',
-            alpha=lbl_tgt[i] * 0.5,
+            alpha=lbl_tgt[i],
             colors=colors[i],
         )
-        vis_img[i*H//2:(i+1)*H//2, T*W//2:(T+1)*W//2] = overlay_masks_on_image(
-            (img_tgt[i] * 255).astype(np.uint8),    
+        vis_img[i*H//2:(i+1)*H//2, (T*2)*W//2:(T*2+1)*W//2] = overlay_masks_on_image(
+            np.zeros_like(img_tgt[i]).astype(np.uint8),    
             tgt_name='',
             alpha=pred_tgt[i],
             colors=colors[i],

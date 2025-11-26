@@ -1,3 +1,4 @@
+import json
 import numpy as np
 from PIL import Image
 from tifffile import imread
@@ -78,6 +79,49 @@ def resize_imgs_and_lbls(dataset_path, size=384):
         lbl_resized.save(lbl_file)
 
 
+def generate_legend_img(dataset):
+    from matplotlib import pyplot as plt
+    color_map_path = Path(dataset) / "color_map.json"
+    legend_img_path = Path(dataset) / "legend.png"
+    with open(color_map_path, 'r') as f:
+        color_map = json.load(f)
+
+    # draw legend image using color_map
+    n_colors = len(color_map)
+    fig, ax = plt.subplots(figsize=(2, n_colors * 0.3))
+    for i, (cls_name, color) in enumerate(color_map.items()):
+        ax.barh(i, 1, color=np.array(color)/255.0)
+        ax.text(0.5, i, cls_name, va='center', ha='center', color='black' if np.mean(color) > 128 else 'white')
+    ax.set_yticks([])
+    ax.set_xticks([])
+    plt.savefig(legend_img_path, bbox_inches='tight')
+
+
+def overlay_mask_on_img(img_path, mask_path, out_path, lbl_idx, gray_lbl=False, alpha=0.5, color=[0, 128, 0]):
+    img = np.array(Image.open(img_path).convert("RGB"))
+    mask = np.array(Image.open(mask_path))
+    if gray_lbl:
+        mask = mask > 200
+    else:
+        mask = mask == lbl_idx
+    color_mask = np.zeros_like(img)
+    color_mask[mask] = color
+    overlayed = img * (1 - alpha) + color_mask * alpha
+    img[mask] = overlayed[mask]
+    overlayed_img = Image.fromarray(img.astype(np.uint8))
+    overlayed_img.save(out_path)
+
+
+
 if __name__ == "__main__":
 
-    resize_imgs_and_lbls("/home/yuan/data/syntra/medical/acdc", size=384)
+    resize_imgs_and_lbls("/home/yuan/data/syntra/hismap/siegfried.railway", size=384)
+    # generate_legend_img("/home/yuan/data/syntra/forest_monitoring/trees_september")
+
+    # overlay_mask_on_img(
+    #     "/home/yuan/data/syntra/hismap/hameln.3821_1974/imgs/384_8832.png",
+    #     "/home/yuan/data/syntra/hismap/hameln.3821_1974/lbls/384_8832.png",
+    #     "/home/yuan/Downloads/tmp.png",
+    #     lbl_idx=1,
+    #     gray_lbl=False,
+    # )

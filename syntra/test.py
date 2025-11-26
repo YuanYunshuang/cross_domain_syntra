@@ -50,6 +50,7 @@ def setup_parser():
     parser.add_argument("-nw", "--num_workers", type=int)
     parser.add_argument("-bs", "--batch_size", type=int)
     parser.add_argument("-s", "--save-result", action="store_true")
+    parser.add_argument("--vis", action="store_true", help="save visualization for these test samples")
     parser.add_argument("--debug", action="store_true", default=False)
     # model
     parser.add_argument("-r", "--dora-rank", type=int, )
@@ -89,6 +90,8 @@ def setup_parser():
 def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_loss, logger, out_dir):
     if args.save_result:
         from syntra.utils.vis import save_results
+    if args.vis:
+        from syntra.utils.vis import save_results_v2 as save_vis
     losses = []
     uni_transform = TransformCompose(args.uni_transform) if getattr(args, 'uni_transform', None) is not None else None
     test_dataset = get_dataset(args.dataset_name,
@@ -143,6 +146,12 @@ def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_lo
                 cur_dataset = meta[0]['tgt_name'].rsplit('.', 1)[0]
                 color_map = test_dataset.label_colors[cur_dataset]
                 save_results(os.path.join(out_dir, f"{str(dkw)}"), 
+                                img_src, lbl_src, img_tgt, lbl_tgt, model_pred, 
+                                meta, color_map=color_map)
+            if args.vis:
+                cur_dataset = meta[0]['tgt_name'].rsplit('.', 1)[0]
+                color_map = test_dataset.label_colors[cur_dataset]
+                save_vis(os.path.join(out_dir, f"vis_{str(dkw)}"), 
                                 img_src, lbl_src, img_tgt, lbl_tgt, model_pred, 
                                 meta, color_map=color_map)
             losses.append(loss.item())

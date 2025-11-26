@@ -84,13 +84,13 @@ def convert_demo(convert_obj, input_path, output_path, color_map, fg_ratio=0.05,
         fg_ratio=fg_ratio,
         **kwargs
     )
-    converter.convert(['train', 'test', 'val'])
-    converter.select_cls_samples(n=100)
+    # converter.convert(['train', 'test', 'val'])
+    # converter.select_cls_samples(n=100)
     pairing_options = [
-        # ("cls_selection_100.json", "cls_selection_100.json"),
-        # ("cls_selection_100.json", "test_samples.txt"),
-        ("train_samples.txt", "train_samples.txt"),
-        ("train_samples.txt", "test_samples.txt"),
+        ("cls_selection_100.json", "cls_selection_100.json"),
+        ("cls_selection_100.json", "test_samples.txt"),
+        # ("train_samples.txt", "train_samples.txt"),
+        # ("train_samples.txt", "test_samples.txt"),
     ]
     for src_file, tgt_file in pairing_options:
         converter.pairing_intra_cls(src_info_file=src_file, tgt_info_file=tgt_file)
@@ -201,24 +201,25 @@ if __name__ == "__main__":
     #     ]
     # )
 
-    # from converting.forest_monitoring_trees import ForestMonitoringTreesConverter, color_map
-    # convert_demo(
-    #     convert_obj=ForestMonitoringTreesConverter,
-    #     input_path="/home/yuan/data/forest_monitoring/tree_data",
-    #     output_path="/home/yuan/data/syntra/forest_monitoring/trees_september",
-    #     color_map=color_map,
-    #     fg_ratio=0.05,
-    #     # force_cast_img_to_uint8=True
-    # )
-
-    from converting.acdc import ACDCConverter, color_map
+    from converting.forest_monitoring_trees import ForestMonitoringTreesConverter, color_map
     convert_demo(
-        convert_obj=ACDCConverter,
-        input_path="/home/yuan/data/ACDC",
-        output_path="/home/yuan/data/syntra_original_size/medical/acdc",
+        convert_obj=ForestMonitoringTreesConverter,
+        input_path="/home/yuan/data/forest_monitoring/tree_data",
+        output_path="/home/yuan/data/syntra/forest_monitoring/trees_september",
         color_map=color_map,
-        fg_ratio=0.01,
+        fg_ratio=0.05,
+        month="september",
+        # force_cast_img_to_uint8=True
     )
+
+    # from converting.acdc import ACDCConverter, color_map
+    # convert_demo(
+    #     convert_obj=ACDCConverter,
+    #     input_path="/home/yuan/data/ACDC",
+    #     output_path="/home/yuan/data/syntra_original_size/medical/acdc",
+    #     color_map=color_map,
+    #     fg_ratio=0.01,
+    # )
 
 
 

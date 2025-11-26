@@ -5,6 +5,7 @@ from glob import glob
 import os
 from PIL import Image
 import numpy as np
+import cv2
 
 from .syntra_data_converter import SyntraDataConverter
 
@@ -66,14 +67,20 @@ class ForestMonitoringTreesConverter(SyntraDataConverter):
         samples = []
         for line in lines[1:]:
             items = line.strip().split(',')
-            for item in items[:-1]:
-                if self.month in item:
-                    img_file = os.path.join(self.customized_data_path, item)
-                    lbl_file = os.path.join(self.customized_data_path, items[-1])
-                    if os.path.exists(img_file) and os.path.exists(lbl_file):
-                        samples.append((img_file, lbl_file))
-                    else:
-                        print(f"Warning: Missing img or lbl file for {img_file} and {lbl_file}, Skipping.")
+            lbl_file = os.path.join(self.customized_data_path, items[-1])
+            if self.month is None:
+                img_file = os.path.join(self.customized_data_path, items[0])
+            else:
+                img_file = None
+                for item in items[:-1]:
+                    if self.month in item:
+                        img_file = os.path.join(self.customized_data_path, item)
+                        break
+                        
+            if os.path.exists(img_file) and os.path.exists(lbl_file):
+                samples.append((img_file, lbl_file))
+            else:
+                print(f"Warning: Missing img or lbl file for {img_file} and {lbl_file}, Skipping.")
 
         
         return samples
@@ -83,7 +90,20 @@ class ForestMonitoringTreesConverter(SyntraDataConverter):
         assert os.path.isfile(lbl_file), f"Label file '{lbl_file}' not found."
         lbl = Image.open(lbl_file)
         lbl = np.array(lbl, dtype=np.uint8)[..., 0]  # use only the first channel
-        lbl = Image.fromarray(lbl)
+        
+
+        # the label contain some noises, remove it
+        uniq_lbls = np.unique(lbl)
+        new_lbl = np.zeros_like(lbl)
+        for ul in uniq_lbls:
+            if ul == 0:
+                continue
+            mask = lbl == ul
+            # remove noise
+            mask = cv2.morphologyEx(mask.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+            new_lbl[mask > 0] = ul
+
+        lbl = Image.fromarray(new_lbl)
         return lbl
     
     def _parse_base_name(self, img_file):
