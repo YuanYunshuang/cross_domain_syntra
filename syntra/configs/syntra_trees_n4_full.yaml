@@ -1,7 +1,7 @@
 TRAIN:
   # common
   task_name: null # will be set to the config file name
-  root_dir: /koko/datasets/syntra/forest_monitoring
+  root_dir: /koko/datasets/syntra/forest_monitoring/trees
   data_info: pairing_train_samples_train_samples_intracls
   batch_size: 8
   num_workers: 8
@@ -22,7 +22,7 @@ TRAIN:
   img_size: 384
   foreground_ratio: 0.05
   sampler: group_fixed_m # grouped_prob | uniform | prob
-  data_keywords: trees_september
+  data_keywords: trees
   validation_data: null
   uni_transform:
     - name: ToTensor

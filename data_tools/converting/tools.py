@@ -115,8 +115,8 @@ def overlay_mask_on_img(img_path, mask_path, out_path, lbl_idx, gray_lbl=False, 
 
 if __name__ == "__main__":
 
-    resize_imgs_and_lbls("/home/yuan/data/syntra/hismap/siegfried.railway", size=384)
-    # generate_legend_img("/home/yuan/data/syntra/forest_monitoring/trees_september")
+    # resize_imgs_and_lbls("/home/yuan/data/syntra/hismap/siegfried.railway", size=384)
+    generate_legend_img("/home/yuan/data/syntra/forest_monitoring/trees_september")
 
     # overlay_mask_on_img(
     #     "/home/yuan/data/syntra/hismap/hameln.3821_1974/imgs/384_8832.png",

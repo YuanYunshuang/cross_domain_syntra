@@ -5,6 +5,7 @@ import random
 import numpy as np
 from PIL import Image
 from tifffile import imread
+from matplotlib import pyplot as plt
 
 from indexing.pairing import *
 
@@ -62,6 +63,7 @@ class SyntraDataConverter:
                 json.dump(self.color_map, f, indent=4)
 
         self._construct_color_palette()
+        self.generate_legend_img()
     
     @property
     def cls_id_to_name(self):
@@ -90,6 +92,19 @@ class SyntraDataConverter:
         # set the last color to white as nonlabled
         palette[-3:] = [255, 255, 255]
         self.palette = palette
+
+    def generate_legend_img(self):
+        legend_img_path = os.path.join(self.dataset_name, "legend.png")
+
+        # draw legend image using color_map
+        n_colors = len(self.color_map)
+        _, ax = plt.subplots(figsize=(2, n_colors * 0.3))
+        for i, (cls_name, color) in enumerate(self.color_map.items()):
+            ax.barh(i, 1, color=np.array(color)/255.0)
+            ax.text(0.5, i, cls_name, va='center', ha='center', color='black' if np.mean(color) > 128 else 'white')
+        ax.set_yticks([])
+        ax.set_xticks([])
+        plt.savefig(legend_img_path, bbox_inches='tight')
     
     def _convert_annotation(self, lbl_array, id_map=None):
         """
