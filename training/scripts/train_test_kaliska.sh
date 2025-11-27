@@ -22,8 +22,8 @@
 #   --config syntra_cityscapes_n4_full.yaml -d ../syntra/autonomous_driving -o /workspace/logs"
 
 export WORKDIR=/home/yuang/data
-export DATA_SUBDIR=medical
-export CONFIG=acdc_n3_full
+export DATA_SUBDIR=forest_monitoring
+export CONFIG=trees_sep_n4_full
 
 # Run training directly (replace args as needed)
 docker run --gpus all --rm \

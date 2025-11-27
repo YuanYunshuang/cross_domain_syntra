@@ -66,12 +66,12 @@ if __name__ == "__main__":
     #     is_code_repo=False
     # )
 
-    sync_from_kisski(
-        local_path="/koko/SYNTRA_logs",
-        remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/logs",
-        uid="u23994",
-        remote_host_shortcut="KISSKI",
-    )
+    # sync_from_kisski(
+    #     local_path="/koko/SYNTRA_logs",
+    #     remote_path="/mnt/vast-kisski/projects/kisski-gauss-zentrum/logs",
+    #     uid="u23994",
+    #     remote_host_shortcut="KISSKI",
+    # )
 
     # sync_from_kisski(
     #     local_path="/koko/SYNTRA_logs",
@@ -91,8 +91,8 @@ if __name__ == "__main__":
     #     ignore_list = [line.strip() for line in f.readlines() if line.strip() and not line.startswith("#")]
 
     syncronize_to_remote(
-        "/home/yuan/data/syntra/medical/acdc",
-        "/home/yuang/data/syntra/medical/acdc",
+        "/home/yuan/data/syntra/forest_monitoring",
+        "/home/yuang/data/syntra/forest_monitoring",
         "yuang",
         "130.75.51.199",
         # ignore_list=["imgs/", "lbls/"]

@@ -215,8 +215,8 @@ class CrossDomainSynTraDataset(Dataset):
                     neg_cls.append(cls)
             # select pos cls with probability self.pos_prob and neg cls with probability 1 - self.pos_prob
             pos_neg = pos_cls + neg_cls
-            pos_neg_probs = [self.pos_prob / len(pos_cls),] * len(pos_cls) + \
-                [(1 - self.pos_prob) / len(neg_cls),] * len(neg_cls)
+            pos_neg_probs = [self.pos_prob / max(1, len(pos_cls)),] * len(pos_cls) + \
+                [(1 - self.pos_prob) / max(1, len(neg_cls)),] * len(neg_cls)
             selected_classes = [cls_name]
             selected_classes += list(np.random.choice(
                 pos_neg, 
