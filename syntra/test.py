@@ -77,7 +77,8 @@ def setup_parser():
     # 2. Override cfg['TRAIN'] parameters with args parameters if not None
     with open_dict(cfg_test):
         for key, value in cfg['TEST'].items():
-            setattr(cfg_test, key, value)
+            if value is not None or not hasattr(cfg_test, key):
+                setattr(cfg_test, key, value)
         for key, value in vars(args).items():
             if value is not None:
                 setattr(cfg_test, key, value)
