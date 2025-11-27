@@ -32,7 +32,7 @@ docker run --gpus all --rm \
   --shm-size=16g \
   opheliayuan/syntra:latest \
   sh -lc "umask 000 && PYTHONPATH=. python syntra/train_one_gpu.py \
-  --config syntra_${CONFIG}.yaml -d ../syntra/${DATA_SUBDIR} -o /workspace/logs \
+  --config syntra_${CONFIG}.yaml -d ../syntra/${DATA_SUBDIR} -o /workspace/logs --cache-data \
   --resume /workspace/logs/syntra_${CONFIG}/model_latest.pth"
 
 # Run testing directly (replace args as needed)
