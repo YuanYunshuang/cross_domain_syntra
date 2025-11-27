@@ -3,6 +3,7 @@ import os
 import json
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 
 
 def iou_score(y_true, y_pred, smooth=1e-6):
@@ -38,36 +39,52 @@ def eval(result_folder, data_folder):
 
     classes = list(color_map.keys())
     gt_folder = os.path.join(data_folder, 'lbls')
-    for cls_name in classes:
-        assert cls_name in classes, f"Class {cls_name} not found in result folder."
+    vis_folder = os.path.join(os.path.dirname(result_folder), 'merged_vis')
+    os.makedirs(vis_folder, exist_ok=True)
 
-        cls_idx = classes.index(cls_name)
-        pred_cls_folder = os.path.join(result_folder, cls_name)
-        
-        for file_name in os.listdir(pred_cls_folder):
-            pred_mask_path = os.path.join(pred_cls_folder, file_name)
-            gt_mask_path = os.path.join(gt_folder, file_name)
+    test_mask_files = os.path.join(result_folder, classes[0])
+    for file_name in tqdm(os.listdir(test_mask_files)):
+        gt_mask_path = os.path.join(gt_folder, file_name)
+        gt_mask = np.array(Image.open(gt_mask_path)) 
+        pred_mask = []
+        for cls_name in classes:
+            pred_mask_path = os.path.join(result_folder, cls_name, file_name)
+            pred_mask.append(np.array(Image.open(pred_mask_path)))
+        pred_mask = np.stack(pred_mask, axis=0)  # (N, H, W)
+        pred_score, pred_mask = pred_mask.max(axis=0), pred_mask.argmax(axis=0)  # (H, W), (H, W)
+        pred_mask += 1  # to match gt mask which starts from 1
+        pred_mask[pred_score < 128] = 0  # background
 
-            if not os.path.exists(gt_mask_path):
-                print(f"Ground truth mask for {file_name} not found, skipping.")
-                continue
+        for i, cls_name in enumerate(classes):
+            gt_cls_mask = (gt_mask == (i + 1)).astype(np.uint8)
+            pred_cls_mask = (pred_mask == (i + 1)).astype(np.uint8)
+            iou = iou_score(gt_cls_mask, pred_cls_mask)
+            scores[cls_name].append(iou)
+        # visualize merged predictions
+        img_path = os.path.join(data_folder, 'imgs', file_name)
+        img = np.array(Image.open(img_path).convert("RGB"))
+        gt_vis = np.zeros_like(img)
+        pred_vis = np.zeros_like(img)
+        for i, cls_name in enumerate(classes):
+            color = np.array(color_map[cls_name])
+            gt_cls_mask = (gt_mask == (i + 1))
+            pred_cls_mask = (pred_mask == (i + 1))
+            gt_vis[gt_cls_mask] = color
+            pred_vis[pred_cls_mask] = color
+        res_vis = np.concatenate([img, gt_vis, pred_vis], axis=1)
+        res_vis = Image.fromarray(res_vis.astype(np.uint8))
+        res_vis.save(os.path.join(vis_folder, file_name))
 
-            pred_mask = Image.open(pred_mask_path) 
-            gt_mask = Image.open(gt_mask_path) 
-            if pred_mask.size != gt_mask.size:
-                pred_mask = pred_mask.resize(gt_mask.size, resample=Image.BILINEAR)
-
-            pred_mask = np.array(pred_mask) > 128
-            gt_mask = np.array(gt_mask) == cls_idx + 1
-
-            dice = dice_score(gt_mask, pred_mask)
-            dice_scores[cls_name].append(dice)
-        
-        print(f"Class {cls_name}: Mean Dice Score = {np.mean(dice_scores[cls_name]):.4f}")
+    miou = []
+    for cls_name, score in scores.items():
+        iou = np.mean(score)
+        print(f"{cls_name}: IoU = {iou:.4f}")
+        miou.append(iou)
+    print(f"Mean IoU over {len(classes)} classes: {np.mean(miou):.4f}")
 
 
 if __name__=="__main__":
-    result_folder = "/koko/SYNTRA_logs/syntra_trees_n4_full-20251121-1156/trees_september/trees_september"
+    result_folder = "logs/syntra_trees_n4_full/trees_september/trees_september"
     data_folder = "/home/yuan/data/syntra/forest_monitoring/trees_september"
     eval(result_folder, data_folder)
 

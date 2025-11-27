@@ -25,7 +25,7 @@ class CrossDomainSynTraDataset(Dataset):
                  num_src : int = 1, 
                  mode : str = "train", 
                  fg_ratio : float | Dict[str, float] = 0.05,
-                 pos_prob : float = 0.9, 
+                 pos_prob : float = 0.8, 
                  filtering_keys : str = None, 
                  uni_transform: Optional[object] = None,
                  aug_transform: Optional[object] = None,
@@ -185,7 +185,7 @@ class CrossDomainSynTraDataset(Dataset):
 
         return img, lbl
     
-    def _select_notions(self, cls_full_name, dataset, src_full_names):
+    def _select_notions(self, tgt_full_name, cls_full_name, dataset, src_full_names):
         cls_name = cls_full_name.split(".")[0]
         all_cls_names = list(self.label_colors[dataset].keys())
         if self.num_notions == 1:
@@ -195,24 +195,36 @@ class CrossDomainSynTraDataset(Dataset):
             return selected_classes, selected_colors, selected_cls_ids
         else:
             # in addition to the main class, randomly select other classes from the target image to improve diversity
-            cls_ratios = {}
+            tgt_cls_ratios = self.label_ratios[tgt_full_name]
+            src_cls_ratios = {k: 0.0 for k in self.label_colors[dataset].keys()}
             for src_full_name in src_full_names:
                 for cls, ratio in self.label_ratios[src_full_name].items():
                     if ratio == 0.0:
                         continue
-                    if cls not in cls_ratios:
-                        cls_ratios[cls] = 0.0
-                    cls_ratios[cls] += ratio
-            # select classes based on the max ratios
-            sorted_cls = sorted(cls_ratios.items(), key=lambda x: x[1], reverse=True)
+                    src_cls_ratios[cls] += ratio
+            # pos_cls: classes present in both source and target images
+            pos_cls = []
+            # neg_cls: classes not present in the target image
+            neg_cls = []
+            for cls in tgt_cls_ratios.keys():
+                if cls == cls_name:
+                    continue
+                if tgt_cls_ratios[cls] > self.fg_ratio[dataset] and src_cls_ratios.get(cls, 0.0) > self.fg_ratio[dataset]:
+                    pos_cls.append(cls)
+                else:
+                    neg_cls.append(cls)
+            # select pos cls with probability self.pos_prob and neg cls with probability 1 - self.pos_prob
+            pos_neg = pos_cls + neg_cls
+            pos_neg_probs = [self.pos_prob / len(pos_cls),] * len(pos_cls) + \
+                [(1 - self.pos_prob) / len(neg_cls),] * len(neg_cls)
             selected_classes = [cls_name]
-            selected_cls_ids = [all_cls_names.index(cls_name) + 1]
-            for cls, _ in sorted_cls:
-                if cls != cls_name and cls in self.label_colors[dataset]:
-                    selected_classes.append(cls)
-                    selected_cls_ids.append(all_cls_names.index(cls) + 1)
-                if len(selected_classes) >= self.num_notions:
-                    break
+            selected_classes += list(np.random.choice(
+                pos_neg, 
+                self.num_notions - 1, 
+                replace=len(pos_neg)<(self.num_notions - 1), 
+                p=np.array(pos_neg_probs) / np.sum(pos_neg_probs)
+            ))
+            selected_cls_ids = [all_cls_names.index(cls_name) + 1 for cls_name in selected_classes]
             selected_colors = [self.label_colors[dataset].get(c, None) for c in selected_classes]
         return selected_classes, selected_colors, selected_cls_ids
     
@@ -256,7 +268,7 @@ class CrossDomainSynTraDataset(Dataset):
 
         src_full_names = self._select_src_samples(cls_name, tgt_full_name)
 
-        selected_classes, selected_colors, selected_cls_ids = self._select_notions(cls_name, dataset, src_full_names)               
+        selected_classes, selected_colors, selected_cls_ids = self._select_notions(tgt_full_name, cls_name, dataset, src_full_names)               
 
         # load images and labels
         imgs = []

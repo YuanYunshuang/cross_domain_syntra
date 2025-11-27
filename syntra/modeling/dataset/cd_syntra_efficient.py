@@ -39,7 +39,7 @@ class CrossDomainSynTraDatasetE(CrossDomainSynTraDataset):
 
         src_full_names = self._select_src_samples(cls_name, tgt_full_name)
 
-        selected_classes, selected_colors, selected_cls_ids = self._select_notions(cls_name, dataset, src_full_names)               
+        selected_classes, selected_colors, selected_cls_ids = self._select_notions(tgt_full_name, cls_name, dataset, src_full_names)               
 
         # load images and labels
         imgs = []
