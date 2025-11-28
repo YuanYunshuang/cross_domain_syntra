@@ -8,7 +8,11 @@ import torch
 from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 
-from .faiss_utils import FAISSIndexer
+try:
+    from .faiss_utils import FAISSIndexer
+except ImportError:
+    Warning("indexing module FAISSIndexer not found, pairing functions will not work.")
+
 
 import warnings
 warnings.filterwarnings("ignore", message="xFormers is available")

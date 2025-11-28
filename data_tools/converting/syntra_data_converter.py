@@ -94,7 +94,7 @@ class SyntraDataConverter:
         self.palette = palette
 
     def generate_legend_img(self):
-        legend_img_path = os.path.join(self.dataset_name, "legend.png")
+        legend_img_path = os.path.join(self.syntra_data_path, "legend.png")
 
         # draw legend image using color_map
         n_colors = len(self.color_map)
@@ -516,4 +516,36 @@ class SyntraDataConverter:
         tgt_mode = os.path.splitext(tgt_info_file)[0]
         save_path = os.path.join(self.syntra_data_path, f'pairing_{src_mode}_{tgt_mode}_intracls.json')
         with open(save_path, 'w') as f:
+            json.dump(pairing_info, f, indent=4)
+    
+    def pairing_negative_samples(self, tgt_info_file, src_info_file, k=8):
+        """
+        For negative samples which do not contain any foreground class, we pair them with random samples from the source dataset.
+        Args:
+            tgt_info_file (str): Target dataset sample info file.
+            src_info_file (str): Source dataset sample info file.
+            k (int, optional): Number of samples to pair. Defaults to 8.
+        """
+        
+        src_mode = os.path.splitext(src_info_file)[0]
+        tgt_mode = os.path.splitext(tgt_info_file)[0]
+        pairing_info_path = os.path.join(self.syntra_data_path, f'pairing_{src_mode}_{tgt_mode}_intracls.json')
+
+        with open(pairing_info_path, 'r') as f:
+            pairing_info = json.load(f)
+        src_samples = load_samples(os.path.join(self.syntra_data_path, src_info_file), remove_repeat=True)
+        tgt_samples = load_samples(os.path.join(self.syntra_data_path, tgt_info_file), remove_repeat=True)
+        for sample in tgt_samples:
+            if any(sample in pairing_info.get(cls_name, {}) for cls_name in self.color_map.keys()):
+                continue  # already has pairing info
+
+            # randomly select k samples from src_samples
+            selected_src_samples = random.sample(src_samples, min(k, len(src_samples)))
+            pairing_info.setdefault('negative', {})[sample] = {
+                'src_samples': selected_src_samples,
+                'distances': [None] * len(selected_src_samples)
+            }
+
+        # save updated pairing info
+        with open(pairing_info_path, 'w') as f:
             json.dump(pairing_info, f, indent=4)

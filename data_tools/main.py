@@ -189,28 +189,32 @@ if __name__ == "__main__":
     #     fg_ratio=0.05,
     # )
 
-    # generate_for_one_dataset(
-    #     converter_name="SyntraDataConverter",
-    #     input_path=None,
-    #     output_path="/home/yuan/data/syntra/medical/medical.acdc",
-    #     fg_ratio=0.0001,
-    #     tasks=[
-    #         {'task': 'select_cls_samples', 'args': {'n': 50}},
-    #         {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_50.json", 'tgt_info_file': "cls_selection_50.json"}},
-    #         {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_50.json", 'tgt_info_file': "test_samples.txt"}},
-    #     ]
-    # )
-
-    from converting.forest_monitoring_trees import ForestMonitoringTreesConverter, color_map
-    convert_demo(
-        convert_obj=ForestMonitoringTreesConverter,
-        input_path="/home/yuan/data/forest_monitoring/tree_data",
-        output_path="/home/yuan/data/syntra/forest_monitoring/trees_september",
-        color_map=color_map,
+    generate_for_one_dataset(
+        converter_name="SyntraDataConverter",
+        input_path=None,
+        output_path="/koko/datasets/syntra/forest_monitoring/trees_september",
         fg_ratio=0.05,
-        month="september",
-        # force_cast_img_to_uint8=True
+        tasks=[
+            # {'task': 'select_cls_samples', 'args': {'n': 50}},
+            # {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_50.json", 'tgt_info_file': "cls_selection_50.json"}},
+            # {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_50.json", 'tgt_info_file': "test_samples.txt"}},
+            {'task': 'pairing_negative_samples', 'args': {
+                'src_info_file': "train_samples.txt", 
+                'tgt_info_file': "train_samples.txt"
+            }},
+        ]
     )
+
+    # from converting.forest_monitoring_trees import ForestMonitoringTreesConverter, color_map
+    # convert_demo(
+    #     convert_obj=ForestMonitoringTreesConverter,
+    #     input_path="/home/yuan/data/forest_monitoring/tree_data",
+    #     output_path="/home/yuan/data/syntra/forest_monitoring/trees_september",
+    #     color_map=color_map,
+    #     fg_ratio=0.05,
+    #     month="september",
+    #     # force_cast_img_to_uint8=True
+    # )
 
     # from converting.acdc import ACDCConverter, color_map
     # convert_demo(

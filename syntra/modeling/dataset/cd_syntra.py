@@ -101,7 +101,9 @@ class CrossDomainSynTraDataset(Dataset):
                 with open(os.path.join(ds_path, f"{ds}.json")) as f:
                     self.label_ratios.update(json.load(f))
                 with open(os.path.join(ds_path, f"color_map.json")) as f:
-                    self.label_colors[ds] = {k: v for k, v in json.load(f).items() if k not in self.INVALID_CLS}
+                    color_map = {"negative": [0, 0, 0]}  # add negative class
+                    color_map.update({k: v for k, v in json.load(f).items() if k not in self.INVALID_CLS})
+                    self.label_colors[ds] = color_map
                 if os.path.isfile(os.path.join(ds_path, "meta_info.json")):
                     with open(os.path.join(ds_path, "meta_info.json")) as f:
                         self.meta_info[ds] = json.load(f)
@@ -147,9 +149,10 @@ class CrossDomainSynTraDataset(Dataset):
         if removed_count > 0:
             print(f"Removed {removed_count} samples with no source examples.")
         # pos/neg sample ratio 0.8:0.2
-        num_pos = len(pos_file_list) 
-        num_neg = int(num_pos * (1 - self.pos_prob) / self.pos_prob)
-        self.file_list = pos_file_list + random.sample(neg_file_list, min(num_neg, len(neg_file_list)))
+        # num_pos = len(pos_file_list) 
+        # num_neg = int(num_pos * (1 - self.pos_prob) / self.pos_prob)
+        # self.file_list = pos_file_list + random.sample(neg_file_list, min(num_neg, len(neg_file_list)))
+        self.file_list = pos_file_list + neg_file_list
     
     def __len__(self):
         return len(self.file_list)
@@ -187,11 +190,13 @@ class CrossDomainSynTraDataset(Dataset):
     
     def _select_notions(self, tgt_full_name, cls_full_name, dataset, src_full_names):
         cls_name = cls_full_name.split(".")[0]
+        if cls_name == "negative":
+            return ["negative"], [self.label_colors[dataset]["negative"]], [0]
         all_cls_names = list(self.label_colors[dataset].keys())
         if self.num_notions == 1:
             selected_classes = [cls_name]
             selected_colors = [self.label_colors[dataset][cls_name]]
-            selected_cls_ids = [all_cls_names.index(cls_name) + 1]
+            selected_cls_ids = [all_cls_names.index(cls_name)]
             return selected_classes, selected_colors, selected_cls_ids
         else:
             # in addition to the main class, randomly select other classes from the target image to improve diversity
@@ -224,7 +229,7 @@ class CrossDomainSynTraDataset(Dataset):
                 replace=len(pos_neg)<(self.num_notions - 1), 
                 p=np.array(pos_neg_probs) / np.sum(pos_neg_probs)
             ))
-            selected_cls_ids = [all_cls_names.index(cls_name) + 1 for cls_name in selected_classes]
+            selected_cls_ids = [all_cls_names.index(cls_name) for cls_name in selected_classes]
             selected_colors = [self.label_colors[dataset].get(c, None) for c in selected_classes]
         return selected_classes, selected_colors, selected_cls_ids
     

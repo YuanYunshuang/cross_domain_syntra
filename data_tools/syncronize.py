@@ -17,6 +17,11 @@ def syncronize_to_remote(folder_src, folder_tgt, remote_user, remote_host, ignor
     else:
         subprocess.run(f"rsync -av --progress {folder_src}/ {remote_user}@{remote_host}:{folder_tgt}/", shell=True, check=True)
 
+def copy_to_remote(file_src, file_tgt, remote_user, remote_host):
+    """Copy a file from file_src to file_tgt on a remote machine."""
+    import subprocess
+    subprocess.run(f"scp {file_src} {remote_user}@{remote_host}:{file_tgt}", shell=True, check=True)
+
 
 def syncronize_from_remote(folder_src, folder_tgt, remote_user, remote_host, ignore_list=None):
     """Sync all files from folder_src on a remote machine to folder_tgt recursively."""
@@ -90,9 +95,9 @@ if __name__ == "__main__":
     # with open(os.path.join(local_path, ".gitignore"), "r") as f:
     #     ignore_list = [line.strip() for line in f.readlines() if line.strip() and not line.startswith("#")]
 
-    syncronize_to_remote(
-        "/home/yuan/data/syntra/forest_monitoring",
-        "/home/yuang/data/syntra/forest_monitoring",
+    copy_to_remote(
+        "/koko/datasets/syntra/forest_monitoring/trees_september/pairing_train_samples_train_samples_intracls.json",
+        "/home/yuang/data/syntra/forest_monitoring/trees_september/pairing_train_samples_train_samples_intracls.json",
         "yuang",
         "130.75.51.199",
         # ignore_list=["imgs/", "lbls/"]
