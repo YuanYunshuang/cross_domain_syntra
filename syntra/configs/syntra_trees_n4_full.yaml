@@ -55,7 +55,7 @@ TEST:
   num_notions: 1
   num_src: 7
   data_info: pairing_train_samples_test_samples_intracls
-  data_keywords: trees_september
+  data_keywords: trees
   checkpoint: null # will be set to the path ./logs/<task_name>/model_latest.pth
   save_result: true
   output_dir: null # will be set to the checkpoint's parent directory
