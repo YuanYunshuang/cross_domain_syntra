@@ -97,13 +97,11 @@ class CrossDomainSynTraDataset(Dataset):
                     Warning(f"Info file {info_file} does not exist in dataset folder {ds_path}. Skip this dataset.")
                     continue
                 with open(os.path.join(ds_path, info_file)) as f:
-                    self.src_pool.update({f"{k}.{ds}": v for k, v in json.load(f).items()})
+                    self.src_pool.update({f"{k}.{ds}": v for k, v in json.load(f).items() if k!='negative'})
                 with open(os.path.join(ds_path, f"{ds}.json")) as f:
                     self.label_ratios.update(json.load(f))
                 with open(os.path.join(ds_path, f"color_map.json")) as f:
-                    color_map = {"negative": [0, 0, 0]}  # add negative class
-                    color_map.update({k: v for k, v in json.load(f).items() if k not in self.INVALID_CLS})
-                    self.label_colors[ds] = color_map
+                    self.label_colors[ds] = {k: v for k, v in json.load(f).items() if k not in self.INVALID_CLS}
                 if os.path.isfile(os.path.join(ds_path, "meta_info.json")):
                     with open(os.path.join(ds_path, "meta_info.json")) as f:
                         self.meta_info[ds] = json.load(f)
@@ -149,9 +147,9 @@ class CrossDomainSynTraDataset(Dataset):
         if removed_count > 0:
             print(f"Removed {removed_count} samples with no source examples.")
         # pos/neg sample ratio 0.8:0.2
-        # num_pos = len(pos_file_list) 
-        # num_neg = int(num_pos * (1 - self.pos_prob) / self.pos_prob)
-        # self.file_list = pos_file_list + random.sample(neg_file_list, min(num_neg, len(neg_file_list)))
+        num_pos = len(pos_file_list) 
+        num_neg = int(num_pos * (1 - self.pos_prob) / self.pos_prob)
+        self.file_list = pos_file_list + random.sample(neg_file_list, min(num_neg, len(neg_file_list)))
         self.file_list = pos_file_list + neg_file_list
     
     def __len__(self):
@@ -190,46 +188,33 @@ class CrossDomainSynTraDataset(Dataset):
     
     def _select_notions(self, tgt_full_name, cls_full_name, dataset, src_full_names):
         cls_name = cls_full_name.split(".")[0]
-        if cls_name == "negative":
-            return ["negative"], [self.label_colors[dataset]["negative"]], [0]
         all_cls_names = list(self.label_colors[dataset].keys())
         if self.num_notions == 1:
             selected_classes = [cls_name]
             selected_colors = [self.label_colors[dataset][cls_name]]
-            selected_cls_ids = [all_cls_names.index(cls_name)]
+            selected_cls_ids = [all_cls_names.index(cls_name) + 1]
             return selected_classes, selected_colors, selected_cls_ids
         else:
             # in addition to the main class, randomly select other classes from the target image to improve diversity
-            tgt_cls_ratios = self.label_ratios[tgt_full_name]
-            src_cls_ratios = {k: 0.0 for k in self.label_colors[dataset].keys()}
+            cls_ratios = {}
             for src_full_name in src_full_names:
                 for cls, ratio in self.label_ratios[src_full_name].items():
                     if ratio == 0.0:
                         continue
-                    src_cls_ratios[cls] += ratio
-            # pos_cls: classes present in both source and target images
-            pos_cls = []
-            # neg_cls: classes not present in the target image
-            neg_cls = []
-            for cls in tgt_cls_ratios.keys():
-                if cls == cls_name:
-                    continue
-                if tgt_cls_ratios[cls] > self.fg_ratio[dataset] and src_cls_ratios.get(cls, 0.0) > self.fg_ratio[dataset]:
-                    pos_cls.append(cls)
-                else:
-                    neg_cls.append(cls)
-            # select pos cls with probability self.pos_prob and neg cls with probability 1 - self.pos_prob
-            pos_neg = pos_cls + neg_cls
-            pos_neg_probs = [self.pos_prob / max(1, len(pos_cls)),] * len(pos_cls) + \
-                [(1 - self.pos_prob) / max(1, len(neg_cls)),] * len(neg_cls)
+                    if cls not in cls_ratios:
+                        cls_ratios[cls] = 0.0
+                    cls_ratios[cls] += ratio
+            # select classes based on the max ratios
+            sorted_cls = sorted(cls_ratios.items(), key=lambda x: x[1], reverse=True)
+
             selected_classes = [cls_name]
-            selected_classes += list(np.random.choice(
-                pos_neg, 
-                self.num_notions - 1, 
-                replace=len(pos_neg)<(self.num_notions - 1), 
-                p=np.array(pos_neg_probs) / np.sum(pos_neg_probs)
-            ))
-            selected_cls_ids = [all_cls_names.index(cls_name) for cls_name in selected_classes]
+            for cls, _ in sorted_cls:
+                if cls != cls_name and cls in self.label_colors[dataset]:
+                    selected_classes.append(cls)
+                if len(selected_classes) >= self.num_notions:
+                    break
+
+            selected_cls_ids = [all_cls_names.index(cls_name) + 1 for cls_name in selected_classes]
             selected_colors = [self.label_colors[dataset].get(c, None) for c in selected_classes]
         return selected_classes, selected_colors, selected_cls_ids
     
@@ -273,14 +258,19 @@ class CrossDomainSynTraDataset(Dataset):
 
         src_full_names = self._select_src_samples(cls_name, tgt_full_name)
 
-        selected_classes, selected_colors, selected_cls_ids = self._select_notions(tgt_full_name, cls_name, dataset, src_full_names)               
+        selected_classes, selected_colors, _ = self._select_notions(tgt_full_name, cls_name, dataset, src_full_names)
+        # selected_classes, selected_colors, selected_cls_ids = self._select_notions(
+        #     tgt_full_name, cls_name, dataset, src_full_names)               
 
         # load images and labels
         imgs = []
         lbls = []
         full_names = [tgt_full_name] + src_full_names
         for img_full_name in full_names:
-            img, multi_notion_lbl = self._load_one_img_lbl_pair(img_full_name, selected_cls_ids)
+            # img, multi_notion_lbl = self._load_one_img_lbl_pair(img_full_name, selected_cls_ids)
+            img, lbl = self._load_image_label(img_full_name)
+            multi_notion_lbl = self._construct_multi_notion_label_via_colors(lbl, selected_colors)
+            img, multi_notion_lbl = self.uni_transform(img, multi_notion_lbl)
             imgs.append(img)
             lbls.append(multi_notion_lbl)
         if self.uni_transform is not None:
