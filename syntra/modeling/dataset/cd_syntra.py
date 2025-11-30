@@ -75,7 +75,7 @@ class CrossDomainSynTraDataset(Dataset):
                     Warning(f"Info file {info_file} does not exist in dataset folder {ds_path}. Skip this dataset.")
                     continue
                 with open(os.path.join(ds_path, info_file)) as f:
-                    self.src_pool.update({f"{k}.{ds}": v for k, v in json.load(f).items()})
+                    self.src_pool.update({f"{k}.{ds}": v for k, v in json.load(f).items() if k!='negative'})
                 with open(os.path.join(ds_path, f"{ds}.json")) as f:
                     self.label_ratios.update(json.load(f))
                 with open(os.path.join(ds_path, f"color_map.json")) as f:
