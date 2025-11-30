@@ -16,7 +16,7 @@ TRAIN:
   mask_decoder: default
 
   # data
-  dataset_name: cd_syntra
+  dataset_name: cd_syntra_efficient
   num_src: 3
   num_notions: 4
   img_size: 384
@@ -25,20 +25,19 @@ TRAIN:
   data_keywords: trees
   validation_data: null
   uni_transform:
-    - name: MapTransformTrain
-  #   - name: ToTensor
-  #   - name: Normalize
-  #     args:
-  #       mean: [0.5, 0.5, 0.5]
-  #       std: [0.25, 0.25, 0.25]
-  # aug_transform:
-  #   - name: RandomFlipBatch
-  #     args:
-  #       p_horizontal: 0.5
-  #       p_vertical: 0.5
-  #   - name: RandomRotateBatch
-  #     args:
-  #       degrees: 30
+    - name: ToTensor
+    - name: Normalize
+      args:
+        mean: [0.5, 0.5, 0.5]
+        std: [0.25, 0.25, 0.25]
+  aug_transform:
+    - name: RandomFlipBatch
+      args:
+        p_horizontal: 0.5
+        p_vertical: 0.5
+    - name: RandomRotateBatch
+      args:
+        degrees: 30
 
   # train
   num_epochs: 200
