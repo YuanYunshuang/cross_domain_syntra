@@ -168,6 +168,9 @@ def main():
     # dataset
     uni_transform = TransformCompose(args.uni_transform) if getattr(args, 'uni_transform', None) is not None else None
     aug_transform = TransformCompose(args.aug_transform) if getattr(args, 'aug_transform', None) is not None else None
+    kwargs = {}
+    if hasattr(args, 'pos_prob'):
+        kwargs['pos_prob'] = args.pos_prob
     train_dataset = get_dataset(args.dataset_name,
                                data_root=args.root_dir,
                                num_src=args.num_src,
@@ -179,7 +182,8 @@ def main():
                                img_size=args.img_size,
                                cache_data=args.cache_data,
                                uni_transform=uni_transform,
-                               aug_transform=aug_transform)
+                               aug_transform=aug_transform,
+                               **kwargs)
     logger.info(f"# training samples: {len(train_dataset)}")
     sampler, batch_sampler = get_sampler(train_dataset, batch_size=args.batch_size, sampler_name=args.sampler) 
     if batch_sampler is None:

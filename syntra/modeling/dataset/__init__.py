@@ -2,6 +2,7 @@ from .smol import SMOLDataset
 from .syntra import SynTraDataset
 from .cd_syntra import CrossDomainSynTraDataset
 from .cd_syntra_efficient import CrossDomainSynTraDatasetE
+from .cd_syntra2_efficient import CrossDomainSynTraDataset2E
 
 
 def get_dataset(dataset_name, **kwargs):
@@ -13,5 +14,7 @@ def get_dataset(dataset_name, **kwargs):
         return CrossDomainSynTraDataset(**kwargs)
     elif dataset_name == "cd_syntra_efficient":
         return CrossDomainSynTraDatasetE(**kwargs)
+    elif dataset_name == "cd_syntra2_efficient":
+        return CrossDomainSynTraDataset2E(**kwargs)
     else:
         raise NotImplementedError(f"Dataset {dataset_name} is not implemented.")

@@ -518,6 +518,69 @@ class SyntraDataConverter:
         with open(save_path, 'w') as f:
             json.dump(pairing_info, f, indent=4)
     
+    def pairing_sample_intra_cls(self, tgt_info_file, src_info_file=None, k=8, skip_if_lt_k=False):
+        """
+        pairing format: 
+            target_sample: {
+                "cls_name": {
+                    "src_samples": [list of source samples],
+                }
+        """
+      
+        if src_info_file is None:
+            src_info_file = tgt_info_file
+
+        img_encoder = DinoV2Encoder()
+        class_names = self.color_map.keys()
+        tgt_samples = load_samples(os.path.join(self.syntra_data_path, tgt_info_file))
+        src_samples = load_samples(os.path.join(self.syntra_data_path, src_info_file))
+        ext = "." + os.listdir(self.img_dir)[0].rsplit('.', 1)[-1]
+        if isinstance(src_samples, list):
+            src_samples = parse_class_samples(self.load_data_info(), src_samples, list(self.color_map.keys()), fg_ratio=self.fg_ratio)
+        
+        pairing_info = {x: {} for x in tgt_samples}
+        for cls_name in class_names:
+            if cls_name not in src_samples or len(src_samples[cls_name]) == 0:
+                print(f"Warning: No source samples found for class {cls_name}. Skip.")
+                continue
+            print('*' * 30 + f"Processing class: {cls_name}")
+            cur_src_samples = src_samples[cls_name]
+            cur_tgt_samples = tgt_samples
+            if len(cur_src_samples) < 8:
+                if skip_if_lt_k:
+                    print(f"Warning: class {cls_name} has less than 8 source samples. Skip pairing.")
+                    continue
+                else:
+                    print(f"Warning: class {cls_name} has less than 8 source samples. Select all.")
+
+            # build index db for current source samples
+            map_dataloader = BaseDataloaders(os.path.dirname(self.syntra_data_path), cur_src_samples, batch_size=4, ext=ext)
+            index_db = IndexDatabase(map_dataloader=map_dataloader, img_encoder=img_encoder, merge_patch_token=False)
+    
+            for sample in tqdm(cur_tgt_samples):
+                sample_name = sample.rsplit('.', 1)[1] 
+                sample_img_path = os.path.join(self.img_dir, f"{sample_name}{ext}")
+                distances, indices =  index_db.external_search(
+                    self.dataset_name, sample_img_path, k=min(k, len(cur_src_samples))) 
+                # remove self from the pairing list
+                mask = distances>1e-3
+                distances = distances[mask]
+                indices = indices[mask]
+                # update pairing info
+                pairing_info[sample][cls_name] = {
+                    'src_samples': [cur_src_samples[i] for i in indices],
+                    # 'distances': distances.tolist()
+                }
+            del index_db
+            del map_dataloader
+
+        # save pairing info
+        src_mode = os.path.splitext(src_info_file)[0]
+        tgt_mode = os.path.splitext(tgt_info_file)[0]
+        save_path = os.path.join(self.syntra_data_path, f'sample_pair_{src_mode}_{tgt_mode}_intracls.json')
+        with open(save_path, 'w') as f:
+            json.dump(pairing_info, f, indent=4)
+
     def pairing_negative_samples(self, tgt_info_file, src_info_file, k=8):
         """
         For negative samples which do not contain any foreground class, we pair them with random samples from the source dataset.

@@ -192,15 +192,19 @@ if __name__ == "__main__":
     generate_for_one_dataset(
         converter_name="SyntraDataConverter",
         input_path=None,
-        output_path="/koko/datasets/syntra/forest_monitoring/trees_september",
+        output_path="/koko/datasets/syntra/forest_monitoring/trees",
         fg_ratio=0.05,
         tasks=[
             # {'task': 'select_cls_samples', 'args': {'n': 50}},
             # {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_50.json", 'tgt_info_file': "cls_selection_50.json"}},
             # {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_50.json", 'tgt_info_file': "test_samples.txt"}},
-            {'task': 'pairing_negative_samples', 'args': {
+            {'task': 'pairing_sample_intra_cls', 'args': {
                 'src_info_file': "train_samples.txt", 
                 'tgt_info_file': "train_samples.txt"
+            }},
+            {'task': 'pairing_sample_intra_cls', 'args': {
+                'src_info_file': "train_samples.txt", 
+                'tgt_info_file': "test_samples.txt"
             }},
         ]
     )

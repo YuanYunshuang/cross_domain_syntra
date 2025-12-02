@@ -2,7 +2,7 @@ TRAIN:
   # common
   task_name: null # will be set to the config file name
   root_dir: /koko/datasets/syntra/forest_monitoring/trees
-  data_info: pairing_train_samples_train_samples_intracls
+  data_info: sample_pair_train_samples_train_samples_intracls
   batch_size: 8
   num_workers: 8
   accum_steps: 4
@@ -16,11 +16,12 @@ TRAIN:
   mask_decoder: default
 
   # data
-  dataset_name: cd_syntra_efficient
+  dataset_name: cd_syntra2_efficient
   num_src: 3
   num_notions: 4
   img_size: 384
   foreground_ratio: 0.05
+  pos_prob: 0.99
   sampler: group_fixed_m # grouped_prob | uniform | prob
   data_keywords: trees
   validation_data: null
@@ -45,7 +46,7 @@ TRAIN:
   lr: 1e-3
   lr_scheduler: exp
   output_dir: logs
-  disable_runid: true
+  disable_runid: false
   weight_decay: 0.01
   warmup_itrs: 1000
   resume: null
@@ -54,7 +55,7 @@ TRAIN:
 TEST:
   num_notions: 1
   num_src: 7
-  data_info: pairing_train_samples_test_samples_intracls
+  data_info: sample_pair_train_samples_test_samples_intracls
   data_keywords: trees
   checkpoint: null # will be set to the path ./logs/<task_name>/model_latest.pth
   save_result: true

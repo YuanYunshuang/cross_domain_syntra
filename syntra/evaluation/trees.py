@@ -6,18 +6,22 @@ from PIL import Image
 from tqdm import tqdm
 
 
-def iou_score(y_true, y_pred, smooth=1e-6):
+def iou_score(y_true, y_pred, ignore_mask=None, smooth=1e-6):
     """
     Compute the Intersection over Union (IoU) between the ground truth and predicted masks.
 
     Parameters:
     y_true (ndarray): Ground truth binary mask.
     y_pred (ndarray): Predicted binary mask.
+    ignore_mask (ndarray, optional): Binary mask to ignore certain regions. Defaults to None.
     smooth (float): Smoothing factor to avoid division by zero.
 
     Returns:
     float: IoU Score.
     """
+    if ignore_mask is not None:
+        y_true = y_true * (1 - ignore_mask)
+        y_pred = y_pred * (1 - ignore_mask)
     intersection = (y_true * y_pred).sum()
     union = y_true.sum() + y_pred.sum() - intersection
     iou = (intersection + smooth) / (union + smooth)
@@ -46,8 +50,12 @@ def eval(result_folder, data_folder):
     for file_name in tqdm(os.listdir(test_mask_files)):
         gt_mask_path = os.path.join(gt_folder, file_name)
         gt_mask = np.array(Image.open(gt_mask_path)) 
+        acer_mask = gt_mask == classes.index("Acer") + 1
         pred_mask = []
         for cls_name in classes:
+            if cls_name == "Acer":
+                pred_mask.append(np.zeros_like(gt_mask))
+                continue
             pred_mask_path = os.path.join(result_folder, cls_name, file_name)
             pred_mask.append(np.array(Image.open(pred_mask_path)))
         pred_mask = np.stack(pred_mask, axis=0)  # (N, H, W)
@@ -56,9 +64,11 @@ def eval(result_folder, data_folder):
         pred_mask[pred_score < 128] = 0  # background
 
         for i, cls_name in enumerate(classes):
+            if cls_name == "Acer":
+                continue
             gt_cls_mask = (gt_mask == (i + 1)).astype(np.uint8)
             pred_cls_mask = (pred_mask == (i + 1)).astype(np.uint8)
-            iou = iou_score(gt_cls_mask, pred_cls_mask)
+            iou = iou_score(gt_cls_mask, pred_cls_mask, ignore_mask=acer_mask)
             scores[cls_name].append(iou)
         # visualize merged predictions
         img_path = os.path.join(data_folder, 'imgs', file_name)
@@ -66,6 +76,8 @@ def eval(result_folder, data_folder):
         gt_vis = np.zeros_like(img)
         pred_vis = np.zeros_like(img)
         for i, cls_name in enumerate(classes):
+            if cls_name == "Acer":
+                continue
             color = np.array(color_map[cls_name])
             gt_cls_mask = (gt_mask == (i + 1))
             pred_cls_mask = (pred_mask == (i + 1))
@@ -84,8 +96,8 @@ def eval(result_folder, data_folder):
 
 
 if __name__=="__main__":
-    result_folder = "logs/syntra_trees_n4_full/trees_september/trees_september"
-    data_folder = "/home/yuan/data/syntra/forest_monitoring/trees_september"
+    result_folder = "logs/syntra_trees_n4_full-20251130-1719/trees/trees"
+    data_folder = "/home/yuan/data/syntra/forest_monitoring/trees"
     eval(result_folder, data_folder)
 
 # Original without crop to 120x120:
