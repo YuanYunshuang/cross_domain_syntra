@@ -192,7 +192,7 @@ if __name__ == "__main__":
     generate_for_one_dataset(
         converter_name="SyntraDataConverter",
         input_path=None,
-        output_path="/koko/datasets/syntra/forest_monitoring/trees",
+        output_path="/home/yuan/data/syntra/remote_sensing/oem",
         fg_ratio=0.05,
         tasks=[
             # {'task': 'select_cls_samples', 'args': {'n': 50}},

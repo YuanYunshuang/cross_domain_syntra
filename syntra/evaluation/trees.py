@@ -37,7 +37,7 @@ def eval(result_folder, data_folder):
     """
     classes = sorted(os.listdir(result_folder))
 
-    scores = {cls_name: [] for cls_name in classes}
+    scores = {cls_name: [] for cls_name in classes if cls_name != "Acer"}
     with open(os.path.join(data_folder, 'color_map.json'), 'r') as f:
         color_map = json.load(f)
 
@@ -88,16 +88,21 @@ def eval(result_folder, data_folder):
         res_vis.save(os.path.join(vis_folder, file_name))
 
     miou = []
+    res_str = ""
     for cls_name, score in scores.items():
         iou = np.mean(score)
         print(f"{cls_name}: IoU = {iou:.4f}")
+        res_str += f"Class {cls_name}: IoU = {iou:.4f}\n"
         miou.append(iou)
     print(f"Mean IoU over {len(classes)} classes: {np.mean(miou):.4f}")
+    res_str += f"Mean IoU over {len(classes)} classes: {np.mean(miou):.4f}\n"
+    with open(os.path.join(os.path.dirname(result_folder), 'eval_result.txt'), 'w') as f:
+        f.write(res_str)
 
 
 if __name__=="__main__":
-    result_folder = "logs/syntra_trees_n4_full-20251130-1719/trees/trees"
-    data_folder = "/home/yuan/data/syntra/forest_monitoring/trees"
+    result_folder = "logs/syntra_trees_sep_n4_full/trees_september/trees_september"
+    data_folder = "/home/yuan/data/syntra/forest_monitoring/trees_september"
     eval(result_folder, data_folder)
 
 # Original without crop to 120x120:
