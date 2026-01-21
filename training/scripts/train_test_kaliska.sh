@@ -23,23 +23,25 @@
 
 export WORKDIR=/home/yuang/data
 export DATA_SUBDIR=hismap
-export CONFIG=hismap_n1_full
+# export CONFIG=hismap_n1_full
 
-# Run training directly (replace args as needed)
-docker run --gpus all --rm \
-  -v "$WORKDIR":/workspace \
-  -w /workspace/cross_domain_syntra \
-  --shm-size=16g \
-  opheliayuan/syntra:latest \
-  sh -lc "umask 000 && PYTHONPATH=. python syntra/train_one_gpu.py \
-  --config syntra_${CONFIG}.yaml -d ../syntra/${DATA_SUBDIR} -o /workspace/logs --cache-data 
-# --resume /workspace/logs/syntra_${CONFIG}/model_latest.pth"
+for CONFIG in hismap_n1_full hismap_n1_s100; do
+  # Run training directly (replace args as needed)
+  docker run --gpus all --rm \
+    -v "$WORKDIR":/workspace \
+    -w /workspace/cross_domain_syntra \
+    --shm-size=16g \
+    opheliayuan/syntra:latest \
+    sh -lc "umask 000 && PYTHONPATH=. python syntra/train_one_gpu.py \
+    --config syntra_${CONFIG}.yaml -d ../syntra/${DATA_SUBDIR} -o /workspace/logs --cache-data 
+  # --resume /workspace/logs/syntra_${CONFIG}/model_latest.pth"
 
-# Run testing directly (replace args as needed)
-docker run --gpus all --rm \
-  -v "$WORKDIR":/workspace \
-  -w /workspace/cross_domain_syntra  \
-  --shm-size=16g \
-  opheliayuan/syntra:latest \
-  sh -lc "umask 000 && PYTHONPATH=. python syntra/test.py \
-  --config syntra_${CONFIG}.yaml -d ../syntra/${DATA_SUBDIR} -o /workspace/logs --checkpoint /workspace/logs/syntra_${CONFIG}/model_latest.pth"
+  # Run testing directly (replace args as needed)
+  docker run --gpus all --rm \
+    -v "$WORKDIR":/workspace \
+    -w /workspace/cross_domain_syntra  \
+    --shm-size=16g \
+    opheliayuan/syntra:latest \
+    sh -lc "umask 000 && PYTHONPATH=. python syntra/test.py \
+    --config syntra_${CONFIG}.yaml -d ../syntra/${DATA_SUBDIR} -o /workspace/logs --checkpoint /workspace/logs/syntra_${CONFIG}/model_latest.pth"
+done

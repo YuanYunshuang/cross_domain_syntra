@@ -6,6 +6,7 @@ TRAIN:
   batch_size: 8
   num_workers: 8
   accum_steps: 4
+  vis_freq: null
 
   # model
   model_name: smol
