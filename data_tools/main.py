@@ -89,11 +89,11 @@ def convert_demo(convert_obj, input_path, output_path, color_map, fg_ratio=0.05,
     pairing_options = [
         ("cls_selection_100.json", "cls_selection_100.json"),
         ("cls_selection_100.json", "test_samples.txt"),
-        # ("train_samples.txt", "train_samples.txt"),
-        # ("train_samples.txt", "test_samples.txt"),
+        ("train_samples.txt", "train_samples.txt"),
+        ("train_samples.txt", "test_samples.txt"),
     ]
     for src_file, tgt_file in pairing_options:
-        converter.pairing_intra_cls(src_info_file=src_file, tgt_info_file=tgt_file)
+        converter.pairing_sample_intra_cls(src_info_file=src_file, tgt_info_file=tgt_file)
 
 
 def update_lbls():
@@ -189,25 +189,29 @@ if __name__ == "__main__":
     #     fg_ratio=0.05,
     # )
 
-    generate_for_one_dataset(
-        converter_name="SyntraDataConverter",
-        input_path=None,
-        output_path="/home/yuan/data/syntra/remote_sensing/oem",
-        fg_ratio=0.05,
-        tasks=[
-            # {'task': 'select_cls_samples', 'args': {'n': 50}},
-            # {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_50.json", 'tgt_info_file': "cls_selection_50.json"}},
-            # {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_50.json", 'tgt_info_file': "test_samples.txt"}},
-            {'task': 'pairing_sample_intra_cls', 'args': {
-                'src_info_file': "train_samples.txt", 
-                'tgt_info_file': "train_samples.txt"
-            }},
-            {'task': 'pairing_sample_intra_cls', 'args': {
-                'src_info_file': "train_samples.txt", 
-                'tgt_info_file': "test_samples.txt"
-            }},
-        ]
-    )
+    # generate_for_one_dataset(
+    #     converter_name="SyntraDataConverter",
+    #     input_path=None,
+    #     output_path="/home/yuan/data/syntra/remote_sensing/oem",
+    #     fg_ratio=0.05,
+    #     tasks=[
+    #         {'task': 'select_cls_samples', 'args': {'n': 50}},
+    #         {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_50.json", 'tgt_info_file': "cls_selection_50.json"}},
+    #         {'task': 'pairing_intra_cls', 'args': {'src_info_file': "cls_selection_50.json", 'tgt_info_file': "test_samples.txt"}},
+    #         {'task': 'pairing_sample_intra_cls', 'args': {
+    #             'src_info_file': "train_samples.txt", 
+    #             'tgt_info_file': "train_samples.txt"
+    #         }},
+    #         {'task': 'pairing_sample_intra_cls', 'args': {
+    #             'src_info_file': "train_samples.txt", 
+    #             'tgt_info_file': "test_samples.txt"
+    #         }},
+    #         {'task': 'pairing_sample_intra_cls', 'args': {
+    #             'src_info_file': "train_samples.txt", 
+    #             'tgt_info_file': "val_samples.txt"
+    #         }},
+    #     ]
+    # )
 
     # from converting.forest_monitoring_trees import ForestMonitoringTreesConverter, color_map
     # convert_demo(
@@ -228,6 +232,15 @@ if __name__ == "__main__":
     #     color_map=color_map,
     #     fg_ratio=0.01,
     # )
+
+    from converting.hameln_rs import HamelnRSConverter, color_map
+    convert_demo(
+        convert_obj=HamelnRSConverter,
+        input_path="/home/yuan/data/labels_v3_manual_atkis_2000_2010_2022",
+        output_path="/home/yuan/data/syntra/remote_sensing/hameln",
+        color_map=color_map,
+        fg_ratio=0.05,
+    )
 
 
 

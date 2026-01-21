@@ -98,10 +98,10 @@ class SyntraDataConverter:
 
         # draw legend image using color_map
         n_colors = len(self.color_map)
-        _, ax = plt.subplots(figsize=(2, n_colors * 0.3))
+        _, ax = plt.subplots(figsize=(3, n_colors * 0.3))
         for i, (cls_name, color) in enumerate(self.color_map.items()):
             ax.barh(i, 1, color=np.array(color)/255.0)
-            ax.text(0.5, i, cls_name, va='center', ha='center', color='black' if np.mean(color) > 128 else 'white')
+            ax.text(0.5, i, f"{i+1}-{cls_name}", va='center', ha='center', color='black' if np.mean(color) > 128 else 'white')
         ax.set_yticks([])
         ax.set_xticks([])
         plt.savefig(legend_img_path, bbox_inches='tight')

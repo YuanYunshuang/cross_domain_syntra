@@ -141,10 +141,22 @@ class CrossDomainSynTraDataset2(Dataset):
                     continue
                 
                 cls_full_name = f"{cls_name}.{tgt_sample.split('.', 1)[0]}"
-                if self.label_ratios[tgt_sample].get(cls_name, 0.0) > self.fg_ratio[tgt_sample.rsplit(".", 1)[0]]:
-                    pos_file_list.append(f"{cls_full_name}.pos/{tgt_sample}")
+                if self.mode == "train":
+                    if self.label_ratios[tgt_sample].get(cls_name, 0.0) > self.fg_ratio[tgt_sample.rsplit(".", 1)[0]]:
+                        pos_file_list.append(f"{cls_full_name}.pos/{tgt_sample}")
+                    else:
+                        neg_file_list.append(f"{cls_full_name}.neg/{tgt_sample}")
+                elif self.mode == "test":
+                    if tgt_sample in self.label_ratios:
+                        if self.label_ratios[tgt_sample].get(cls_name, 0.0) > self.fg_ratio[tgt_sample.rsplit(".", 1)[0]]:
+                            pos_file_list.append(f"{cls_full_name}.pos/{tgt_sample}")
+                        else:
+                            neg_file_list.append(f"{cls_full_name}.neg/{tgt_sample}")
+                    else:
+                        removed_count += 1
                 else:
-                    neg_file_list.append(f"{cls_full_name}.neg/{tgt_sample}")
+                    # in test mode, use all samples
+                    pos_file_list.append(f"{cls_full_name}.pos/{tgt_sample}")
 
         if removed_count > 0:
             print(f"Removed {removed_count} samples with no source examples.")

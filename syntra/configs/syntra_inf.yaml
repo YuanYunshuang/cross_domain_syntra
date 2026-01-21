@@ -1,0 +1,22 @@
+INF:
+
+  # model
+  model_name: smol
+  dora_rank: 16
+  backbone: vit_b
+  prompt_encoder: example
+  mask_decoder: default
+
+  # data
+  num_src: 3
+  num_notions: 1
+  img_size: 384
+  uni_transform:
+    - name: ToTensor
+    - name: Normalize
+      args:
+        mean: [0.5, 0.5, 0.5]
+        std: [0.25, 0.25, 0.25]
+
+
+
