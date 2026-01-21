@@ -95,13 +95,13 @@ if __name__ == "__main__":
     # with open(os.path.join(local_path, ".gitignore"), "r") as f:
     #     ignore_list = [line.strip() for line in f.readlines() if line.strip() and not line.startswith("#")]
 
-    copy_to_remote(
-        "/koko/datasets/syntra/forest_monitoring/trees_september/pairing_train_samples_train_samples_intracls.json",
-        "/home/yuang/data/syntra/forest_monitoring/trees_september/pairing_train_samples_train_samples_intracls.json",
-        "yuang",
-        "130.75.51.199",
-        # ignore_list=["imgs/", "lbls/"]
-    )
+    # copy_to_remote(
+    #     "/koko/datasets/syntra/forest_monitoring/trees_september/pairing_train_samples_train_samples_intracls.json",
+    #     "/home/yuang/data/syntra/",
+    #     "yuang",
+    #     "130.75.51.199",
+    #     # ignore_list=["imgs/", "lbls/"]
+    # )
 
     # syncronize_from_remote(
     #     "/home/yuan/data/syntra_original_size/medical/acdc",
@@ -112,9 +112,9 @@ if __name__ == "__main__":
 
     # list_files("/home/yuan/data/OpenEarthMap/xview2")
 
-    # syncronize_to_remote(
-    #     "/home/yuan/data/syntra/autonomous_driving",
-    #     "data/syntra/autonomous_driving",
-    #     "yuang",
-    #     "130.75.51.199"
-    # )
+    syncronize_to_remote(
+        "/home/yuan/data/syntra/hismap",
+        "data/syntra/hismap",
+        "yuang",
+        "130.75.51.199"
+    )
