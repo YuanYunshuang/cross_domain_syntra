@@ -85,12 +85,15 @@ def convert_demo(convert_obj, input_path, output_path, color_map, fg_ratio=0.05,
         **kwargs
     )
     # converter.convert(['train', 'test', 'val'])
-    # converter.select_cls_samples(n=100)
+    converter.select_cls_samples(n=50)
+    converter.select_cls_samples(n=10)
     pairing_options = [
-        ("cls_selection_100.json", "cls_selection_100.json"),
-        ("cls_selection_100.json", "test_samples.txt"),
-        ("train_samples.txt", "train_samples.txt"),
-        ("train_samples.txt", "test_samples.txt"),
+        ("cls_selection_50.json", "cls_selection_50.json"),
+        ("cls_selection_50.json", "test_samples.txt"),
+        ("cls_selection_10.json", "cls_selection_10.json"),
+        ("cls_selection_10.json", "test_samples.txt"),
+        # ("train_samples.txt", "train_samples.txt"),
+        # ("train_samples.txt", "test_samples.txt"),
     ]
     for src_file, tgt_file in pairing_options:
         converter.pairing_sample_intra_cls(src_info_file=src_file, tgt_info_file=tgt_file)
@@ -233,14 +236,25 @@ if __name__ == "__main__":
     #     fg_ratio=0.01,
     # )
 
-    from converting.hameln_rs import HamelnRSConverter, color_map
-    convert_demo(
-        convert_obj=HamelnRSConverter,
-        input_path="/home/yuan/data/labels_v3_manual_atkis_2000_2010_2022",
-        output_path="/home/yuan/data/syntra/remote_sensing/hameln",
-        color_map=color_map,
-        fg_ratio=0.05,
-    )
+    # from converting.hameln_rs import HamelnRSConverter, color_map
+    # convert_demo(
+    #     convert_obj=HamelnRSConverter,
+    #     input_path="/home/yuan/data/labels_v3_manual_atkis_2000_2010_2022",
+    #     output_path="/home/yuan/data/syntra/remote_sensing/hameln",
+    #     color_map=color_map,
+    #     fg_ratio=0.05,
+    # )
+
+    # hismap
+    root_dir = "/home/yuan/data/syntra/hismap"
+    for subdir in os.listdir(root_dir):
+        convert_demo(
+            convert_obj=SyntraDataConverter,
+            input_path=None,
+            output_path=f"/home/yuan/data/syntra/hismap/{subdir}",
+            color_map=None,
+            fg_ratio=0.05,
+        )
 
 
 

@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 
-CONFIG=remote_sensing_n4_full
-DATADIR=/home/yuan/data/syntra/remote_sensing
+DATADIR=/home/yuan/data/syntra/hismap
 
-PYTHONPATH=. python syntra/train_one_gpu.py \
-  --config syntra_${CONFIG}.yaml -d ${DATADIR}  \
-  --resume ./logs/syntra_${CONFIG}/model_latest.pth # --vis-freq 100 
+for CONFIG in hismap_n1_s50 hismap_n1_s10; do
+  PYTHONPATH=. python syntra/train_one_gpu.py \
+  --config syntra_${CONFIG}.yaml -d ${DATADIR}  
+  # --resume ./logs/syntra_${CONFIG}/model_latest.pth # --vis-freq 100 
 
-PYTHONPATH=. python syntra/test.py \
+  PYTHONPATH=. python syntra/test.py \
   --config syntra_${CONFIG}.yaml -d ${DATADIR} \
-  --save-result --vis # --checkpoint ./logs/syntra_trees_n4_full-20251130-1719/model_latest.pth 
+  --save-result --vis --checkpoint ./logs/syntra_${CONFIG}/model_latest.pth 
+done
+
+
 
 
 # CONFIG=trees_sep_n4_full

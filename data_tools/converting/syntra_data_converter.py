@@ -226,7 +226,6 @@ class SyntraDataConverter:
             self.save_data_info(data_info)
         return data_info
     
-
     def convert(self, split_list=['train', 'test', 'val']):
         self._prepare_convertion()
 
