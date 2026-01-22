@@ -5,6 +5,7 @@ import json
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
+import argparse
 
 
 
@@ -85,23 +86,24 @@ def eval(result_folder, data_folder):
     subsets = os.listdir(result_folder)
     results = {k: {'acc': [], 'iou': {}} for k in ['hameln', 'bayern', 'siegfried']}
     for subset in subsets:
+        print(f"Processing subset: {subset}...")
         dataset_name = subset.split('.')[0]
-        res_classes = sorted(os.listdir(result_folder))
-        data_folder = os.path.join(data_folder, subset)
-        with open(os.path.join(data_folder, 'color_map.json'), 'r') as f:
+        cur_data_folder = os.path.join(data_folder, subset)
+        with open(os.path.join(cur_data_folder, 'color_map.json'), 'r') as f:
             color_map = json.load(f)
         color_palette = construct_color_palette(color_map)
 
-        classes = list(color_map.keys())
-        results['iou'] = {cls_name: [] for cls_name in classes}
-        gt_folder = os.path.join(data_folder, subset, 'lbls')
-        img_folder = os.path.join(data_folder, subset, 'imgs')
+        classes = [x for x in color_map.keys() if x not in ['nonlabeled', 'background']]
+        res_classes = sorted(os.listdir(os.path.join(result_folder, subset)))
+        results[dataset_name]['iou'] = {cls_name: [] for cls_name in classes}
+        gt_folder = os.path.join(cur_data_folder, 'lbls')
+        img_folder = os.path.join(cur_data_folder, 'imgs')
         vis_folder = os.path.join(os.path.dirname(result_folder), 'merged_vis', subset)
         os.makedirs(vis_folder, exist_ok=True)
 
-        test_mask_files = sorted(os.listdir(os.path.join(result_folder, res_classes[0])))
+        test_mask_files = sorted(os.listdir(os.path.join(result_folder, subset, res_classes[0])))
 
-        for file_name in tqdm(test_mask_files):
+        for file_name in test_mask_files:
             gt_mask = np.array(Image.open(os.path.join(gt_folder, file_name)))
             input_img = Image.open(os.path.join(img_folder, file_name))
             pred_mask = []
@@ -124,10 +126,10 @@ def eval(result_folder, data_folder):
                 gt_cls_mask = (gt_mask == (i + 1)).astype(np.uint8)
                 pred_cls_mask = (pred_cls == (i + 1)).astype(np.uint8)
                 iou = iou_score(gt_cls_mask, pred_cls_mask)
-                results[dataset_name][cls_name]['iou'].append(iou)
+                results[dataset_name]['iou'][cls_name].append(iou)
             
             # visualize merged predictions
-            vis_lbl = np.concatenate([gt_mask, pred_cls], axis=1)
+            vis_lbl = np.concatenate([gt_mask, pred_cls], axis=1).astype(np.uint8)
             vis_lbl = Image.fromarray(vis_lbl).convert("P")
             vis_lbl.putpalette(color_palette)
             vis_img_lbl = Image.new('RGB', (input_img.width + vis_lbl.width, input_img.height))
@@ -136,21 +138,33 @@ def eval(result_folder, data_folder):
             vis_img_lbl.save(os.path.join(vis_folder, file_name))
         
     res_str = ""
+    mean_ious = []
     for dataset, res in results.items():
         mean_acc = np.mean(res['acc'])
-        mean_ious = []
         for cls_name, ious in res['iou'].items():
             mean_iou = np.mean(ious)
             mean_ious.append(mean_iou)
             res_str += f"{dataset} - Class {cls_name}: IoU: {mean_iou:.4f}\n"
-        mean_iou = np.mean(mean_ious)
+        
         res_str += f"{dataset} - Mean IoU: {mean_iou:.4f}\n"
-        res_str += f"{dataset} - Mean Accuracy: {mean_acc:.4f}, Mean IoU: {mean_iou:.4f}\n"
+        res_str += f"{dataset} - Mean Accuracy: {mean_acc:.4f}\n"
+        res_str += "\n"
+    overall_mean_iou = np.mean(mean_ious)
+    res_str += f"Overall Mean IoU: {overall_mean_iou:.4f}\n"
+    
+    print(res_str)
+    with open(os.path.join(os.path.dirname(result_folder), 'hismap_eval_results.txt'), 'w') as f:
+        f.write(res_str)
 
 
 
 if __name__=="__main__":
-    result_folder = "/koko/SYNTRA_logs/syntra_hismap_n1_s100_v2/hismap"
-    data_folder = "/koko/datasets/syntra/hismap"
-    eval(result_folder, data_folder)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--result-folder', type=str, required=True, help='Path to the result folder.')
+    parser.add_argument('--data-folder', type=str, required=True, help='Path to the data folder.')
+    args = parser.parse_args()
+    eval(args.result_folder, args.data_folder)
+    # result_folder = "/koko/SYNTRA_logs/syntra_hismap_n1_s100_v2/hismap"
+    # data_folder = "/koko/datasets/syntra/hismap"
+    # eval(result_folder, data_folder)
 

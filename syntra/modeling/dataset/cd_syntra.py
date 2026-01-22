@@ -202,7 +202,7 @@ class CrossDomainSynTraDataset(Dataset):
             src_cls_ratios = {k: 0.0 for k in self.label_colors[dataset].keys()}
             for src_full_name in src_full_names:
                 for cls, ratio in self.label_ratios[src_full_name].items():
-                    if ratio == 0.0:
+                    if cls not in src_cls_ratios or ratio == 0.0:
                         continue
                     src_cls_ratios[cls] += ratio
             # pos_cls: classes present in both source and target images
@@ -210,7 +210,7 @@ class CrossDomainSynTraDataset(Dataset):
             # neg_cls: classes not present in the target image
             neg_cls = []
             for cls in tgt_cls_ratios.keys():
-                if cls == cls_name:
+                if cls == cls_name or cls in self.INVALID_CLS:
                     continue
                 if tgt_cls_ratios[cls] > self.fg_ratio[dataset] and src_cls_ratios.get(cls, 0.0) > self.fg_ratio[dataset]:
                     pos_cls.append(cls)
@@ -221,12 +221,13 @@ class CrossDomainSynTraDataset(Dataset):
             pos_neg_probs = [self.pos_prob / max(1, len(pos_cls)),] * len(pos_cls) + \
                 [(1 - self.pos_prob) / max(1, len(neg_cls)),] * len(neg_cls)
             selected_classes = [cls_name]
-            selected_classes += list(np.random.choice(
-                pos_neg, 
-                self.num_notions - 1, 
-                replace=len(pos_neg)<(self.num_notions - 1), 
-                p=np.array(pos_neg_probs) / np.sum(pos_neg_probs)
-            ))
+            if len(pos_neg) > 0:
+                selected_classes += list(np.random.choice(
+                    pos_neg, 
+                    self.num_notions - 1, 
+                    replace=len(pos_neg)<(self.num_notions - 1), 
+                    p=np.array(pos_neg_probs) / np.sum(pos_neg_probs)
+                ))
             selected_cls_ids = [all_cls_names.index(cls_name) + 1 for cls_name in selected_classes]
             selected_colors = [self.label_colors[dataset].get(c, None) for c in selected_classes]
         return selected_classes, selected_colors, selected_cls_ids

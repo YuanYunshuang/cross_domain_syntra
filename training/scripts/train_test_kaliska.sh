@@ -25,7 +25,10 @@ export WORKDIR=/home/yuang/data
 export DATA_SUBDIR=hismap
 # export CONFIG=hismap_n1_full
 
-for CONFIG in hismap_n1_s50 hismap_n1_s10; do
+for CONFIG in hismap_n4_s100_v2 end; do
+  if [ "$CONFIG" == "end" ]; then
+      break
+  fi
   # Run training directly (replace args as needed)
   docker run --gpus all --rm \
     -v "$WORKDIR":/workspace \

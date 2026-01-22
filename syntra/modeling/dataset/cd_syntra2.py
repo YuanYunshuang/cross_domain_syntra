@@ -216,7 +216,7 @@ class CrossDomainSynTraDataset2(Dataset):
             src_cls_ratios = {k: 0.0 for k in self.label_colors[dataset].keys()}
             for src_full_name in src_full_names:
                 for cls, ratio in self.label_ratios[src_full_name].items():
-                    if ratio == 0.0:
+                    if ratio == 0.0 or cls in self.INVALID_CLS:
                         continue
                     src_cls_ratios[cls] += ratio
             # pos_cls: classes present in both source and target images
@@ -235,17 +235,19 @@ class CrossDomainSynTraDataset2(Dataset):
             neg_cls = [c for c in neg_cls if c not in self.meta_info.get(dataset, {}).get('ignore_cls', [])]
             # select pos cls with probability self.pos_prob and neg cls with probability 1 - self.pos_prob
             p = 1 - self.pos_prob if cls_full_name.endswith(".neg") else self.pos_prob
-          
+            
+            neg_cls = [c for c in neg_cls if c not in self.INVALID_CLS]
             pos_neg = pos_cls + neg_cls
             pos_neg_probs = [p / max(1, len(pos_cls)),] * len(pos_cls) + \
                 [(1 - p) / max(1, len(neg_cls)),] * len(neg_cls)
             selected_classes = [cls_name]
-            selected_classes += list(np.random.choice(
-                pos_neg, 
-                self.num_notions - 1, 
-                replace=len(pos_neg)<(self.num_notions - 1), 
-                p=np.array(pos_neg_probs) / np.sum(pos_neg_probs)
-            ))
+            if len(pos_neg) > 0:
+                selected_classes += list(np.random.choice(
+                    pos_neg, 
+                    self.num_notions - 1, 
+                    replace=len(pos_neg)<(self.num_notions - 1), 
+                    p=np.array(pos_neg_probs) / np.sum(pos_neg_probs)
+                ))
 
             selected_cls_ids = [all_cls_names.index(cls_name) + 1 for cls_name in selected_classes]
             selected_colors = [self.label_colors[dataset].get(c, None) for c in selected_classes]

@@ -113,13 +113,22 @@ def parse_args():
     if not GlobalHydra().is_initialized():
         initialize_config_module(config_module="syntra.configs", version_base=None)
     
-    cfg = compose(config_name=args.config)['TRAIN']
+    hydra_cfg = compose(config_name=args.config)
+    cfg = hydra_cfg['TRAIN']
 
     # Override cfg arguments with args if provided
     with open_dict(cfg):
         for key, value in vars(args).items():
             if value is not None:
                 setattr(cfg, key, value)
+
+    # save the final haydra config to yaml file
+    with open_dict(hydra_cfg):
+        hydra_cfg["TRAIN"] = cfg
+    cfg_yaml_str = OmegaConf.to_yaml(hydra_cfg)
+    with open(join(cfg.output_dir, os.path.basename(args.config).split(".")[0], "config.yaml"), "w") as f:
+        f.write(cfg_yaml_str)
+    
     return cfg
 
 
@@ -261,7 +270,6 @@ def main():
                                                  warmup_epochs=warmup_epochs)
         else:
             cur_lr = optimizer.param_groups[0]["lr"]
-
 
         for step, data in enumerate(train_dataloader):
             if args.lr_scheduler == 'exp':
