@@ -143,18 +143,17 @@ def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_lo
             evaluator.add_sample(lbl_pred.squeeze(2), lbl_tgt, meta=meta)
 
             pbar.set_postfix({ 'Loss': f'{loss:.6f}'})
+
+            cur_datasets = [x['tgt_name'].rsplit('.', 1)[0] for x in meta]
+            color_maps = [test_dataset.label_colors[cur_dataset] for cur_dataset in cur_datasets]
             if args.save_result:
-                cur_dataset = meta[0]['tgt_name'].rsplit('.', 1)[0]
-                color_map = test_dataset.label_colors[cur_dataset]
                 save_results(os.path.join(out_dir, f"{str(dkw)}"), 
                                 img_src, lbl_src, img_tgt, lbl_tgt, model_pred, 
-                                meta, color_map=color_map)
+                                meta, color_maps=color_maps)
             if args.vis:
-                cur_dataset = meta[0]['tgt_name'].rsplit('.', 1)[0]
-                color_map = test_dataset.label_colors[cur_dataset]
                 save_vis(os.path.join(out_dir, f"vis_{str(dkw)}"), 
                                 img_src, lbl_src, img_tgt, lbl_tgt, model_pred, 
-                                meta, color_map=color_map)
+                                meta, color_maps=color_maps)
             losses.append(loss.item())
 
     avg_loss = np.array(losses).mean()

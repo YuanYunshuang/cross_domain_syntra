@@ -64,12 +64,13 @@ def overlay_masks_on_image(image, tgt_name, alpha=0.5, colors=None):
     return overlaid_image
 
 
-def save_results(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta, rescale=0.5, color_map=None):
+def save_results(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta, rescale=0.5, color_maps=None):
     "Save the prediction results as a grayscale image."
     pred_tgt = pred_tgt.detach().sigmoid().cpu().numpy()
 
     for b, m in enumerate(meta):
         tgt_name = m['tgt_name'].rsplit('.', 1)[1]
+        color_map = color_maps[b]
         for i, name in enumerate(m['cls_name']):
             dataset, cls_name = name.split('/')
             assert cls_name in color_map, f"Color map does not contain color for {name}"
@@ -79,7 +80,7 @@ def save_results(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta, re
 
 
 
-def save_results_v2(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta, rescale=0.5, color_map=None):
+def save_results_v2(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta, rescale=0.5, color_maps=None):
     # overlay_func = partial(overlay_masks_on_image, colors=colors)
     B, T, _, H, W = img_src.shape
     N = lbl_src.shape[2]
@@ -103,6 +104,7 @@ def save_results_v2(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, meta,
     names = [m['tgt_name'] for m in meta]
 
     for i in range(1):
+        color_map = color_maps[i]
         cur_classes = [x.split('/')[1] for x in meta[i]['cls_name']]
         cur_colors = [color_map[cls] for cls in cur_classes]
         midbar = np.zeros_like(img_tgt[0, :, :10]) + 128

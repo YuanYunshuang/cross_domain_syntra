@@ -85,9 +85,9 @@ if __name__ == "__main__":
     #     remote_host_shortcut="KISSKI"
     # )
 
-    # syncronize_two_folders(
-    #     "/home/yuan/data/syntra/hismap",
-    #     "/koko/datasets/syntra/hismap")
+    syncronize_two_folders(
+        "/home/yuan/data/syntra/hismap",
+        "/koko/datasets/syntra/hismap")
 
     # local_path = "/home/yuan/code/CD_SYNTRA"
     # remote_path = "/home/yuang/data/SYNTRA"
@@ -112,9 +112,9 @@ if __name__ == "__main__":
 
     # list_files("/home/yuan/data/OpenEarthMap/xview2")
 
-    syncronize_to_remote(
-        "/home/yuan/data/syntra/hismap",
-        "data/syntra/hismap",
-        "yuang",
-        "130.75.51.199"
-    )
+    # syncronize_to_remote(
+    #     "/home/yuan/data/syntra/hismap",
+    #     "data/syntra/hismap",
+    #     "yuang",
+    #     "130.75.51.199"
+    # )
