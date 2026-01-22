@@ -126,6 +126,7 @@ def parse_args():
     with open_dict(hydra_cfg):
         hydra_cfg["TRAIN"] = cfg
     cfg_yaml_str = OmegaConf.to_yaml(hydra_cfg)
+    os.makedirs(join(cfg.output_dir, os.path.basename(args.config).split(".")[0]), exist_ok=True)
     with open(join(cfg.output_dir, os.path.basename(args.config).split(".")[0], "config.yaml"), "w") as f:
         f.write(cfg_yaml_str)
     
