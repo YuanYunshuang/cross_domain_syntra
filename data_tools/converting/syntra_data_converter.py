@@ -458,6 +458,18 @@ class SyntraDataConverter:
             json.dump(selected_samples, f, indent=4)
 
     def pairing_intra_cls(self, tgt_info_file, src_info_file=None, k=8, skip_if_lt_k=False):
+        """
+        pairing format:
+            cls_name: {
+                target_sample: {
+                    "src_samples": [list of source samples],
+                    "distances": [list of distances]
+                }
+            }
+        
+        The drawback of this format is that target samples without foreground classes (negative samples) are not included for training.
+        This might lead to high false positive rate for negative samples during inference.
+        """
       
         if src_info_file is None:
             src_info_file = tgt_info_file
@@ -467,11 +479,15 @@ class SyntraDataConverter:
         tgt_samples = load_samples(os.path.join(self.syntra_data_path, tgt_info_file), keep_cls_structure=True)
         src_samples = load_samples(os.path.join(self.syntra_data_path, src_info_file), keep_cls_structure=True)
         ext = "." + os.listdir(self.img_dir)[0].rsplit('.', 1)[-1]
+
+        # parse samples to the format of {cls_name: [list of samples]}
         if isinstance(src_samples, list):
-            src_samples = parse_class_samples(self.load_data_info(), src_samples, list(self.color_map.keys()), fg_ratio=self.fg_ratio)
+            src_samples = parse_class_samples(self.load_data_info(), src_samples, 
+                                              list(self.color_map.keys()), fg_ratio=self.fg_ratio)
         if not 'test' in tgt_info_file and isinstance(tgt_samples, list):
             # for test samples, visible classes are not known, we pair for all classes
-            tgt_samples = parse_class_samples(self.load_data_info(), tgt_samples, list(self.color_map.keys()), fg_ratio=self.fg_ratio)
+            tgt_samples = parse_class_samples(self.load_data_info(), tgt_samples, 
+                                              list(self.color_map.keys()), fg_ratio=self.fg_ratio)
         
         pairing_info = {}
         for cls_name in class_names:
@@ -524,6 +540,8 @@ class SyntraDataConverter:
                 "cls_name": {
                     "src_samples": [list of source samples],
                 }
+        
+        This format ensures that all target samples are included in the pairing info, even those without foreground classes.
         """
       
         if src_info_file is None:
