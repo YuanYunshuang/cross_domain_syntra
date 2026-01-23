@@ -4,8 +4,8 @@ DATADIR=/home/yuan/data/syntra/hismap
 
 
 for CONFIG in hismap_n4_s100_v1 hismap_n1_s100_v1; do
-  PYTHONPATH=. python syntra/train_one_gpu.py \
-  --config syntra_${CONFIG}.yaml -d ${DATADIR}  
+  # PYTHONPATH=. python syntra/train_one_gpu.py \
+  # --config syntra_${CONFIG}.yaml -d ${DATADIR}  
   # --resume ./logs/syntra_${CONFIG}/model_latest.pth # --vis-freq 100 
 
   PYTHONPATH=. python syntra/test.py \

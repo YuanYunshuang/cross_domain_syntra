@@ -85,9 +85,9 @@ if __name__ == "__main__":
     #     remote_host_shortcut="KISSKI"
     # )
 
-    syncronize_two_folders(
-        "/home/yuan/data/syntra/hismap",
-        "/koko/datasets/syntra/hismap")
+    # syncronize_two_folders(
+    #     "/home/yuan/data/syntra/hismap",
+    #     "/koko/datasets/syntra/hismap")
 
     # local_path = "/home/yuan/code/CD_SYNTRA"
     # remote_path = "/home/yuang/data/SYNTRA"
@@ -103,12 +103,12 @@ if __name__ == "__main__":
     #     # ignore_list=["imgs/", "lbls/"]
     # )
 
-    # syncronize_from_remote(
-    #     "/home/yuan/data/syntra_original_size/medical/acdc",
-    #      "/koko/datasets/syntra/medical/acdc",
-    #     "yuan",
-    #     "130.75.51.193"
-    # )
+    syncronize_from_remote(
+        "/home/yuang/data/logs/syntra_hismap_n4_s100_v2",
+         "/koko/SYNTRA_logs/syntra_hismap_n4_s100_v2",
+        "yuang",
+        "130.75.51.199"
+    )
 
     # list_files("/home/yuan/data/OpenEarthMap/xview2")
 
