@@ -279,7 +279,6 @@ class CrossDomainSynTraDataset2(Dataset):
     
     def _load_one_img_lbl_pair(self, img_full_name, selected_cls_ids):
         img, lbl = self._load_image_label(img_full_name)
-        print(img_full_name, np.unique(np.array(lbl)))
         multi_notion_lbl = self._constrct_multi_notion_label_via_classes(lbl, selected_cls_ids)
         img, multi_notion_lbl = self.uni_transform(img, multi_notion_lbl)
         return img, multi_notion_lbl
