@@ -6,6 +6,7 @@ DATADIR=/home/yuan/data/syntra/hismap
 for CONFIG in hismap_n1_s100_v2 end; do
 if [ "$CONFIG" = "end" ]; then
     break
+fi
     
   PYTHONPATH=. python syntra/train_one_gpu.py \
   --config syntra_${CONFIG}.yaml -d ${DATADIR}  
