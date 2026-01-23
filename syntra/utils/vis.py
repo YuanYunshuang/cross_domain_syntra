@@ -217,6 +217,10 @@ def save_results_v1(out_dir, img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, names
 
 def vis_train(img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, aux, iter_num, size_per_img=1.0):
     assert img_src.dim() == 5  # (bs, T, 3, H, W)
+    assert lbl_src.dim() == 5  # (bs, T-1, n_notions, H', W')
+    assert img_tgt.dim() == 4  # (bs, H, W, 3)
+    assert lbl_tgt.dim() == 4 # (bs, n_notions, H, W)
+    assert pred_tgt.dim() == 5  # (bs, n_notions, 1, H, W)
     lbl_src = F.interpolate(
             lbl_src.flatten(0, 1).float(),
             img_src.shape[-2:],
@@ -250,8 +254,8 @@ def vis_train(img_src, lbl_src, img_tgt, lbl_tgt, pred_tgt, aux, iter_num, size_
     img_src = img_src.detach().permute(0, 1, 3, 4, 2).cpu().numpy() # (bs, T, H, W, 3)
     img_tgt = img_tgt.detach().permute(0, 2, 3, 1).cpu().numpy() # (bs, H, W, 3)
     lbl_src = lbl_src.detach().cpu().numpy() # (bs, T, n_notions, H, W)
-    lbl_tgt = lbl_tgt.squeeze(1).detach().cpu().numpy() # (bs, n_notions, H, W)
-    pred_tgt = pred_tgt.detach().sigmoid().squeeze().cpu().numpy()
+    lbl_tgt = lbl_tgt.detach().cpu().numpy() # (bs, n_notions, H, W)
+    pred_tgt = pred_tgt.detach().sigmoid().squeeze(2).cpu().numpy()
 
     for i in range(bs):
         for t in range(T-1):

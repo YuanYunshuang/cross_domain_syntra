@@ -159,12 +159,12 @@ def eval(result_folder, data_folder):
 
 
 if __name__=="__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--result-folder', type=str, required=True, help='Path to the result folder.')
-    parser.add_argument('--data-folder', type=str, required=True, help='Path to the data folder.')
-    args = parser.parse_args()
-    eval(args.result_folder, args.data_folder)
-    # result_folder = "/koko/SYNTRA_logs/syntra_hismap_n1_s100_v2/hismap"
-    # data_folder = "/koko/datasets/syntra/hismap"
-    # eval(result_folder, data_folder)
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('--result-folder', type=str, required=True, help='Path to the result folder.')
+    # parser.add_argument('--data-folder', type=str, required=True, help='Path to the data folder.')
+    # args = parser.parse_args()
+    # eval(args.result_folder, args.data_folder)
+    result_folder = "/koko/SYNTRA_logs/syntra_hismap_n4_s100_v2/hismap"
+    data_folder = "/koko/datasets/syntra/hismap"
+    eval(result_folder, data_folder)
 

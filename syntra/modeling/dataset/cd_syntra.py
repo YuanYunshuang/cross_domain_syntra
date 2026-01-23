@@ -147,10 +147,12 @@ class CrossDomainSynTraDataset(Dataset):
         if removed_count > 0:
             print(f"Removed {removed_count} samples with no source examples.")
         # pos/neg sample ratio 0.8:0.2
-        num_pos = len(pos_file_list) 
-        num_neg = int(num_pos * (1 - self.pos_prob) / self.pos_prob)
-        self.file_list = pos_file_list + random.sample(neg_file_list, min(num_neg, len(neg_file_list)))
-        # self.file_list = pos_file_list + neg_file_list
+        if self.mode == 'train':
+            num_pos = len(pos_file_list) 
+            num_neg = int(num_pos * (1 - self.pos_prob) / self.pos_prob)
+            self.file_list = pos_file_list + random.sample(neg_file_list, min(num_neg, len(neg_file_list)))
+        else:
+            self.file_list = pos_file_list + neg_file_list
     
     def __len__(self):
         return len(self.file_list)

@@ -155,15 +155,12 @@ class CrossDomainSynTraDataset2(Dataset):
                     else:
                         removed_count += 1
                 else:
-                    # in test mode, use all samples
+                    # use all samples
                     pos_file_list.append(f"{cls_full_name}.pos/{tgt_sample}")
 
         if removed_count > 0:
             print(f"Removed {removed_count} samples with no source examples.")
-        # pos/neg sample ratio 0.8:0.2
-        # num_pos = len(pos_file_list) 
-        # num_neg = int(num_pos * (1 - self.pos_prob) / self.pos_prob)
-        # self.file_list = pos_file_list + random.sample(neg_file_list, min(num_neg, len(neg_file_list)))
+
         self.file_list = pos_file_list + neg_file_list
     
     def __len__(self):
@@ -282,6 +279,7 @@ class CrossDomainSynTraDataset2(Dataset):
     
     def _load_one_img_lbl_pair(self, img_full_name, selected_cls_ids):
         img, lbl = self._load_image_label(img_full_name)
+        print(img_full_name, np.unique(np.array(lbl)))
         multi_notion_lbl = self._constrct_multi_notion_label_via_classes(lbl, selected_cls_ids)
         img, multi_notion_lbl = self.uni_transform(img, multi_notion_lbl)
         return img, multi_notion_lbl
