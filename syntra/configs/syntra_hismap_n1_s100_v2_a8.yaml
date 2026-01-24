@@ -5,7 +5,7 @@ TRAIN:
   data_info: sample_pair_cls_selection_100_cls_selection_100_intracls
   batch_size: 8
   num_workers: 8
-  accum_steps: 4
+  accum_steps: 8
   vis_freq: null
 
   # model
