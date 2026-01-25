@@ -142,9 +142,9 @@ class ToTensor:
             v2.ToDtype(lbl_dtype, scale=False),
         ])
 
-    def __call__(self, imgs, lbls):
+    def __call__(self, imgs, lbls=None):
         img = self.img_transforms(imgs)
-        lbl = self.lbl_transforms(lbls)
+        lbl = self.lbl_transforms(lbls) if lbls is not None else None
         return img, lbl
 
 

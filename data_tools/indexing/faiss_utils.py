@@ -8,7 +8,8 @@ class FAISSIndexer:
     def __init__(self, dimension):
         self.dimension = dimension
         # use a single GPU
-        self.res = faiss.StandardGpuResources()  
+        self.res = faiss.StandardGpuResources() 
+        self.res.setTempMemory(256 * 1024 * 1024)   # 256MB; try 64-512MB 
         # build a flat GPU index
         # self.gpu_index_flat = faiss.index_cpu_to_gpu(self.res, 0, faiss.IndexFlatL2(dimension))
         self.gpu_index_flat = faiss.GpuIndexFlatL2(self.res, dimension)
