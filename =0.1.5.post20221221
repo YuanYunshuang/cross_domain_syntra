@@ -1,0 +1,50 @@
+Collecting fvcore
+  Using cached fvcore-0.1.5.post20221221.tar.gz (50 kB)
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: numpy in /home/yuan/anaconda3/envs/syntra/lib/python3.10/site-packages (from fvcore) (1.26.4)
+Collecting yacs>=0.1.6 (from fvcore)
+  Using cached yacs-0.1.8-py3-none-any.whl.metadata (639 bytes)
+Collecting pyyaml>=5.1 (from fvcore)
+  Using cached pyyaml-6.0.3-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.4 kB)
+Collecting tqdm (from fvcore)
+  Using cached tqdm-4.67.1-py3-none-any.whl.metadata (57 kB)
+Collecting termcolor>=1.1 (from fvcore)
+  Using cached termcolor-3.3.0-py3-none-any.whl.metadata (6.5 kB)
+Requirement already satisfied: Pillow in /home/yuan/anaconda3/envs/syntra/lib/python3.10/site-packages (from fvcore) (12.0.0)
+Collecting tabulate (from fvcore)
+  Using cached tabulate-0.9.0-py3-none-any.whl.metadata (34 kB)
+Collecting iopath>=0.1.7 (from fvcore)
+  Using cached iopath-0.1.10.tar.gz (42 kB)
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: typing_extensions in /home/yuan/anaconda3/envs/syntra/lib/python3.10/site-packages (from iopath>=0.1.7->fvcore) (4.15.0)
+Collecting portalocker (from iopath>=0.1.7->fvcore)
+  Using cached portalocker-3.2.0-py3-none-any.whl.metadata (8.7 kB)
+Using cached pyyaml-6.0.3-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (770 kB)
+Using cached termcolor-3.3.0-py3-none-any.whl (7.7 kB)
+Using cached yacs-0.1.8-py3-none-any.whl (14 kB)
+Using cached portalocker-3.2.0-py3-none-any.whl (22 kB)
+Using cached tabulate-0.9.0-py3-none-any.whl (35 kB)
+Using cached tqdm-4.67.1-py3-none-any.whl (78 kB)
+Building wheels for collected packages: fvcore, iopath
+  Building wheel for fvcore (pyproject.toml): started
+  Building wheel for fvcore (pyproject.toml): finished with status 'done'
+  Created wheel for fvcore: filename=fvcore-0.1.5.post20221221-py3-none-any.whl size=61445 sha256=b6f0032967a46e5d0f0eb4f3ebfdf1acf9b4ce3bb25e1744c14b04608a383ac0
+  Stored in directory: /home/yuan/.cache/pip/wheels/01/c0/af/77c1cf53a1be9e42a52b48e5af2169d40ec2e89f7362489dd0
+  Building wheel for iopath (pyproject.toml): started
+  Building wheel for iopath (pyproject.toml): finished with status 'done'
+  Created wheel for iopath: filename=iopath-0.1.10-py3-none-any.whl size=31596 sha256=cf334056a83d8c27378c20f6d7f2e1187677dccd8007fd2932dcae78f0273ced
+  Stored in directory: /home/yuan/.cache/pip/wheels/9a/a3/b6/ac0fcd1b4ed5cfeb3db92e6a0e476cfd48ed0df92b91080c1d
+Successfully built fvcore iopath
+Installing collected packages: tqdm, termcolor, tabulate, pyyaml, portalocker, yacs, iopath, fvcore
+
+Successfully installed fvcore-0.1.5.post20221221 iopath-0.1.10 portalocker-3.2.0 pyyaml-6.0.3 tabulate-0.9.0 termcolor-3.3.0 tqdm-4.67.1 yacs-0.1.8

@@ -4,11 +4,12 @@ import torch
 
 
 class SAMLoss(nn.Module):
-    def __init__(self, ignore_index=255):
+    def __init__(self, ignore_index=255, ce_neg_weight=1.0):
         super(SAMLoss, self).__init__()
         self.seg_loss_fn = monai.losses.DiceLoss(sigmoid=True, squared_pred=True, reduction="mean")
         self.ce_loss_fn = nn.BCEWithLogitsLoss(reduction="mean")
         self.ignore_index = ignore_index
+        self.ce_neg_weight = ce_neg_weight
 
     def forward(self, pred_masks, gt_masks, **kwargs):
         """
@@ -18,8 +19,18 @@ class SAMLoss(nn.Module):
         Returns:
             total_loss: scalar tensor
         """
-        seg_loss = self.seg_loss_fn(pred_masks.squeeze(2), gt_masks)
-        ce_loss = self.ce_loss_fn(pred_masks.squeeze(2), gt_masks.float())
+        pos_inds = gt_masks.flatten(2, 3).sum(-1) > 0  # (B, N)
+        # dice loss only considers the foreground class
+        pred_masks_pos = pred_masks[pos_inds].squeeze(1)  # (M, 1, H, W)
+        gt_masks_pos = gt_masks[pos_inds].float()  # (M, H, W)
+
+        pred_masks_neg = pred_masks[~pos_inds].squeeze(1)  # (K, 1, H, W)
+        gt_masks_neg = gt_masks[~pos_inds].float()  # (K, H, W)
+
+
+        seg_loss = self.seg_loss_fn(pred_masks_pos, gt_masks_pos)
+        ce_loss_pos = self.ce_loss_fn(pred_masks_pos, gt_masks_pos)
+        ce_loss_neg = self.ce_loss_fn(pred_masks_neg, gt_masks_neg)          
 
         # if 'aux' in kwargs and kwargs['aux']:
         #     valid_notions_inds = []
@@ -43,5 +54,7 @@ class SAMLoss(nn.Module):
         # seg_loss = self.seg_loss_fn(pred_masks, gt_masks)
         # ce_loss = self.ce_loss_fn(pred_masks[cared], gt_masks[cared].float())
 
-        total_loss = seg_loss + ce_loss
-        return total_loss
+        total_loss = seg_loss + ce_loss_pos + self.ce_neg_weight * ce_loss_neg
+        return total_loss, {"seg_loss": seg_loss.item(),
+                            "ce_loss_pos": ce_loss_pos.item(),
+                            "ce_loss_neg": ce_loss_neg.item()}

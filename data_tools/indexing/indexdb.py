@@ -68,8 +68,13 @@ class BaseDataset(Dataset):
 class BaseDataloaders:
     def __init__(self, data_root, sample_list, batch_size=32, shuffle=False, num_workers=4, ext='.png', normalize=True):
         """
-        data_root: Root directory where images are stored.
+        data_root: Root directory where map subsets are stored, each subsets contains a imgs and a lbls dir.
         sample_list: list of samples or TXT file for the list of samples for loading.
+        batch_size: batch size for dataloader.
+        shuffle: whether to shuffle the dataset.
+        num_workers: number of workers for dataloader.
+        ext: file extension of the images.
+        normalize: whether to normalize the images.
         """
         if isinstance(sample_list, str):
             with open(sample_list, 'r') as f:

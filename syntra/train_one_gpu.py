@@ -96,6 +96,7 @@ def parse_args():
     parser.add_argument("-nw", "--num-workers", type=int, help="number of data loading workers")
     parser.add_argument("-a", "--accum-steps", type=int, help="gradient accumulation steps")
     parser.add_argument("--cache-data", action="store_true", help="cache dataset into memory")
+    parser.add_argument("--ce-neg-weight", type=float, help="negative weight for CE loss in SAMLoss")
     # Optimizer parameters
     parser.add_argument("--weight-decay", type=float, help="weight decay for optimizer")
     parser.add_argument("--lr", type=float, metavar="LR", help="learning rate (absolute lr)")
@@ -173,7 +174,7 @@ def main():
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
 
-    loss_fn = get_loss_fn("SAMLoss")
+    loss_fn = get_loss_fn("SAMLoss", ce_neg_weight=args.ce_neg_weight)
 
     # dataset
     uni_transform = TransformCompose(args.uni_transform) if getattr(args, 'uni_transform', None) is not None else None
@@ -264,7 +265,8 @@ def main():
     pbar.update(iter_num - 1)
     # pbar.set_postfix({'Epoch/Step': f'{epoch}/0', 'ITR': iter_num, 'LR': f'{cur_lr:e}', 'Loss': f'{0:.6f}'})
     for epoch in range(start_epoch, num_epochs + 1):
-        inter_avg_loss = 0
+        inter_avg_loss = 0.0
+        inter_avg_loss_dict = {'seg_loss': 0.0, 'ce_loss_pos': 0.0, 'ce_loss_neg': 0.0}
         if args.lr_scheduler == 'cosine':
             cur_lr = adjust_learning_rate_cosine(optimizer, base_lr=args.lr, epoch=epoch,
                                                  total_epoch=args.num_epochs,
@@ -288,7 +290,8 @@ def main():
                 ## AMP
                 with torch.autocast(device_type="cuda", dtype=torch.float16):
                     pred = model(img_src, lbl_src, img_tgt, aux)
-                    loss = loss_fn(pred, lbl_tgt **{'aux': aux}) / args.accum_steps
+                    loss, loss_dict = loss_fn(pred, lbl_tgt, **{'aux': aux}) 
+                    loss = loss / args.accum_steps
                     # loss = ce_loss(mapsam_pred, lbl_tgt.float())
                 scaler.scale(loss).backward()
                 if iter_num % args.accum_steps == 0:
@@ -297,7 +300,8 @@ def main():
                     optimizer.zero_grad()
             else:
                 pred = model(img_src, lbl_src, img_tgt, aux)
-                loss = loss_fn(pred, lbl_tgt, **{'aux': aux}) / args.accum_steps
+                loss, loss_dict = loss_fn(pred, lbl_tgt, **{'aux': aux}) 
+                loss = loss / args.accum_steps
                 # loss = ce_loss(mapsam_pred, lbl_tgt.float().unsqueeze(1))
                 loss.backward()
                 if iter_num % args.accum_steps == 0:
@@ -305,11 +309,19 @@ def main():
                     optimizer.zero_grad()
 
             inter_avg_loss += loss.item()
+            for k, v in loss_dict.items():
+                inter_avg_loss_dict[k] += v
             iter_num += 1
             if iter_num % 10 == 0:
+                upsate_dict = {
+                    'ITR': iter_num, 
+                    'LR': f'{cur_lr:e}', 
+                    'Loss': f'{inter_avg_loss / (step + 1):.6f}'}
+                for k, v in inter_avg_loss_dict.items():
+                    upsate_dict[k] = f'{v / (step + 1):.6f}'
                 pbar.update(10)
-                pbar.set_postfix({'ITR': iter_num, 'LR': f'{cur_lr:e}', 'Loss': f'{inter_avg_loss / (step + 1):.6f}'})
-                logger.info({'ITR': iter_num, 'LR': f'{cur_lr:e}', 'Loss': f'{inter_avg_loss / (step + 1):.6f}'})
+                pbar.set_postfix(upsate_dict)
+                logger.info(upsate_dict)
             
 
             if args.vis_freq is not None and iter_num % args.vis_freq == 0:
