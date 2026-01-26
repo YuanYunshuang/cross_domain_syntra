@@ -2,7 +2,7 @@ TRAIN:
   # common
   task_name: null # will be set to the config file name
   root_dir: /home/yuan/data/syntra
-  data_info: sample_pair_cls_selection_100_cls_selection_100_intracls
+  data_info: sample_pair_train_samples_train_samples_intracls
   batch_size: 8
   num_workers: 8
   accum_steps: 4
@@ -54,7 +54,7 @@ TRAIN:
 TEST:
   num_notions: 1
   num_src: 7
-  data_info: sample_pair_cls_selection_100_test_samples_intracls
+  data_info: sample_pair_train_samples_test_samples_intracls
   data_keywords: hismap
   checkpoint: null # will be set to the path ./logs/<task_name>/model_latest.pth
   save_result: true

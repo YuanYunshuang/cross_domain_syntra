@@ -7,11 +7,8 @@ freeze prompt image encoder
 # %% setup environment
 import os
 import sys
-import logging
 import random
 import argparse
-import shutil
-from os.path import join
 from tqdm import tqdm
 from glob import glob
 import json
@@ -19,26 +16,16 @@ import json
     
 import numpy as np
 import torch
-import torch.nn as nn
 from hydra import compose, initialize_config_module
 from hydra.core.global_hydra import GlobalHydra
-from omegaconf import open_dict, OmegaConf
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from PIL import Image
+import cv2
 
 
-from syntra.modeling import dataset
-from syntra.modeling.dataset import get_dataset
 from syntra.modeling.dataset.trainsform import TransformCompose
-from syntra.modeling.losses import get_loss_fn
-from syntra.utils.vis import vis_train
-from syntra.modeling.validator import Validator
 from syntra.modeling import build_segmentation_model
-from syntra.utils.train_utils import adjust_learning_rate_cosine, adjust_learning_rate_exp_decay
-from syntra.utils.sampler import get_sampler
-from syntra.utils.debug_utils import *
-from data_tools.indexing.pairing import *
 from data_tools.indexing.faiss_utils import FAISSIndexer
 
 os.environ["OMP_NUM_THREADS"] = "4"  # export OMP_NUM_THREADS=4
@@ -175,21 +162,6 @@ class SourceIndexDatabase:
     def build_img_encoder(self):
         self.img_encoder = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14_reg', source='github')
         self.img_encoder.cuda().eval()  # Set the model to evaluation mode
-    
-    # def build_dataloaders(self):
-    #     # parse subset dirs
-    #     self.dataloaders = {}
-    #     subset_dirs = [os.path.dirname(d) for d in glob(os.path.join(self.db_path, f'**/{self.source_sample_list_file}'))]
-    #     for subset in subset_dirs:
-    #         subset_name = os.path.basename(subset)
-    #         dataloader = build_source_dataloader(data_root=subset, 
-    #                                              sample_list_file=os.path.join(subset, self.source_sample_list_file),
-    #                                              batch_size=32,
-    #                                              shuffle=False,
-    #                                              num_workers=4,
-    #                                              ext='.png',
-    #                                              normalize=True)
-    #         self.dataloaders[subset_name] = dataloader
     
     def generate_embedding(self, input_tensor):
         # Generate embeddings
@@ -415,10 +387,13 @@ def test(args, cfg):
     # build model
     syntra = SYNTRAinf(checkpoint=args.checkpoint, **cfg.TRAIN)
 
-    # process subsets
-    for subset_name, subset_dir in index_db.subset_dirs.items():
-        print(f"Processing subset: {subset_name}")
+    # setup visualization window
+    vis_window = cv2.namedWindow("Visualization", cv2.WINDOW_NORMAL)
 
+    # process subsets
+    for subset_name in sorted(index_db.subset_dirs.keys()):
+        print(f"Processing subset: {subset_name}")
+        subset_dir = index_db.subset_dirs[subset_name]
         # parse target sample list
         target_sample_list_file = os.path.join(subset_dir, 'test_samples.txt')
         with open(target_sample_list_file, 'r') as f:
@@ -428,6 +403,7 @@ def test(args, cfg):
         with open(color_map_file, 'r') as f:
             color_map = {k: v for k, v in json.load(f).items() if k not in ['background', 'nonlabeled']}
         cls_id_to_name = {i+1: name for i, name in enumerate(color_map.keys())}
+        palette = [0, 0, 0] + sum(color_map.values(), [])  # add background color
         results[subset_name] = {"ious": {k: [] for k in color_map.keys()}, "accs": []}
 
         for target_filename in target_filenames:
@@ -451,31 +427,53 @@ def test(args, cfg):
                 
             # perform segmentation
             pred_masks, selected_cls_ids = syntra.segment_target(source_images, source_labels, target_img)
-            pred_segmentation = pred_masks.argmax(dim=0) + 1  # add 1 to match class ids
-            pred_segmentation[(pred_masks < 0.5).all(dim=0)] = 0  # set to background if below threshold
-            pred_segmentation = pred_segmentation.cpu().numpy()
 
             # evaluate
-            target_lbl = np.array(target_lbl)
+            target_lbl_np = np.array(target_lbl)
+            pred_segmentation = []
             for cls_id, cls_name in cls_id_to_name.items():
                 if cls_id not in selected_cls_ids:
-                    pred_binary_mask = np.zeros_like(target_lbl, dtype=np.uint8)
-                    pred_segmentation[pred_segmentation == selected_cls_ids.index(cls_id)] = cls_id
+                    pred_binary_mask = np.zeros_like(target_lbl_np, dtype=np.uint8)
+                    pred_segmentation.append(np.zeros_like(target_lbl_np, dtype=np.float32))  # for stacking later
                 else:
-                    pred_binary_mask = (pred_masks[selected_cls_ids.index(cls_id)].cpu().numpy() >= 0.5).astype(np.uint8)
-                iou = cal_iou(pred_binary_mask, target_lbl, cls_id)
-                results[subset_name]["ious"][cls_name].append(iou)
-                
+                    cur_pred_mask = pred_masks[selected_cls_ids.index(cls_id)].cpu().numpy()
+                    pred_binary_mask = (cur_pred_mask >= 0.5).astype(np.uint8)
+                    pred_segmentation.append(cur_pred_mask)
 
-            acc = cal_acc(pred_segmentation, target_lbl)
+                iou = cal_iou(pred_binary_mask, target_lbl_np, cls_id)
+                results[subset_name]["ious"][cls_name].append(iou)
+
+            pred_segmentation = np.stack(pred_segmentation, axis=0).argmax(axis=0) + 1  # add 1 to match class ids
+            pred_segmentation[(pred_masks < 0.5).all(dim=0).cpu().numpy()] = 0  # set to background if below threshold
+
+            acc = cal_acc(pred_segmentation, target_lbl_np)
             results[subset_name]["accs"].append(acc)
             
             # save predicted segmentation
             pred_seg_pil = Image.fromarray(pred_segmentation.astype(np.uint8))
-            pred_seg_pil.putpalette([0, 0, 0] + sum(color_map.values(), []))
+            pred_seg_pil.putpalette(palette)
             pred_seg_pil.save(os.path.join(result_dir, f"{subset_name}.{target_filename}.png"))
 
-                
+            # visualize
+            vis_img = Image.new('RGB', (target_img.width * (args.num_src + 2), target_img.height))
+            vis_lbl = Image.new('P', (target_img.width * (args.num_src + 2), target_img.height))
+            vis_lbl.putpalette(palette)
+            for i, src_img in enumerate(source_images):
+                src_lbl = source_labels[i]
+                vis_img.paste(src_img, (i * target_img.width, 0))
+                vis_lbl.paste(src_lbl, (i * target_img.width, 0))
+            vis_img.paste(target_img, (args.num_src * target_img.width, 0))
+            vis_lbl.paste(target_lbl, (args.num_src * target_img.width, 0))
+            vis_lbl.paste(pred_seg_pil, ((args.num_src + 1) * target_img.width, 0))
+
+            vis = np.concatenate([np.array(vis_img), np.array(vis_lbl.convert('RGB'))], axis=0)
+            cv2.imshow("Visualization", vis[:, :, ::-1])
+            # add tile info
+            cv2.setWindowTitle("Visualization", f"Subset: {subset_name}, Target: {target_filename}")
+            cv2.waitKey(0)
+            
+
+        
 
 if __name__ == "__main__":
     cur_path = os.path.abspath(os.path.dirname(__file__))

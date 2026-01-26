@@ -104,8 +104,8 @@ if __name__ == "__main__":
     # )
 
     syncronize_from_remote(
-        "/home/yuang/data/logs/syntra_hismap_n4_s100_v2",
-         "/koko/SYNTRA_logs/syntra_hismap_n4_s100_v2",
+        "/home/yuang/data/logs/syntra_hismap_n1_s100_v2_ce_neg_0.2",
+         "/koko/SYNTRA_logs/syntra_hismap_n1_s100_v2_ce_neg_0",
         "yuang",
         "130.75.51.199"
     )
