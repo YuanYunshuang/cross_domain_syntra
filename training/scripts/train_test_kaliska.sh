@@ -25,7 +25,7 @@ export WORKDIR=/home/yuang/data
 export DATA_SUBDIR=hismap
 # export CONFIG=hismap_n1_full
 
-for CONFIG in hismap_n1_s100_v2_ce_neg_0.2 end; do
+for CONFIG in hismap_n1_s100_v3 hismap_n1_s50_v3 end; do
   if [ "$CONFIG" == "end" ]; then
       break
   fi
