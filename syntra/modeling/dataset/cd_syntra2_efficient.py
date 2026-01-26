@@ -89,9 +89,9 @@ class CrossDomainSynTraDataset2E(CrossDomainSynTraDataset2):
         if self.aug_transform is not None:
             imgs = torch.cat([tgt_img.unsqueeze(1), src_imgs], dim=1)  # (B, T, C, H, W)
             lbls = torch.cat([tgt_lbl.unsqueeze(1), src_lbls], dim=1)  # (B, T, H, W)
-            imgs, lbls = self.aug_transform(imgs.flatten(0, 1), lbls.flatten(0, 1))
-            imgs = imgs.reshape(B, T_1 + 1, C, H, W)
-            lbls = lbls.reshape(B, T_1 + 1, H, W)
+            imgs, lbls = self.aug_transform(imgs, lbls)
+            # imgs = imgs.reshape(B, T_1 + 1, C, H, W)
+            # lbls = lbls.reshape(B, T_1 + 1, H, W)
             tgt_img = imgs[:, 0]
             src_imgs = imgs[:, 1:]
             tgt_lbl = lbls[:, 0]

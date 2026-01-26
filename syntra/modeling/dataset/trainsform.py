@@ -215,9 +215,15 @@ class RandomRotateBatch:
         return theta
 
     def __call__(self, imgs, lbls):
-        assert imgs.dim() == 4, "images must be (B, C, H, W)"
-        assert lbls.dim() in [3, 4], "labels must be (B, H, W) or (B, 1, H, W)"
-        B, C, H, W = imgs.shape
+        assert imgs.dim() == 5, "images must be (B, T, C, H, W)"
+        assert lbls.dim() in [4, 5], "labels must be (B, T, H, W) or (B, T, 1, H, W)"
+        B, T, C, H, W = imgs.shape
+        lbl_shape = lbls.shape
+
+        # Make sure images are 4D for grid_sample
+        imgs = imgs.flatten(0, 1)  
+        lbls = lbls.flatten(0, 1) 
+        # TODO: try using the same rotation for all T images in one batch 
 
         # Make sure labels are 4D for grid_sample
         squeeze_labels = False
@@ -225,7 +231,7 @@ class RandomRotateBatch:
             lbls = lbls.unsqueeze(1)  # (B, 1, H, W)
             squeeze_labels = True
         else:
-            assert lbls.shape[0] == B and lbls.shape[2:] == (H, W), \
+            assert lbls.shape[0] == B * T and lbls.shape[2:] == (H, W), \
                 "labels must match images spatially"
         # Generate rotation matrices
         theta = self._generate_rotation_matrix(imgs)
@@ -247,7 +253,7 @@ class RandomRotateBatch:
         )
         if squeeze_labels:
             rotated_lbls = rotated_lbls.squeeze(1)
-        return rotated_imgs, rotated_lbls
+        return rotated_imgs.reshape(B, T, C, H, W), rotated_lbls.reshape(*lbl_shape)
 
 
 class RandomFlipBatch:
@@ -273,10 +279,15 @@ class RandomFlipBatch:
         Returns:
             flipped_imgs, flipped_lbls
         """
-        assert imgs.dim() == 4, "images must be (B, C, H, W)"
-        assert lbls.dim() in [3, 4], "labels must be (B, H, W) or (B, 1, H, W)"
+        assert imgs.dim() == 5, "images must be (B, T, C, H, W)"
+        assert lbls.dim() in [4, 5], "labels must be (B, T, H, W) or (B, T, 1, H, W)"
+        B, T, C, H, W = imgs.shape
+        lbl_shape = lbls.shape
 
-        B, C, H, W = imgs.shape
+        # Make sure images are 4D for grid_sample
+        imgs = imgs.flatten(0, 1)  
+        lbls = lbls.flatten(0, 1) 
+        # TODO: try using the same rotation for all T images in one batch 
 
         # Ensure labels are 4D: (B, 1, H, W)
         squeeze_labels = False
@@ -320,7 +331,76 @@ class RandomFlipBatch:
         if squeeze_labels:
             lbls = lbls.squeeze(1)
 
+        return imgs.reshape(B, T, C, H, W), lbls.reshape(*lbl_shape)
+    
+
+class RandomChannelSwapBatch:
+    def __init__(self, p=0.5):
+        assert 0.0 <= p <= 1.0, "p must be in [0, 1]."
+        self.p = p
+
+    def __call__(self, imgs, lbls):
+        """
+        Args:
+            imgs: Tensor of shape (B, T, C, H, W)
+            lbls: Tensor of shape (B, T, H, W) or (B, T, 1, H, W)
+
+        Returns:
+            swapped_imgs, lbls
+        """
+        assert imgs.dim() == 5, "images must be (B, T, C, H, W)"
+        assert lbls.dim() in [4, 5], "labels must be (B, T, H, W) or (B, T, 1, H, W)"
+        B, T, C, H, W = imgs.shape
+        device = imgs.device
+        if C < 2 or self.p == 0.0:
+            return imgs, lbls
+        # mask_swap[i] == True -> swap channels for sample i
+        mask_swap = (torch.rand(B, device=device) < self.p)
+        if mask_swap.any():
+            # Generate random permutations for each sample to be swapped
+            permuted_imgs = imgs.clone()
+            for i in range(B):
+                if mask_swap[i]:
+                    perm = torch.randperm(C)
+                    permuted_imgs[i] = imgs[i, :, perm, :, :]
+
+            imgs = permuted_imgs
+
         return imgs, lbls
+    
+
+class RandomColorJitterBatch:
+    def __init__(self, brightness=0.0, contrast=0.2, saturation=0.2, hue=0.1):
+        self.color_jitter = v2.ColorJitter(
+            brightness=brightness,
+            contrast=contrast,
+            saturation=saturation,
+            hue=hue
+        )
+
+    def __call__(self, imgs, lbls):
+        """
+        Args:
+            imgs: Tensor of shape (B, T, C, H, W)
+            lbls: Tensor of shape (B, T, H, W) or (B, T, 1, H, W)
+
+        Returns:
+            jittered_imgs, lbls
+        """
+        assert imgs.dim() == 5, "images must be (B, T, C, H, W)"
+        assert lbls.dim() in [4, 5], "labels must be (B, T, H, W) or (B, T, 1, H, W)"
+        B, T, C, H, W = imgs.shape
+
+        # Apply color jitter per image in batch
+        jittered_imgs = []
+        for i in range(B):
+            img = imgs[i].reshape(-1, C, H, W)  # (T, C, H, W)
+            img_jittered = self.color_jitter(img)
+            jittered_imgs.append(img_jittered)
+        jittered_imgs = torch.stack(jittered_imgs, dim=0)  # (B, T, C, H, W)
+
+        return jittered_imgs, lbls
+
 
 class TransformCompose:
     def __init__(self, transforms_cfg):
@@ -455,7 +535,7 @@ class MapTransformTrain:
         else:
             lbl = lbl
         return img, lbl
-
+    
 
 class MapTransformTest:
     def __init__(self, image_size=384, mean=[0.5, 0.5, 0.5], std=[0.25, 0.25, 0.25]):

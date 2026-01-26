@@ -3,6 +3,12 @@
 ## Updates
 - [Nov 13] added data converting for kitti and cityscapes; loss function support for ignoring index 255; dataset support for multi-notion training; add dockerfile and pushed to dockerhub
 
+## Version
+- v1: dataset=cd_syntra
+- v2: dataset=cd_syntra2_efficient
+- v3: not dice loss for negative samples
+- v4: use color gitter and rgb channel swap for augmentation, normalization at last
+
 ## Installation
 Using the `setup.sh` to create the conda environment for this project
 
