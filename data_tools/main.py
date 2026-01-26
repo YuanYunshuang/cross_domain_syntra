@@ -84,11 +84,11 @@ def convert_demo(convert_obj, input_path, output_path, color_map, fg_ratio=0.05,
         fg_ratio=fg_ratio,
         **kwargs
     )
-    converter.convert(['train', 'test'])
+    converter.convert()
     # converter.convert(['train', 'test', 'val'])
-    # converter.select_cls_samples(n=100)
-    # converter.select_cls_samples(n=50)
-    # converter.select_cls_samples(n=10)
+    converter.select_cls_samples(n=100)
+    converter.select_cls_samples(n=50)
+    converter.select_cls_samples(n=10)
     pairing_options = [
         # ("cls_selection_100.json", "cls_selection_100.json"),
         # ("cls_selection_100.json", "test_samples.txt"),
@@ -96,8 +96,8 @@ def convert_demo(convert_obj, input_path, output_path, color_map, fg_ratio=0.05,
         # ("cls_selection_50.json", "test_samples.txt"),
         # ("cls_selection_10.json", "cls_selection_10.json"),
         # ("cls_selection_10.json", "test_samples.txt"),
-        ("train_samples.txt", "train_samples.txt"),
-        ("train_samples.txt", "test_samples.txt"),
+        # ("train_samples.txt", "train_samples.txt"),
+        # ("train_samples.txt", "test_samples.txt"),
     ]
     # for src_file, tgt_file in pairing_options:
     #     converter.pairing_sample_intra_cls(src_info_file=src_file, tgt_info_file=tgt_file)
@@ -260,14 +260,14 @@ if __name__ == "__main__":
     #         fg_ratio=0.05,
     #     )
 
-    from converting.hismap import HiamapZSConverter, color_map_zs2
+    from converting.hismap2 import Hismap2Converter, color_map
     convert_demo(
-        convert_obj=HiamapZSConverter,
-        input_path="/home/yuan/data/HisMap/SMOLdata",
-        output_path="/home/yuan/data/syntra/hismap_zs/c3821_zs2",
-        filtering_keys=["c3821_2002"],
-        color_map=color_map_zs2,
-        fg_ratio=0.01,
+        convert_obj=Hismap2Converter,
+        input_path="/koko/datasets/ikg_ml_dataset",
+        output_path="/koko/datasets/syntra/hismap2/hameln.1960",
+        filtering_keys=["1960"],
+        color_map=color_map,
+        fg_ratio=0.05,
     )
 
 
