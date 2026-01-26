@@ -3,7 +3,7 @@
 DATADIR=/home/yuan/data/syntra/hismap
 
 
-for CONFIG in hismap_n1_s100_v2_ce_neg_1.0 end; do
+for CONFIG in hismap_n1_full_v3 hismap_n1_s10_v3 end; do
 if [ "$CONFIG" = "end" ]; then
     break
 fi
