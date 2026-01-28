@@ -3,6 +3,7 @@ from .syntra import SynTraDataset
 from .cd_syntra import CrossDomainSynTraDataset
 from .cd_syntra_efficient import CrossDomainSynTraDatasetE
 from .cd_syntra2_efficient import CrossDomainSynTraDataset2E
+from .unet_dataset import UNetDataset
 
 
 def get_dataset(dataset_name, **kwargs):
@@ -16,5 +17,7 @@ def get_dataset(dataset_name, **kwargs):
         return CrossDomainSynTraDatasetE(**kwargs)
     elif dataset_name == "cd_syntra2_efficient":
         return CrossDomainSynTraDataset2E(**kwargs)
+    elif dataset_name == "unet":
+        return UNetDataset(**kwargs)
     else:
         raise NotImplementedError(f"Dataset {dataset_name} is not implemented.")

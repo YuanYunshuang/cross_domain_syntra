@@ -84,23 +84,23 @@ def convert_demo(convert_obj, input_path, output_path, color_map, fg_ratio=0.05,
         fg_ratio=fg_ratio,
         **kwargs
     )
-    converter.convert()
+    # converter.convert()
     # converter.convert(['train', 'test', 'val'])
     converter.select_cls_samples(n=100)
     converter.select_cls_samples(n=50)
     converter.select_cls_samples(n=10)
     pairing_options = [
-        # ("cls_selection_100.json", "cls_selection_100.json"),
-        # ("cls_selection_100.json", "test_samples.txt"),
-        # ("cls_selection_50.json", "cls_selection_50.json"),
-        # ("cls_selection_50.json", "test_samples.txt"),
-        # ("cls_selection_10.json", "cls_selection_10.json"),
-        # ("cls_selection_10.json", "test_samples.txt"),
-        # ("train_samples.txt", "train_samples.txt"),
-        # ("train_samples.txt", "test_samples.txt"),
+        ("cls_selection_100.json", "cls_selection_100.json"),
+        ("cls_selection_100.json", "test_samples.txt"),
+        ("cls_selection_50.json", "cls_selection_50.json"),
+        ("cls_selection_50.json", "test_samples.txt"),
+        ("cls_selection_10.json", "cls_selection_10.json"),
+        ("cls_selection_10.json", "test_samples.txt"),
+        ("train_samples.txt", "train_samples.txt"),
+        ("train_samples.txt", "test_samples.txt"),
     ]
-    # for src_file, tgt_file in pairing_options:
-    #     converter.pairing_sample_intra_cls(src_info_file=src_file, tgt_info_file=tgt_file)
+    for src_file, tgt_file in pairing_options:
+        converter.pairing_sample_intra_cls(src_info_file=src_file, tgt_info_file=tgt_file)
 
 
 def update_lbls():
@@ -264,7 +264,7 @@ if __name__ == "__main__":
     convert_demo(
         convert_obj=Hismap2Converter,
         input_path="/koko/datasets/ikg_ml_dataset",
-        output_path="/koko/datasets/syntra/hismap2/hameln.1960",
+        output_path="/koko/datasets/syntra/hismap2/hameln_1960",
         filtering_keys=["1960"],
         color_map=color_map,
         fg_ratio=0.05,

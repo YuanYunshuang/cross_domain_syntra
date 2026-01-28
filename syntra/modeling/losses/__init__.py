@@ -1,10 +1,11 @@
 from .sam_loss import SAMLoss
+from .unet_loss import UNETloss
 
-__all__ = ['SAMLoss']
+__all__ = ['SAMLoss', 'UNETloss']
 
 def get_loss_fn(name: str, **kwargs):
     if name in __all__:
-        loss_cls = globals().get('SAMLoss', None)
+        loss_cls = globals().get(name, None)
         assert loss_cls is not None, f"Loss class {name} not found."
         return loss_cls(**kwargs)
     else:

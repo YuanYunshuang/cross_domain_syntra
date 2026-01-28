@@ -87,3 +87,42 @@ def cal_all(pred_mask, gt_mask):
     rec = intersection / pos_gt
     return iou, prec, rec
 
+
+class UnetEvaluator(Evaluator):
+    def _add_one_sample(self, pred_cls, target, notion_id):
+        if isinstance(notion_id, list):
+            for p, t, n_id in zip(pred_cls, target, notion_id):
+                self._add_one_sample(p, t, n_id)
+        else:
+            assert isinstance(notion_id, str)
+            if notion_id not in self.notions:
+                    self._add_new_notions(notion_id)
+            # iou
+            tp = torch.logical_and(pred_cls, target)
+            union = torch.logical_or(pred_cls, target)
+            self.n[notion_id] += 1
+            self.overall_tp[notion_id] += (pred_cls == target).sum() / target.numel()
+            self.tp[notion_id] += torch.sum(tp)
+            self.union[notion_id] += torch.sum(union)
+            self.pos_pred[notion_id] += torch.sum(pred_cls)
+            self.pos_gt[notion_id] += torch.sum(target)
+
+    def add_sample(self, pred, target, subsets, id_to_name=None):
+        assert pred.shape == target.shape
+
+        datasets = [x.split('.')[0] for x in subsets]
+
+        for pred, tgt, dataset in zip(pred, target, datasets):
+            uniq_ids = torch.unique(tgt)
+            for cls_id in uniq_ids:
+                if id_to_name is not None:
+                    cls_name = id_to_name.get(cls_id.item(), f"cls_{cls_id.item()}")
+                else:
+                    cls_name = f"cls_{cls_id.item()}"
+                if cls_id == 0:
+                    continue
+                cls_mask_pred = (pred == cls_id)
+                cls_mask_tgt = (tgt == cls_id)
+                args = (cls_mask_pred, cls_mask_tgt, f"{dataset}.{cls_name}")
+                self._add_one_sample(*args)
+

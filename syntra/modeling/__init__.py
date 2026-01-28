@@ -72,7 +72,8 @@ def build_mask_decoder(model_type: str = "default", embed_dim: int = 256, **kwar
 
 def build_segmentation_model(model_name: str, **kwargs):
     if model_name == "unet":
-        raise NotImplementedError("UNet model is not implemented yet.")
+        from .models.unet import UNet 
+        return UNet(**kwargs)
     elif model_name == "syntra":
         from .models.syntra import SyntraModel as Model
     elif model_name == "smol":

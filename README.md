@@ -6,7 +6,7 @@
 ## Version
 - v1: dataset=cd_syntra
 - v2: dataset=cd_syntra2_efficient
-- v3: not dice loss for negative samples
+- v3: no dice loss for negative samples
 - v4: use color gitter and rgb channel swap for augmentation, normalization at last
 
 ## Installation

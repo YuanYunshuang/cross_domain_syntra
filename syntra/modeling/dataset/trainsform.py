@@ -215,23 +215,26 @@ class RandomRotateBatch:
         return theta
 
     def __call__(self, imgs, lbls):
-        assert imgs.dim() == 5, "images must be (B, T, C, H, W)"
-        assert lbls.dim() in [4, 5], "labels must be (B, T, H, W) or (B, T, 1, H, W)"
-        B, T, C, H, W = imgs.shape
+        assert imgs.dim() in [4, 5], "images must be (B, T, C, H, W), or (B, C, H, W)"
+        assert lbls.dim() in [3, 4], "labels must be (B, T, H, W) or (B, H, W)"
+
         lbl_shape = lbls.shape
-
-        # Make sure images are 4D for grid_sample
-        imgs = imgs.flatten(0, 1)  
-        lbls = lbls.flatten(0, 1) 
-        # TODO: try using the same rotation for all T images in one batch 
-
+        img_shape = imgs.shape
+        if imgs.dim() == 4:
+            B, C, H, W = imgs.shape
+        else:
+            B, T, C, H, W = imgs.shape
+            # Make sure images are 4D for grid_sample
+            imgs = imgs.flatten(0, 1)  
+            lbls = lbls.flatten(0, 1) 
+        
         # Make sure labels are 4D for grid_sample
         squeeze_labels = False
         if lbls.dim() == 3:
             lbls = lbls.unsqueeze(1)  # (B, 1, H, W)
             squeeze_labels = True
         else:
-            assert lbls.shape[0] == B * T and lbls.shape[2:] == (H, W), \
+            assert lbls.shape[0] == imgs.shape[0] and lbls.shape[2:] == (H, W), \
                 "labels must match images spatially"
         # Generate rotation matrices
         theta = self._generate_rotation_matrix(imgs)
@@ -253,7 +256,7 @@ class RandomRotateBatch:
         )
         if squeeze_labels:
             rotated_lbls = rotated_lbls.squeeze(1)
-        return rotated_imgs.reshape(B, T, C, H, W), rotated_lbls.reshape(*lbl_shape)
+        return rotated_imgs.reshape(*img_shape), rotated_lbls.reshape(*lbl_shape)
 
 
 class RandomFlipBatch:

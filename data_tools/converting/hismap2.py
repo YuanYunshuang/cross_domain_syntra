@@ -95,7 +95,7 @@ class Hismap2Converter(SyntraDataConverter):
             for h in crop_h_indices:
                 for w in crop_w_indices:
                     base_name = self._parse_base_name(map_file)
-                    crop_name = f"{base_name}_{h}_{w}"
+                    crop_name = f"{h}_{w}"
                     sample_full_name = f"{self.dataset_name}.{crop_name}"
                     samples.append(sample_full_name)
 
@@ -115,7 +115,6 @@ class Hismap2Converter(SyntraDataConverter):
     
 
     
-
 
 
 
