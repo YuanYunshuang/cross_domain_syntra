@@ -84,21 +84,47 @@ def convert_demo(convert_obj, input_path, output_path, color_map, fg_ratio=0.05,
         fg_ratio=fg_ratio,
         **kwargs
     )
-    # converter.convert()
-    # converter.convert(['train', 'test', 'val'])
-    converter.select_cls_samples(n=100)
-    converter.select_cls_samples(n=50)
-    converter.select_cls_samples(n=10)
+
+    # converter.convert(['train', 'test'])
+    # converter.select_cls_samples(n=100)
+    # converter.select_cls_samples(n=50)
+    # converter.select_cls_samples(n=10)
     pairing_options = [
-        ("cls_selection_100.json", "cls_selection_100.json"),
-        ("cls_selection_100.json", "test_samples.txt"),
-        ("cls_selection_50.json", "cls_selection_50.json"),
-        ("cls_selection_50.json", "test_samples.txt"),
-        ("cls_selection_10.json", "cls_selection_10.json"),
-        ("cls_selection_10.json", "test_samples.txt"),
+        # ("cls_selection_100.json", "cls_selection_100.json"),
+        # ("cls_selection_100.json", "test_samples.txt"),
+        # ("cls_selection_50.json", "cls_selection_50.json"),
+        # ("cls_selection_50.json", "test_samples.txt"),
+        # ("cls_selection_10.json", "cls_selection_10.json"),
+        # ("cls_selection_10.json", "test_samples.txt"),
         ("train_samples.txt", "train_samples.txt"),
         ("train_samples.txt", "test_samples.txt"),
     ]
+    for src_file, tgt_file in pairing_options:
+        converter.pairing_sample_intra_cls(src_info_file=src_file, tgt_info_file=tgt_file)
+
+
+def convert_siegfried(convert_obj, input_path, output_path, color_map, selections, fg_ratio=0.05, **kwargs):
+    converter = convert_obj(
+        syntra_data_path=output_path,
+        customized_data_path=input_path,
+        color_map=color_map,
+        fg_ratio=fg_ratio,
+        **kwargs
+    )
+
+    pairing_options = []
+    if kwargs.get('class_name') == 'vineyard':
+        converter.convert(['train', 'test'])
+        pairing_options = [
+        ("train_samples.txt", "train_samples.txt"),
+        ("train_samples.txt", "test_samples.txt"),
+    ]
+        
+    for s in selections:
+        converter.select_samples(s)
+        pairing_options.append((f"{s}_samples.txt", f"{s}_samples.txt"))
+        pairing_options.append((f"{s}_samples.txt", "test_samples.txt"))
+
     for src_file, tgt_file in pairing_options:
         converter.pairing_sample_intra_cls(src_info_file=src_file, tgt_info_file=tgt_file)
 
@@ -260,14 +286,25 @@ if __name__ == "__main__":
     #         fg_ratio=0.05,
     #     )
 
-    from converting.hismap2 import Hismap2Converter, color_map
-    convert_demo(
-        convert_obj=Hismap2Converter,
-        input_path="/koko/datasets/ikg_ml_dataset",
-        output_path="/koko/datasets/syntra/hismap2/hameln_1960",
-        filtering_keys=["1960"],
+    from converting.siegfried import SiegfriedConverter, color_map
+    # convert_siegfried(
+    #     convert_obj=SiegfriedConverter,
+    #     input_path="/home/yuan/data/HisMap/Siegfried_Railway_Vineyard",
+    #     output_path="/koko/datasets/syntra/siegfried/railway",
+    #     class_name="railway",
+    #     selections=["fewshot10", "partial_1", "partial_10"],
+    #     color_map=color_map,
+    #     fg_ratio=0.01,
+    # )
+
+    convert_siegfried(
+        convert_obj=SiegfriedConverter,
+        input_path="/home/yuan/data/HisMap/Siegfried_Railway_Vineyard",
+        output_path="/koko/datasets/syntra/siegfried/vineyard",
+        class_name="vineyard",
+        selections=["fewshot10"],
         color_map=color_map,
-        fg_ratio=0.05,
+        fg_ratio=0.01,
     )
 
 

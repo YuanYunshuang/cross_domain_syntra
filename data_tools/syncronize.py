@@ -96,25 +96,25 @@ if __name__ == "__main__":
     #     ignore_list = [line.strip() for line in f.readlines() if line.strip() and not line.startswith("#")]
 
     # copy_to_remote(
-    #     "/koko/datasets/syntra/forest_monitoring/trees_september/pairing_train_samples_train_samples_intracls.json",
-    #     "/home/yuang/data/syntra/",
+    #     "/home/yuan/data/syntra/siegfried",
+    #     "/home/yuang/data/syntra/siegfried",
     #     "yuang",
     #     "130.75.51.199",
     #     # ignore_list=["imgs/", "lbls/"]
     # )
 
-    syncronize_from_remote(
-        "/home/yuang/data/logs/syntra_hismap_n1_s100_v2_ce_neg_0.2",
-         "/koko/SYNTRA_logs/syntra_hismap_n1_s100_v2_ce_neg_0",
-        "yuang",
-        "130.75.51.199"
-    )
-
-    # list_files("/home/yuan/data/OpenEarthMap/xview2")
-
-    # syncronize_to_remote(
-    #     "/home/yuan/data/syntra/hismap",
-    #     "data/syntra/hismap",
+    # syncronize_from_remote(
+    #     "/home/yuang/data/logs/syntra_hismap_n1_s100_v2_ce_neg_0.2",
+    #      "/koko/SYNTRA_logs/syntra_hismap_n1_s100_v2_ce_neg_0",
     #     "yuang",
     #     "130.75.51.199"
     # )
+
+    # list_files("/home/yuan/data/OpenEarthMap/xview2")
+
+    syncronize_to_remote(
+        "/home/yuan/data/syntra/siegfried",
+        "data/syntra/siegfried",
+        "yuang",
+        "130.75.51.199"
+    )

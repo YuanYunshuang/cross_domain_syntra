@@ -6,6 +6,8 @@ from tifffile import imread
 import torch
 import numpy as np
 import json
+from typing import Dict, Optional
+
 from torch.utils.data import Dataset
 import random
 from torchvision.transforms.v2 import functional as F
@@ -15,113 +17,141 @@ from .trainsform import MapTransformTrain, MapTransformTest
 
 
 
+
 class SMOLDataset(Dataset):
     INVALID_CLS = ['background', 'nonlabeled']
-    def __init__(self, data_root, num_notions=1, num_src=1, mode="train", 
-                 info_file=None, fg_ratio=0.05, pos_prob=0.75, filtering_keys=None,
-                 src_info_file=None, src_cls=None, **kwargs):
+    def __init__(self, 
+                 data_root : str, 
+                 info_file : str | Dict[str, List[str]],
+                 img_size : int = 384, 
+                 num_notions : int = 1, 
+                 num_src : int = 1, 
+                 mode : str = "train", 
+                 fg_ratio : float | Dict[str, float] = 0.05,
+                 pos_prob : float = 0.8, 
+                 filtering_keys : str = None, 
+                 uni_transform: Optional[object] = None,
+                 aug_transform: Optional[object] = None,
+                 **kwargs):
         """
         Initializes an instance of the class with dataset information, loads file lists,
         and initializes transformations.
+
         Parameters:
         data_root: str
             The root directory of the dataset containing all related files.
+        info_file: str
+            Path to the json file containing the dataset information.
+        img_size: int, optional
+            The size to which images will be resized. Default is 384.
         mode: str
             Indicates the mode in which the dataset is being used. Default is "train".
-        info_file: str
-            Path to the json file containing the data sample information.
         fg_ratio: float, optional
             Foreground ratio threshold for source masks. Default is 0.1.
         pos_prob: float, optional
             Probability of selecting a class that is present in both source and target images. Default is 0.75.
         filtering_keys: str, optional
-            Comma-separated keys to filter the dataset files. Default is None.
+            Comma-separated keys to filter the sub-datasets that contain the given keys. Default is None to select all.
+        uni_transform: object, optional
+            Unified Transformations to be applied to the images and labels. Such as ToTensor, Normalize, etc., 
+            which are not related to data augmentation.
+            Default is MapTransformTrain for train and MapTransformTest for test mode.
+        aug_transform: object, optional
+            Augmentation Transformations to be applied to the images and labels. Such as RandomRotate, RandomFlip, etc.
+            Default is MapTransformTrain which contains random rotate and flip.
         """
         self.data_root = data_root
         self.num_notions = num_notions
         self.num_src = num_src
         self.mode = mode
-        self.fg_ratio = fg_ratio
+        self.fg_ratio = {}
         self.pos_prob = pos_prob
-        
-        if mode == "test":
-            assert src_info_file is not None, "In test mode, src_info_file must be provided."
-            assert src_cls is not None, "In test mode, src_cls must be provided."
-            
-        self.fixed_cls = src_cls
-        self.datasets = os.listdir(self.data_root)
+        self.img_size = img_size
+
         # load samples
+        self.file_list = []
+        self.src_pool = {}
         self.label_ratios = {}
         self.label_colors = {}
-        self.file_list = []
-        self.src_file_list = []
-        available_classes = set()
-        for ds in self.datasets:
-            if filtering_keys is not None and not any([k in ds for k in filtering_keys]):
-                continue
-            with open(os.path.join(self.data_root, ds, info_file)) as f:
-                lines = list(json.load(f).keys())
-                self.file_list.extend(lines)
-            with open(os.path.join(self.data_root, ds, f"{ds}.json")) as f:
-                self.label_ratios.update(json.load(f))
-            with open(os.path.join(self.data_root, ds, f"color_map.json")) as f:
-                self.label_colors[ds] = json.load(f)
-                available_classes.update(set(self.label_colors[ds].keys()) - set(self.INVALID_CLS))
-            if src_info_file is not None:
-                with open(os.path.join(self.data_root, ds, src_info_file)) as f:
-                    src_lines = list(json.load(f).keys())
-                    self.src_file_list.extend(src_lines)
+        self.meta_info = {}
+        self.dataset_full_paths = {}
+        self.filtering_keys = [x.strip() for x in filtering_keys.split(",")] if filtering_keys is not None else None
+
+        # parse info files
+        if isinstance(info_file, str):
+            datasets = glob(os.path.join(self.data_root, f"**/{info_file}.json"), recursive=True)
+            datasets = [os.path.dirname(ds) for ds in datasets]
+            # unified info file for all datasets
+            info_file_dict = {info_file: datasets}
+        else:
+            try:
+                info_file = dict(info_file)
+            except:
+                raise ValueError("info_file should be either a str or a dict mapping info_file to dataset list.")
+            info_file_dict = {info_file_name: [os.path.join(self.data_root, x) for x in ds_list] for info_file_name, ds_list in info_file.items()}
+
+        for info_file, datasets in info_file_dict.items():
+            info_file += '.json'
+            for ds_path in datasets:
+                ds = os.path.basename(ds_path)
+                
+                if self.filtering_keys is not None and not any([k in ds_path for k in self.filtering_keys]):
+                    continue
+                if not os.path.isfile(os.path.join(ds_path, info_file)):
+                    Warning(f"Info file {info_file} does not exist in dataset folder {ds_path}. Skip this dataset.")
+                    continue
+                # load source and target samples
+                info = info_file.split('_')
+                source_file = f"{info[2]}_samples.txt"
+                target_file = f"{info[4]}_samples.txt"
+                with open(os.path.join(ds_path, source_file)) as f:
+                    self.src_pool[ds] = [line.strip() for line in f.readlines()]
+                with open(os.path.join(ds_path, target_file)) as f:
+                    self.file_list += [line.strip() for line in f.readlines()]
+                with open(os.path.join(ds_path, f"{ds}.json")) as f:
+                    self.label_ratios.update(json.load(f))
+                with open(os.path.join(ds_path, f"color_map.json")) as f:
+                    self.label_colors[ds] = {k: v for k, v in json.load(f).items() if k not in self.INVALID_CLS}
+                if os.path.isfile(os.path.join(ds_path, "meta_info.json")):
+                    with open(os.path.join(ds_path, "meta_info.json")) as f:
+                        self.meta_info[ds] = json.load(f)
+                if isinstance(fg_ratio, float):
+                    self.fg_ratio[ds] = fg_ratio
+                else:
+                    for k, v in fg_ratio.items():
+                        if k in ds_path:
+                            self.fg_ratio[ds] = v
+                            continue
+                self.dataset_full_paths[ds] = ds_path
+
+        print(f"Datasets loaded for mode {mode}: {self.dataset_full_paths.keys()}")
+        self._parse_samples()
+
+        self.uni_transform = uni_transform
+        self.aug_transform = aug_transform
+        if self.uni_transform is None:
+            self.uni_transform = MapTransformTrain(image_size=self.img_size) if 'train' in mode else MapTransformTest(image_size=self.img_size)
         
-        if self.fixed_cls is not None:
-            assert self.fixed_cls in available_classes, \
-                f"Fixed source class {self.fixed_cls} is not in available classes {available_classes} of the current loaded dataset."
+        assert len(self.file_list) > 0, f"No samples found in info files {info_file_dict} for mode {mode} with filtering keys {self.filtering_keys}."
+        print(f"Number of {mode} samples: {len(self.file_list)}")
 
-        if len(self.src_file_list) == 0:
-            self.src_file_list = self.file_list.copy()
-
-        if filtering_keys is not None:
-            filtering_keys = filtering_keys.split(",")
-            filtered_file_list = []
-            filtered_src_file_list = []
-            for fname in self.file_list:
-                if any([k in fname for k in filtering_keys]):
-                    filtered_file_list.append(fname)
-            for fname in self.src_file_list:
-                if any([k in fname for k in filtering_keys]):
-                    filtered_src_file_list.append(fname)
-            self.file_list = filtered_file_list
-            self.src_file_list = filtered_src_file_list
-
-        self.file_list = list(set(self.file_list))
-        self.src_file_list = list(set(self.src_file_list))
-        self.transform = MapTransformTrain() if 'train' in mode or 'nshot' in mode else MapTransformTest()
-        print(f"Number of {mode} images: {len(self.file_list)}")
-        self.get_loading_list()
-
-    def get_loading_list(self):
+    def _parse_samples(self):
         loading_list_src = {}
-        for name in self.src_file_list:
-            info = self.label_ratios[name]
-            key = name.rsplit(".", 1)[0] # subdataset key (map sheet key)
-            if key not in loading_list_src:
-                loading_list_src[key] = {c: [] for c in info.keys() if c not in self.INVALID_CLS}
+        for full_name in self.file_list:
+            ds, name = full_name.split('.') # ds: subdataset name, key: image name
+            info = self.label_ratios[full_name]
+       
+            if ds not in loading_list_src:
+                loading_list_src[ds] = {c: [] for c in info.keys() if c not in self.INVALID_CLS}
             for k, v in info.items(): # k: class, v: ratio
                 if k in self.INVALID_CLS:
                     continue
-                if self.fg_ratio < v < 0.9 :
-                    loading_list_src[key][k].append(name)
-        if self.mode == "test":
-            file_list = [f for f in self.file_list if len(loading_list_src[f.rsplit(".", 1)[0]][self.fixed_cls]) > 0]
-            if len(self.file_list) != len(file_list):
-                print(f"Warning: {len(self.file_list) - len(file_list)} target images do not have available source images and will be removed for testing.")
-                self.file_list = file_list
+                if self.fg_ratio[ds] < v < 0.9 :
+                    loading_list_src[ds][k].append(full_name)
         self.loading_list = loading_list_src
 
     def select_tgt_cls(self, tgt_full_name):
-        if 'railway' in tgt_full_name:
-            fg_ratio = 0.01
-        else:
-            fg_ratio = self.fg_ratio
+        fg_ratio = self.fg_ratio[tgt_full_name.rsplit(".", 1)[0]]
 
         # available classes of the current target image
         tgt_info = self.label_ratios[tgt_full_name]
@@ -148,10 +178,7 @@ class SMOLDataset(Dataset):
         tgt_full_name = self.file_list[index]
         dataset, _ = tgt_full_name.rsplit(".", 1)
 
-        if self.mode == "train":
-            selected_cls = self.select_tgt_cls(tgt_full_name) 
-        else:
-            selected_cls = self.fixed_cls  
+        selected_cls = self.select_tgt_cls(tgt_full_name) 
         selected_colors = [self.label_colors[dataset][selected_cls] if selected_cls is not None else None]      
         available_src = self.loading_list[dataset][selected_cls]
         if len(available_src) == 0:
@@ -181,16 +208,19 @@ class SMOLDataset(Dataset):
             lbls.append(multi_notion_lbl)
 
         # self.visualize(img, lbl)
-        imgs, lbls = self.transform(imgs, lbls)
+        imgs, lbls = self.uni_transform(imgs, lbls)
         # self.visualize(src_img, src_lbl, tgt_img, tgt_lbl)
         src_imgs = torch.stack(imgs[1:], 0)
         tgt_img = imgs[0]
         src_lbls = torch.stack(lbls[1:], 0)
         tgt_lbl = lbls[0]
-        src_lbls = src_lbls[..., ::4, ::4]
-        # tgt_lbl = tgt_lbl[::4, ::4]
-        aux = {'src_name': src_full_names, 'tgt_name': tgt_full_name}
-        # print(src_img_name, tgt_image_name)
+
+        aux = {'src_name': src_full_names, 
+               'tgt_name': tgt_full_name,
+               'cls_name': [f"{dataset}/{selected_cls}"],
+               'cls_color': selected_colors,
+               'cls_id': [[i+1 for i in range(len(selected_color_inds))]]}
+
         return src_imgs, src_lbls, tgt_img, tgt_lbl, aux
 
     def subdataset_id(self, index: int) -> int:
@@ -220,6 +250,49 @@ class SMOLDataset(Dataset):
         tgt_lbl = torch.stack(tgt_lbl, dim=0)
         
         return src_img, src_lbl, tgt_img, tgt_lbl, aux
+    
+    def prepare_inputs(self, src_imgs, src_lbls, tgt_img, tgt_lbl, aux):
+        """
+        Prepare inputs for the model by constructing multi-notion labels on the GPU.
+        
+        Arguments:
+            src_imgs (torch.Tensor): Source images tensor of shape (B, T-1, 3, H, W).
+            src_lbls (torch.Tensor): Source labels tensor of shape (B, T-1, H/4, W/4).
+            tgt_img (torch.Tensor): Target image tensor of shape (B, 3, H, W).
+            tgt_lbl (torch.Tensor): Target label tensor of shape (B, H, W).
+            aux (dict): Auxiliary information containing class names and other metadata.
+        """
+        # construct multi-notion labels on the GPU
+        B, T_1, C, H, W = src_imgs.shape
+
+        if self.aug_transform is not None:
+            imgs = torch.cat([tgt_img.unsqueeze(1), src_imgs], dim=1)  # (B, T, C, H, W)
+            lbls = torch.cat([tgt_lbl.unsqueeze(1), src_lbls], dim=1)  # (B, T, H, W)
+            imgs, lbls = self.aug_transform(imgs, lbls)
+            imgs = imgs.reshape(B, T_1 + 1, C, H, W)
+            lbls = lbls.reshape(B, T_1 + 1, H, W)
+            tgt_img = imgs[:, 0]
+            src_imgs = imgs[:, 1:]
+            tgt_lbl = lbls[:, 0]
+            src_lbls = lbls[:, 1:, ::4, ::4]
+        else:
+            src_lbls = src_lbls[:, :, ::4, ::4]
+
+        selected_cls_ids = [x['cls_id'] + [-1] * (self.num_notions - len(x['cls_id'])) for x in aux]
+        selected_cls_ids = torch.tensor(selected_cls_ids, device=src_imgs.device, dtype=torch.int16)  # (B, num_notions)
+
+        multi_notions_src_lbls = src_lbls.unsqueeze(2).repeat(1, 1, self.num_notions, 1, 1)
+        masks_pos = multi_notions_src_lbls.to(torch.int16) == selected_cls_ids.reshape(B, 1, self.num_notions, 1, 1)
+        masks_neg = torch.logical_not(masks_pos) & (multi_notions_src_lbls != 255)
+        multi_notions_src_lbls[masks_pos] = 1
+        multi_notions_src_lbls[masks_neg] = 0
+        multi_notions_tgt_lbls = tgt_lbl.unsqueeze(1).repeat(1, self.num_notions, 1, 1)
+        masks_pos = multi_notions_tgt_lbls.to(torch.int16) == selected_cls_ids.reshape(B, self.num_notions, 1, 1)
+        masks_neg = torch.logical_not(masks_pos) & (multi_notions_tgt_lbls != 255)
+        multi_notions_tgt_lbls[masks_pos] = 1
+        multi_notions_tgt_lbls[masks_neg] = 0
+
+        return src_imgs, multi_notions_src_lbls, tgt_img, multi_notions_tgt_lbls, aux
     
 
 

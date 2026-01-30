@@ -253,24 +253,36 @@ class SyntraDataConverter:
                     lbl = self._load_original_lbl(lbl_file)
                     lbl = self._convert_annotation(np.array(lbl), id_to_train_id)
 
-                crop_w_indices, crop_h_indices = self._get_crop_indices(img.height, img.width)
+                if img.width > self.syntra_img_size or img.height > self.syntra_img_size:
+                    crop_w_indices, crop_h_indices = self._get_crop_indices(img.height, img.width)
 
-                for h in crop_h_indices:
-                    for w in crop_w_indices:
-                        base_name = self._parse_base_name(img_file)
-                        crop_name = f"{base_name}_{h}_{w}"
-                        sample_full_name = f"{self.dataset_name}.{crop_name}"
-                        split_samples.append(sample_full_name)
+                    for h in crop_h_indices:
+                        for w in crop_w_indices:
+                            base_name = self._parse_base_name(img_file)
+                            crop_name = f"{base_name}_{h}_{w}"
+                            sample_full_name = f"{self.dataset_name}.{crop_name}"
+                            split_samples.append(sample_full_name)
 
-                        img_crop = img.crop((h, w, h + self.syntra_img_size, w + self.syntra_img_size))
-                        img_crop.save(os.path.join(self.img_dir, crop_name + '.png'))
-                        if lbl is None:
-                            continue
-                        lbl_crop = lbl.crop((h, w, h + self.syntra_img_size, w + self.syntra_img_size))
-                        lbl_crop.save(os.path.join(self.lbl_dir, crop_name + '.png'))
+                            img_crop = img.crop((h, w, h + self.syntra_img_size, w + self.syntra_img_size))
+                            img_crop.save(os.path.join(self.img_dir, crop_name + '.png'))
+                            if lbl is None:
+                                continue
+                            lbl_crop = lbl.crop((h, w, h + self.syntra_img_size, w + self.syntra_img_size))
+                            lbl_crop.save(os.path.join(self.lbl_dir, crop_name + '.png'))
+
+                            # generate data info
+                            data_info[sample_full_name] = self._parse_label_ratios(np.array(lbl_crop))
+                else:
+                    base_name = self._parse_base_name(img_file)
+                    sample_full_name = f"{self.dataset_name}.{base_name}"
+                    split_samples.append(sample_full_name)
+
+                    img.save(os.path.join(self.img_dir, base_name + '.png'))
+                    if lbl is not None:
+                        lbl.save(os.path.join(self.lbl_dir, base_name + '.png'))
 
                         # generate data info
-                        data_info[sample_full_name] = self._parse_label_ratios(np.array(lbl_crop))
+                        data_info[sample_full_name] = self._parse_label_ratios(np.array(lbl))
                         
 
             self.save_samples(split_samples, split)

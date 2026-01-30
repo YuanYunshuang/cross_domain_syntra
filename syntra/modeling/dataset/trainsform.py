@@ -216,12 +216,13 @@ class RandomRotateBatch:
 
     def __call__(self, imgs, lbls):
         assert imgs.dim() in [4, 5], "images must be (B, T, C, H, W), or (B, C, H, W)"
-        assert lbls.dim() in [3, 4], "labels must be (B, T, H, W) or (B, H, W)"
+        assert lbls.dim() in [3, 4, 5], "labels must be (B, T, H, W) or (B, T, 1, H, W) or (B, H, W) or (B, 1, H, W)"
 
         lbl_shape = lbls.shape
         img_shape = imgs.shape
         if imgs.dim() == 4:
             B, C, H, W = imgs.shape
+            T = 1
         else:
             B, T, C, H, W = imgs.shape
             # Make sure images are 4D for grid_sample
@@ -234,8 +235,8 @@ class RandomRotateBatch:
             lbls = lbls.unsqueeze(1)  # (B, 1, H, W)
             squeeze_labels = True
         else:
-            assert lbls.shape[0] == imgs.shape[0] and lbls.shape[2:] == (H, W), \
-                "labels must match images spatially"
+            assert tuple(lbls.shape) == (imgs.shape[0], 1, H, W), \
+                "labels dimension must match images, either (B, 1, H, W) or (B, H, W)"
         # Generate rotation matrices
         theta = self._generate_rotation_matrix(imgs)
         # Create sampling grid
@@ -298,35 +299,35 @@ class RandomFlipBatch:
             lbls = lbls.unsqueeze(1)
             squeeze_labels = True
         else:
-            assert lbls.shape[0] == B and lbls.shape[2:] == (H, W), \
-                "labels must match images spatially"
+            assert tuple(lbls.shape) == (imgs.shape[0], 1, H, W), \
+                "labels dimension must match images, either (B, 1, H, W) or (B, H, W)"
 
         device = imgs.device
 
         # --- Random horizontal flips ---
         if self.p_horizontal > 0.0:
             # mask_h[i] == True -> flip sample i horizontally
-            mask_h = (torch.rand(B, device=device) < self.p_horizontal)
+            mask_h = (torch.rand(B*T, device=device) < self.p_horizontal)
 
             if mask_h.any():
                 # Flip all in batch, then select per-sample via where (no Python loop)
                 imgs_h = torch.flip(imgs, dims=[-1])   # flip width
                 lbls_h = torch.flip(lbls, dims=[-1])
 
-                mask_h_ = mask_h.view(B, 1, 1, 1)      # broadcast over C, H, W
+                mask_h_ = mask_h.view(B*T, 1, 1, 1)      # broadcast over C, H, W
                 imgs = torch.where(mask_h_, imgs_h, imgs)
                 lbls = torch.where(mask_h_, lbls_h, lbls)
 
         # --- Random vertical flips ---
         if self.p_vertical > 0.0:
             # mask_v[i] == True -> flip sample i vertically
-            mask_v = (torch.rand(B, device=device) < self.p_vertical)
+            mask_v = (torch.rand(B*T, device=device) < self.p_vertical)
 
             if mask_v.any():
                 imgs_v = torch.flip(imgs, dims=[-2])   # flip height
                 lbls_v = torch.flip(lbls, dims=[-2])
 
-                mask_v_ = mask_v.view(B, 1, 1, 1)
+                mask_v_ = mask_v.view(B*T, 1, 1, 1)
                 imgs = torch.where(mask_v_, imgs_v, imgs)
                 lbls = torch.where(mask_v_, lbls_v, lbls)
 

@@ -27,10 +27,12 @@ class SAMLoss(nn.Module):
         pred_masks_neg = pred_masks[~pos_inds].squeeze(1)  # (K, 1, H, W)
         gt_masks_neg = gt_masks[~pos_inds].float()  # (K, H, W)
 
-
         seg_loss = self.seg_loss_fn(pred_masks_pos, gt_masks_pos)
         ce_loss_pos = self.ce_loss_fn(pred_masks_pos, gt_masks_pos)
-        ce_loss_neg = self.ce_loss_fn(pred_masks_neg, gt_masks_neg)          
+        if pred_masks_neg.shape[0] == 0:
+            ce_loss_neg = torch.tensor(0.0, device=pred_masks.device)
+        else:
+            ce_loss_neg = self.ce_loss_fn(pred_masks_neg, gt_masks_neg)          
 
         # if 'aux' in kwargs and kwargs['aux']:
         #     valid_notions_inds = []
