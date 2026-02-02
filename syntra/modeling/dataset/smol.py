@@ -276,7 +276,9 @@ class SMOLDataset(Dataset):
             tgt_lbl = lbls[:, 0]
             src_lbls = lbls[:, 1:, ::4, ::4]
         else:
-            src_lbls = src_lbls[:, :, ::4, ::4]
+            src_lbls = src_lbls.reshape(B, T_1, H, W)
+            src_lbls = src_lbls[..., ::4, ::4]
+            tgt_lbl = tgt_lbl.reshape(B, H, W)
 
         selected_cls_ids = [x['cls_id'] + [-1] * (self.num_notions - len(x['cls_id'])) for x in aux]
         selected_cls_ids = torch.tensor(selected_cls_ids, device=src_imgs.device, dtype=torch.int16)  # (B, num_notions)

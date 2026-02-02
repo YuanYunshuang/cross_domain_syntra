@@ -211,23 +211,26 @@ def main():
 
     # %% test
     eval_results = []
-    if 'syntra' in args.dataset_name:
-        fixed_src_cls = None
-        eval_res = single_test(args.num_notions, fixed_src_cls, args, device, model, seg_loss, ce_loss, logger, out_dir)
-        eval_results.extend([torch.stack(x, dim=0) for x in eval_res])
-    elif args.dataset_name == 'smol':
-        num_notions = 1
-        fixed_src_cls = {
-            'hameln': ['forest', 'grass', 'settlement', 'water'], # 'forest', 'grass', 'settlement', 
-            'bayern': ['forest', 'grass', 'water'],
-            'railway': ['railway'],
-            'vineyard': ['vineyard']
-        }
-        for kw, classes in fixed_src_cls.items():
-            for cls in classes:
-                args.keywords = kw
-                eval_res = single_test(num_notions, cls, args, device, model, seg_loss, ce_loss, logger, out_dir)
-                eval_results.extend([torch.stack(x, dim=0) for x in eval_res])
+    fixed_src_cls = None
+    eval_res = single_test(args.num_notions, fixed_src_cls, args, device, model, seg_loss, ce_loss, logger, out_dir)
+    eval_results.extend([torch.stack(x, dim=0) for x in eval_res])
+    # if 'syntra' in args.dataset_name:
+    #     fixed_src_cls = None
+    #     eval_res = single_test(args.num_notions, fixed_src_cls, args, device, model, seg_loss, ce_loss, logger, out_dir)
+    #     eval_results.extend([torch.stack(x, dim=0) for x in eval_res])
+    # elif args.dataset_name == 'smol':
+    #     num_notions = 1
+    #     fixed_src_cls = {
+    #         'hameln': ['forest', 'grass', 'settlement', 'water'], # 'forest', 'grass', 'settlement', 
+    #         'bayern': ['forest', 'grass', 'water'],
+    #         'railway': ['railway'],
+    #         'vineyard': ['vineyard']
+    #     }
+    #     for kw, classes in fixed_src_cls.items():
+    #         for cls in classes:
+    #             args.keywords = kw
+    #             eval_res = single_test(num_notions, cls, args, device, model, seg_loss, ce_loss, logger, out_dir)
+    #             eval_results.extend([torch.stack(x, dim=0) for x in eval_res])
     
     eval_results = torch.stack(eval_results, dim=0).mean(dim=0)
     out_str = "#" * 20 + " Overal Mean " + "#" * 20 + "\n" + \
