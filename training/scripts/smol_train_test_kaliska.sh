@@ -22,10 +22,10 @@
 #   --config syntra_cityscapes_n4_full.yaml -d ../syntra/autonomous_driving -o /workspace/logs"
 
 export WORKDIR=/home/yuang/data
-export DATA_SUBDIR=siegfried
+export DATA_SUBDIR=hismap
 # export CONFIG=hismap_n1_full
 
-for CONFIG in siegfried_vineyard_n1_s10 siegfried_vineyard_n1_full siegfried_railway_n1_full end; do
+for CONFIG in hismap_n1_s100 hismap_n1_s100_ws end; do
   if [ "$CONFIG" == "end" ]; then
       break
   fi

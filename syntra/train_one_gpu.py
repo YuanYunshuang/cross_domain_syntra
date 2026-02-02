@@ -174,7 +174,8 @@ def main():
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
 
-    loss_fn = get_loss_fn("SAMLoss", ce_neg_weight=args.ce_neg_weight)
+    loss_fn = get_loss_fn("SAMLoss", ce_neg_weight=args.ce_neg_weight, 
+                          dataset_weights=getattr(args, 'dataset_weights', None)).to(device)
 
     # dataset
     uni_transform = TransformCompose(args.uni_transform) if getattr(args, 'uni_transform', None) is not None else None

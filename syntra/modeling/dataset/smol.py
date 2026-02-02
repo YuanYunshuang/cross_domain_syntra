@@ -100,25 +100,7 @@ class SMOLDataset(Dataset):
                 if not os.path.isfile(os.path.join(ds_path, info_file)):
                     Warning(f"Info file {info_file} does not exist in dataset folder {ds_path}. Skip this dataset.")
                     continue
-                # load source and target samples
-                if 'sample_pair' in info_file:
-                    info = info_file.replace('sample_pair_', '').replace('_intracls.json', '')
-                    if info.split('_')[0]=='cls':
-                        source_file = f"cls_selection_{info.split('_')[2]}.json"
-                    else:
-                        source_file = "train_samples.txt"
-                    if info.split('_')[-2]=='selection':
-                        target_file = f"cls_selection_{info.split('_')[-1]}.json"
-                    else:
-                        target_file = "test_samples.txt"
-                else:
-                    info = info_file.split('_')
-                    source_file = f"{info[2]}_samples.txt"
-                    target_file = f"{info[4]}_samples.txt"
-                with open(os.path.join(ds_path, source_file)) as f:
-                    self.src_pool[ds] = [line.strip() for line in f.readlines()]
-                with open(os.path.join(ds_path, target_file)) as f:
-                    self.file_list += [line.strip() for line in f.readlines()]
+                self._parse_source_target_samples(info_file, ds_path, ds)
                 with open(os.path.join(ds_path, f"{ds}.json")) as f:
                     self.label_ratios.update(json.load(f))
                 with open(os.path.join(ds_path, f"color_map.json")) as f:
@@ -146,10 +128,43 @@ class SMOLDataset(Dataset):
         assert len(self.file_list) > 0, f"No samples found in info files {info_file_dict} for mode {mode} with filtering keys {self.filtering_keys}."
         print(f"Number of {mode} samples: {len(self.file_list)}")
 
+    def _parse_source_target_samples(self, info_file: str, ds_path: str, ds: str):
+        def _load_samples(file_path: str) -> List[str]:
+            if file_path.endswith('.json'):
+                with open(file_path) as f:
+                    samples = []
+                    for s in json.load(f).values():
+                        samples.extend(s)
+                    samples = list(set(samples))
+            else:
+                with open(file_path) as f:
+                    samples = [line.strip() for line in f.readlines()]
+            return samples
+        # load source and target samples
+        if 'sample_pair' in info_file:
+            info = info_file.replace('sample_pair_', '').replace('_intracls.json', '')
+            if info.split('_')[0]=='cls':
+                source_file = f"cls_selection_{info.split('_')[2]}.json"
+            else:
+                source_file = "train_samples.txt"
+            if info.split('_')[-2]=='selection':
+                target_file = f"cls_selection_{info.split('_')[-1]}.json"
+            else:
+                target_file = "test_samples.txt"
+            
+        else:
+            info = info_file.split('_')
+            source_file = f"{info[2]}_samples.txt"
+            target_file = f"{info[4]}_samples.txt"
+
+        self.src_pool[ds] = _load_samples(os.path.join(ds_path, source_file))
+        self.file_list += _load_samples(os.path.join(ds_path, target_file))
+
+
     def _parse_samples(self):
         loading_list_src = {}
         for full_name in self.file_list:
-            ds, name = full_name.split('.') # ds: subdataset name, key: image name
+            ds, name = full_name.rsplit('.', 1) # ds: subdataset name, key: image name
             info = self.label_ratios[full_name]
        
             if ds not in loading_list_src:
