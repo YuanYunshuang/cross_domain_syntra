@@ -101,9 +101,20 @@ class SMOLDataset(Dataset):
                     Warning(f"Info file {info_file} does not exist in dataset folder {ds_path}. Skip this dataset.")
                     continue
                 # load source and target samples
-                info = info_file.split('_')
-                source_file = f"{info[2]}_samples.txt"
-                target_file = f"{info[4]}_samples.txt"
+                if 'sample_pair' in info_file:
+                    info = info_file.replace('sample_pair_', '').replace('_intracls.json', '')
+                    if info.split('_')[0]=='cls':
+                        source_file = f"cls_selection_{info.split('_')[2]}.json"
+                    else:
+                        source_file = "train_samples.txt"
+                    if info.split('_')[-2]=='selection':
+                        target_file = f"cls_selection_{info.split('_')[-1]}.json"
+                    else:
+                        target_file = "test_samples.txt"
+                else:
+                    info = info_file.split('_')
+                    source_file = f"{info[2]}_samples.txt"
+                    target_file = f"{info[4]}_samples.txt"
                 with open(os.path.join(ds_path, source_file)) as f:
                     self.src_pool[ds] = [line.strip() for line in f.readlines()]
                 with open(os.path.join(ds_path, target_file)) as f:

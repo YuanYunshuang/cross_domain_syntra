@@ -30,15 +30,15 @@ for CONFIG in siegfried_vineyard_n1_s10 siegfried_vineyard_n1_full siegfried_rai
       break
   fi
   # Run training directly (replace args as needed)
-  # docker run --gpus all --rm \
-  #   -v "$WORKDIR":/workspace \
-  #   -w /workspace/cross_domain_syntra \
-  #   --shm-size=16g \
-  #   opheliayuan/syntra:latest \
-  #   sh -lc "umask 000 && PYTHONPATH=. python syntra/train_one_gpu.py \
-  #   --config smol_${CONFIG}.yaml -d ../syntra/${DATA_SUBDIR} -o /workspace/logs 
-  # # --cache-data 
-  # # --resume /workspace/logs/smol_${CONFIG}/model_latest.pth"
+  docker run --gpus all --rm \
+    -v "$WORKDIR":/workspace \
+    -w /workspace/cross_domain_syntra \
+    --shm-size=16g \
+    opheliayuan/syntra:latest \
+    sh -lc "umask 000 && PYTHONPATH=. python syntra/train_one_gpu.py \
+    --config smol_${CONFIG}.yaml -d ../syntra/${DATA_SUBDIR} -o /workspace/logs 
+    # --cache-data 
+    # --resume /workspace/logs/smol_${CONFIG}/model_latest.pth"
 
   # Run testing directly (replace args as needed)
   docker run --gpus all --rm \
