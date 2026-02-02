@@ -50,7 +50,15 @@ class UNetDataset(Dataset):
         self.mode = mode
         self.img_size = img_size
         self.filtering_keys = [x.strip() for x in filtering_keys.split(",")] if filtering_keys is not None else None
-        self.color_map = {}
+        self.color_map = {
+            'forest': [34, 139, 34],
+            'grass': [124, 252, 0],
+            'settlement': [220, 20, 60],
+            'water': [30, 144, 255],
+            'railway': [139, 69, 19],
+            'vineyard': [148, 0, 211],
+        }
+        self.cls_names = [k for k in self.color_map.keys()]
         self.samples = []
 
         # parse info files
@@ -81,11 +89,8 @@ class UNetDataset(Dataset):
                     src_dict = json.load(f)
                 with open(os.path.join(ds_path, f"color_map.json")) as f:
                     color_map = {k: v for k, v in json.load(f).items() if k not in self.INVALID_CLS}
-                    for k, v in color_map.items():
-                        if k not in self.color_map:
-                            self.color_map[k] = v
-                new_cls_names = [k for k in self.color_map.keys()]
-                old_to_new_id = {i+1: new_cls_names.index(k) + 1 for i, k in enumerate(color_map.keys())}
+
+                old_to_new_id = {i+1: self.cls_names.index(k) + 1 for i, k in enumerate(color_map.keys())}
                 # parse sample paths
                 for sample in src_dict.keys():
                     sample_name = sample.split('.')[-1]
@@ -162,13 +167,14 @@ class UNetDataset(Dataset):
         return self._loc2id[loc]
     
     def save_train_vis(self, imgs, lbls, preds):
-        save_path = "/home/yuan/Downloads/vis_train/tmp.png"
+        save_path = f"{os.environ.get('HOME')}/Downloads/vis_tmp.png"
         palette = [0, 0, 0] + [v for k, v in self.color_map.items() for v in v]
         B, C, H, W = imgs.shape
         
         vis_img = Image.new("RGB", (W * 3, H))
         img = imgs[0].permute(1, 2, 0).cpu().numpy()
-        img = (img * 0.25 + 0.5).astype(np.uint8)
+        img = (img * 0.25 + 0.5)
+        img = (img * 255).astype(np.uint8)
 
         lbl = lbls[0].squeeze(0).cpu().numpy().astype(np.uint8)
         pred = torch.argmax(preds[0], dim=0).cpu().numpy().astype(np.uint8)

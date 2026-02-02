@@ -67,11 +67,12 @@ class Evaluator:
 
     def eval(self):
         res = {}
+        zero = torch.tensor(0.0, device=self.tp[self.notions[0]].device)
         for notion_id in self.notions:
-            iou = self.tp[notion_id] / self.union[notion_id] if self.union[notion_id] > 0 else 0
-            prec = self.tp[notion_id] / self.pos_pred[notion_id] if self.pos_pred[notion_id] > 0 else 0
-            rec = self.tp[notion_id] / self.pos_gt[notion_id] if self.pos_gt[notion_id] > 0 else 0
-            acc = self.overall_tp[notion_id] / self.n[notion_id] if self.n[notion_id] > 0 else 0
+            iou = self.tp[notion_id] / self.union[notion_id] if self.union[notion_id] > 0 else zero
+            prec = self.tp[notion_id] / self.pos_pred[notion_id] if self.pos_pred[notion_id] > 0 else zero
+            rec = self.tp[notion_id] / self.pos_gt[notion_id] if self.pos_gt[notion_id] > 0 else zero
+            acc = self.overall_tp[notion_id] / self.n[notion_id] if self.n[notion_id] > 0 else zero
             res[notion_id] = (iou, prec, rec, acc)
 
         return res
@@ -110,17 +111,19 @@ class UnetEvaluator(Evaluator):
     def add_sample(self, pred, target, subsets, id_to_name=None):
         assert pred.shape == target.shape
 
+        # datasets = [x if 'siegfried' in x else x.split('.')[0] for x in subsets]
         datasets = [x.split('.')[0] for x in subsets]
 
         for pred, tgt, dataset in zip(pred, target, datasets):
             uniq_ids = torch.unique(tgt)
             for cls_id in uniq_ids:
+                if cls_id == 0:
+                    continue
                 if id_to_name is not None:
                     cls_name = id_to_name.get(cls_id.item(), f"cls_{cls_id.item()}")
                 else:
                     cls_name = f"cls_{cls_id.item()}"
-                if cls_id == 0:
-                    continue
+
                 cls_mask_pred = (pred == cls_id)
                 cls_mask_tgt = (tgt == cls_id)
                 args = (cls_mask_pred, cls_mask_tgt, f"{dataset}.{cls_name}")

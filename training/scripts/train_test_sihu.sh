@@ -17,3 +17,4 @@ fi
   --save-result --vis --checkpoint ./logs/syntra_${CONFIG}/model_latest.pth 
 
 done
+/home/yuan/code/CD_SYNTRA/logs/syntra_hismap_n1_s100_v3

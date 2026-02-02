@@ -118,8 +118,6 @@ def single_test(args, device, model, seg_loss, logger, out_dir):
             pbar.set_postfix({ 'Loss': f'{loss:.6f}'})
             losses.append(loss)
             evaluator.add_sample(lbl_pred, lbls.squeeze(1), subsets, id_to_name)
-            if step > 10:
-                break
 
     avg_loss = np.array(losses).mean()
     eval_out = []

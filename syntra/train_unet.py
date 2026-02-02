@@ -271,8 +271,8 @@ def main():
                 pbar.set_postfix(upsate_dict)
                 logger.info(upsate_dict)
             
-            # if iter_num % 10 == 0:
-            #     train_dataset.save_train_vis(imgs, lbls, pred)
+            if args.vis_freq is not None and iter_num % args.vis_freq == 0:
+                train_dataset.save_train_vis(imgs, lbls, pred)
 
             if iter_num % 100 == 0:
                 inter_avg_loss /= max(step, 1)
@@ -303,7 +303,7 @@ def main():
                     torch.save(checkpoint, join(model_save_path, "model_best.pth"))
 
                 ## save the intermediate model
-                if iter_num % 1e4 == 0:
+                if args.vis_freq is not None and iter_num % args.vis_freq == 0:
                     checkpoint = {
                         "model": state_dict,
                         "optimizer": optimizer.state_dict(),
