@@ -15,10 +15,13 @@ TRAIN:
   # data
   dataset_name: unet
   img_size: 384
-  data_keywords: hismap
+  data_keywords: hismap,siegfried
   sampler: group_fixed_m 
   uni_transform:
     - name: ToTensor
+    - name: Resize
+      args:
+        size: [384, 384]
     - name: Normalize
       args:
         mean: [0.5, 0.5, 0.5]
@@ -42,7 +45,7 @@ TRAIN:
 
 TEST:
   data_info: sample_pair_cls_selection_100_test_samples_intracls
-  data_keywords: hismap
+  data_keywords: hismap,siegfried
   checkpoint: null # will be set to the path ./logs/<task_name>/model_latest.pth
   save_result: true
   output_dir: null # will be set to the checkpoint's parent directory
