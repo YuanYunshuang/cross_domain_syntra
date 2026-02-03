@@ -21,7 +21,7 @@ TRAIN:
     - name: ToTensor
     - name: Resize
       args:
-        target_size: [384, 384]
+        target_size: 384
     - name: Normalize
       args:
         mean: [0.5, 0.5, 0.5]
