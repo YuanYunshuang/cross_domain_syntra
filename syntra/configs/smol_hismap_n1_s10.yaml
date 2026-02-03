@@ -24,8 +24,8 @@ TRAIN:
     hameln: 0.05
     bayern: 0.05
     siegfried: 0.01
-  sampler: uniform # grouped_prob | uniform | prob
-  data_keywords: hismap
+  sampler: group_fixed_m # grouped_prob | uniform | prob
+  data_keywords: hismap,siegfried
   validation_data: null
   uni_transform:
     - name: ToTensor
@@ -58,7 +58,7 @@ TEST:
   num_notions: 1
   num_src: 1
   data_info: sample_pair_cls_selection_10_test_samples_intracls
-  data_keywords: hismap
+  data_keywords: hismap,siegfried
   checkpoint: null # will be set to the path ./logs/<task_name>/model_latest.pth
   save_result: true
   output_dir: null # will be set to the checkpoint's parent directory
