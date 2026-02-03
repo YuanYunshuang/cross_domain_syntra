@@ -113,17 +113,22 @@ def convert_siegfried(convert_obj, input_path, output_path, color_map, selection
     )
 
     pairing_options = []
-    if kwargs.get('class_name') == 'vineyard':
-        converter.convert(['train', 'test'])
-        pairing_options = [
-        ("train_samples.txt", "train_samples.txt"),
-        ("train_samples.txt", "test_samples.txt"),
-    ]
+
+    # converter.convert(['train', 'test'])
+    # pairing_options = [
+    #     ("train_samples.txt", "train_samples.txt"),
+    #     ("train_samples.txt", "test_samples.txt"),
+    # ]
         
     for s in selections:
-        converter.select_samples(s)
-        pairing_options.append((f"{s}_samples.txt", f"{s}_samples.txt"))
-        pairing_options.append((f"{s}_samples.txt", "test_samples.txt"))
+        if isinstance(s, int):
+            converter.select_cls_samples(n=s)
+            pairing_options.append((f"cls_selection_{s}.json", f"cls_selection_{s}.json"))
+            pairing_options.append((f"cls_selection_{s}.json", "test_samples.txt"))
+        else:
+            converter.select_samples(s)
+            pairing_options.append((f"{s}_samples.txt", f"{s}_samples.txt"))
+            pairing_options.append((f"{s}_samples.txt", "test_samples.txt"))
 
     for src_file, tgt_file in pairing_options:
         converter.pairing_sample_intra_cls(src_info_file=src_file, tgt_info_file=tgt_file)
@@ -300,11 +305,11 @@ if __name__ == "__main__":
     convert_siegfried(
         convert_obj=SiegfriedConverter,
         input_path="/home/yuan/data/HisMap/Siegfried_Railway_Vineyard",
-        output_path="/koko/datasets/syntra/siegfried/vineyard",
-        class_name="vineyard",
-        selections=["fewshot10"],
+        output_path="/koko/datasets/syntra/siegfried/railway",
+        class_name="railway",
+        selections=[10, 50, 100],
         color_map=color_map,
-        fg_ratio=0.01,
+        fg_ratio=0.001,
     )
 
 

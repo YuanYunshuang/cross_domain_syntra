@@ -216,9 +216,9 @@ class SMOLDataset(Dataset):
         lbls = []
         for img_full_name in [tgt_full_name] + src_full_names:
             ds, img_name = img_full_name.rsplit(".", 1)
-            img = Image.open(os.path.join(self.data_root, ds, 'imgs', img_name + '.png'))
+            img = Image.open(os.path.join(self.dataset_full_paths[ds], 'imgs', img_name + '.png'))
             img = np.array(img)
-            lbl = Image.open(os.path.join(self.data_root, ds, 'lbls', img_name + '.png'))
+            lbl = Image.open(os.path.join(self.dataset_full_paths[ds], 'lbls', img_name + '.png'))
             # get selected color idx
             palette = lbl.getpalette()
             palette = np.array(palette).reshape(-1, 3).tolist()
@@ -253,10 +253,7 @@ class SMOLDataset(Dataset):
         # Derive subdataset id from filename prefix before the first '.'
         # Example: "locA.some_image_name_001.png" -> "locA"
         def get_loc(fname):
-            if 'siegfried' in fname:
-                loc = fname.split(".")[1].split('_')[0]
-            else:
-                loc = fname.split('.')[0]
+            loc = fname.split('.')[0]
             return loc
         fname = self.file_list[index]
         loc = get_loc(fname)

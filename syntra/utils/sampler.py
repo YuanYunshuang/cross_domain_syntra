@@ -41,6 +41,7 @@ def get_sampler(dataset, batch_size, sampler_name='uniform'):
         parts = sampler_name.split(':')
         labels = [dataset.subdataset_id(i) for i in range(len(dataset))]
         groups = group_indices_by_labels(labels)
+        print(f"Sampler group names: {dataset._loc2id.keys()}")
         if len(parts) == 2:
             samples_per_group = int(parts[1])
         else:

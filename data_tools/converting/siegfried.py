@@ -3,6 +3,7 @@
 import json
 from glob import glob
 import os
+import random
 from PIL import Image
 import numpy as np
 from tqdm import tqdm
@@ -104,11 +105,59 @@ class SiegfriedConverter(SyntraDataConverter):
             class_ratios = data_info[f"{self.class_name}.{sample}"]
             for cls_name, ratio in class_ratios.items():
                 class_counts[cls_name] += ratio
-        with open(os.path.join(self.syntra_data_path, f'{set_name}_class_distribution.json'), 'w') as f:
+        setname = set_name.replace('_', '')
+        with open(os.path.join(self.syntra_data_path, f'{setname}_class_distribution.json'), 'w') as f:
             json.dump(class_counts, f, indent=4)
-        with open(os.path.join(self.syntra_data_path, f'{set_name}_samples.txt'), 'w') as f:
+        with open(os.path.join(self.syntra_data_path, f'{setname}_samples.txt'), 'w') as f:
             for sample in selected_samples:
                 f.write(f"{self.class_name}.{sample}" + '\n')  
+
+    def select_cls_samples(self, n, sample_file=None, fg_ratio=None):
+        """
+        Select n samples for each class from the training dataset.
+        """
+        if sample_file is None:
+            if n == 10:
+                sample_file = "fewshot10_samples.txt"
+            elif  n == 50:
+                sample_file = "partial1_samples.txt" if self.class_name == "railway" else "train_samples.txt"
+            else:
+                sample_file = "train_samples.txt"
+        fg_ratio = fg_ratio if fg_ratio is not None else self.fg_ratio
+
+        train_samples_file = os.path.join(self.syntra_data_path, sample_file)
+        assert os.path.isfile(train_samples_file), "Training samples, 'train_samples.txt' file not found."
+
+        with open(train_samples_file, 'r') as f:
+            train_samples = f.readlines()
+        train_samples = [line.strip() for line in train_samples]
+
+        data_info_file = os.path.join(self.syntra_data_path, f"{self.dataset_name}.json")
+        assert os.path.isfile(data_info_file), f"Data info file '{data_info_file}' not found."
+        with open(data_info_file, 'r') as f:
+            data_info = json.load(f)
+
+        cls_to_samples = {cls_name: [] for cls_name in self.color_map.keys()}
+        for sample in train_samples:
+            class_ratios = data_info.get(sample, {})
+            for cls_name, cls_ratio in class_ratios.items():
+                if cls_name in cls_to_samples and cls_ratio > fg_ratio:
+                    cls_to_samples[cls_name].append(sample)
+        
+        # select n samples for each class
+        selected_samples = {}
+        for cls_name, samples in cls_to_samples.items():
+            if cls_name in ['background', 'nonlabeled']:
+                continue
+            if len(samples) == 0:
+                print(f"Warning: No samples found for class '{cls_name}'. Skip.")
+                continue
+            selected = random.sample(samples, min(n, len(samples)))
+            selected_samples[cls_name] = selected
+        
+        # save the selection
+        with open(os.path.join(self.syntra_data_path, f"cls_selection_{n}.json"), 'w') as f:
+            json.dump(selected_samples, f, indent=4)
     
 
     
