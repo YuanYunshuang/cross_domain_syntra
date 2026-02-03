@@ -32,7 +32,7 @@ TRAIN:
         degrees: 30
 
   # train
-  num_epochs: 200
+  num_epochs: 100
   max_iterations: 100000
   lr: 1e-3
   lr_scheduler: exp
