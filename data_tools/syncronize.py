@@ -103,18 +103,18 @@ if __name__ == "__main__":
     #     # ignore_list=["imgs/", "lbls/"]
     # )
 
-    syncronize_from_remote(
-        "/home/yuan/code/CD_SYNTRA/logs/smol_hismap_n1_s10",
-         "/koko/SYNTRA_logs/smol_hismap_n1_s10",
-        "yuan",
-        "130.75.51.193"
-    )
+    # syncronize_from_remote(
+    #     "/home/yuan/code/CD_SYNTRA/logs/smol_hismap_n1_s10",
+    #      "/koko/SYNTRA_logs/smol_hismap_n1_s10",
+    #     "yuan",
+    #     "130.75.51.193"
+    # )
 
     # list_files("/home/yuan/data/OpenEarthMap/xview2")
 
-    # syncronize_to_remote(
-    #     "/home/yuan/data/syntra/siegfried",
-    #     "data/syntra/siegfried",
-    #     "yuang",
-    #     "130.75.51.199"
-    # )
+    syncronize_to_remote(
+        "/home/yuan/data/syntra/siegfried",
+        "/home/yuang/data/syntra/siegfried",
+        "yuang",
+        "130.75.51.199"
+    )

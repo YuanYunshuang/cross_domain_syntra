@@ -22,7 +22,7 @@
 #   --config syntra_cityscapes_n4_full.yaml -d ../syntra/autonomous_driving -o /workspace/logs"
 
 export WORKDIR=/home/yuang/data
-export DATA_SUBDIR=hismap
+export DATA_SUBDIR=''
 # export CONFIG=hismap_n1_full
 
 for CONFIG in hismap_n1_s100 hismap_n1_s50 end; do
@@ -36,7 +36,7 @@ for CONFIG in hismap_n1_s100 hismap_n1_s50 end; do
     --shm-size=16g \
     opheliayuan/syntra:latest \
     sh -lc "umask 000 && PYTHONPATH=. python syntra/train_one_gpu.py \
-    --config smol_${CONFIG}.yaml -d ../syntra/${DATA_SUBDIR} -o /workspace/logs 
+    --config smol_${CONFIG}.yaml -d ../syntra -o /workspace/logs 
     # --cache-data 
     # --resume /workspace/logs/smol_${CONFIG}/model_latest.pth"
 
@@ -47,5 +47,5 @@ for CONFIG in hismap_n1_s100 hismap_n1_s50 end; do
     --shm-size=16g \
     opheliayuan/syntra:latest \
     sh -lc "umask 000 && PYTHONPATH=. python syntra/test.py \
-    --config smol_${CONFIG}.yaml -d ../syntra/${DATA_SUBDIR} -o /workspace/logs --checkpoint /workspace/logs/smol_${CONFIG}/model_latest.pth"
+    --config smol_${CONFIG}.yaml -d ../syntra -o /workspace/logs --checkpoint /workspace/logs/smol_${CONFIG}/model_latest.pth"
 done

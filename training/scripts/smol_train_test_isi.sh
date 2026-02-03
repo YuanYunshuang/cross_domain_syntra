@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-DATADIR=/home/yuan/data/syntra/hismap
+DATADIR=/home/yuan/data/syntra
 
 
 for CONFIG in hismap_n1_s10 end; do
