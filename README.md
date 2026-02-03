@@ -20,3 +20,7 @@ Using the converting tools in the package `data_tools` to convert your customize
 PYTHONPATH=. python syntra/train_one_gpu.py --config config_file.yaml
 ```
 
+1. label meaning
+2. which labels are you using
+3. how the evaluation metrics are calculated, e.g., IoU
+4. confusing classes

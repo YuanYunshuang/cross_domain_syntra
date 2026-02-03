@@ -234,3 +234,4 @@ if __name__ == '__main__':
          if src_lbl.sum() == 0 and tgt_lbl.sum() > 0:
              print(src_img.shape, src_lbl.shape, tgt_img.shape, tgt_lbl.shape, aux)
              print("empty src lbl")
+             

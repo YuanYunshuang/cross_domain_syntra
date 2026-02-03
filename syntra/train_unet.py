@@ -303,7 +303,7 @@ def main():
                     torch.save(checkpoint, join(model_save_path, "model_best.pth"))
 
                 ## save the intermediate model
-                if args.vis_freq is not None and iter_num % args.vis_freq == 0:
+                if iter_num % 1e4 == 0:
                     checkpoint = {
                         "model": state_dict,
                         "optimizer": optimizer.state_dict(),

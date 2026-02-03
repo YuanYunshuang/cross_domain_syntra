@@ -123,6 +123,7 @@ class SyntraDataConverter:
         for orig_id, new_id in id_map.items():
             converted_lbl[lbl_array == orig_id] = new_id
         
+        converted_lbl[lbl_array == 255] = 255  # ignore index
         converted_lbl = Image.fromarray(converted_lbl, mode='P')
         converted_lbl.putpalette(self.palette)
         return converted_lbl

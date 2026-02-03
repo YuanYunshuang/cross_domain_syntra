@@ -11,19 +11,18 @@ from tifffile import imread
 from .syntra_data_converter import SyntraDataConverter
 
 color_map = {
-  "building": [180, 180, 180],          # neutral gray
-  "coniferous_trees": [15, 100, 40],     # dark forest green
-  "crop": [255, 200, 40],                # bright yellow-gold
-  "deciduous_trees": [60, 180, 75],      # light fresh green
-  "grass": [120, 220, 60],               # bright lime green
-  "grove": [80, 130, 60],                # olive green
-  "loose_material": [210, 180, 120],     # sandy beige
-  "reed": [160, 90, 160],                # muted purple
-  "running_water": [40, 90, 200],        # clear blue
-  "standing water": [20, 50, 140],       # deep navy blue
-  "shrubbery": [100, 160, 100],          # medium sage green
-  "superstructure_work": [200, 40, 40],  # strong red
-  "underground_working": [120, 90, 60],  # earthy brown
+  "building": [180, 180, 180],           #1 neutral gray
+  "coniferous_trees": [15, 100, 40],     #2 dark forest green
+  "crop": [255, 200, 40],                #3 bright yellow-gold
+  "deciduous_trees": [60, 180, 75],      #4 light fresh green
+  "grass": [120, 220, 60],               #5 bright lime green
+  "grove": [80, 130, 60],                #6 olive green
+  "loose_material": [210, 180, 120],     #7 sandy beige
+  "reed": [160, 90, 160],                #8 muted purple
+  "running_water": [40, 90, 200],        #9 clear blue
+  "shrubbery": [100, 160, 100],          #10 medium sage green
+  "standing water": [20, 50, 140],       #11 deep navy blue
+  "underground_working": [120, 90, 60],  #12 earthy brown
 }
 
 
@@ -57,8 +56,10 @@ class HamelnRSConverter(SyntraDataConverter):
                 sample_path = os.path.join(epoch_path, str(sample_id))
 
                 img_file = os.path.join(sample_path, 'R_G_B.tif')
-                # lbl_file = os.path.join(sample_path, 'RGB_GT.tif')
                 lbl_file = os.path.join(sample_path, 'L.tif')
+
+                # if not '2000/40' in img_file:
+                #     continue
                 samples.append((img_file, lbl_file))
         return samples
     
@@ -69,7 +70,8 @@ class HamelnRSConverter(SyntraDataConverter):
         assert lbl.max() <= len(color_map), f"Label image has value {lbl.max()} which exceeds number of classes {len(color_map)}."
         # assert lbl.dtype == np.uint8, f"Label dtype must be uint8, got {lbl.dtype}."
         # assert lbl.ndim == 2, f"Label image must be 2D, got shape {lbl.shape}."
-        lbl[lbl == -1] == 255  # ignore index
+        lbl += 1  # shift to 1~N
+        lbl[lbl == 0] = 255  # ignore index
         lbl = lbl.astype(np.uint8)
         lbl = Image.fromarray(lbl)
 
@@ -84,6 +86,21 @@ class HamelnRSConverter(SyntraDataConverter):
     
     def _get_id_map(self):
         return {i:i for i in range(1, len(color_map)+1)}
+    
+    # def _construct_color_palette(self):
+    #     """
+    #     Constructs a color palette list from the color map.
+    #     Returns:
+    #         list: A flat list representing the color palette.
+    #     """
+    #     palette = [0, 0, 0]  # background color
+    #     for cls_name in self.color_map.keys():
+    #         palette.extend(self.color_map[cls_name])
+    #     # pad the palette to have 256 colors
+    #     palette.extend([0, 0, 0] * (256 - len(self.color_map) - 2))
+    #     # set the last color to white as nonlabled
+    #     palette.extend([255, 255, 255])
+    #     self.palette = palette
     
 
     

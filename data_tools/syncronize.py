@@ -59,6 +59,28 @@ def sync_from_kisski(local_path, remote_path, uid, remote_host_shortcut):
     assert uid.startswith("u"), "User ID should start with 'u'"
     subprocess.run(f"rsync -av --progress -e ssh {uid}@{remote_host_shortcut}:{remote_path}/ {local_path}/", shell=True, check=True)
 
+def sync_to_autodl(local_path, remote_path, ssh_cmd, is_code_repo=False):
+    #ssh -p 36542 root@connect.westb.seetacloud.com
+    remote_host = ssh_cmd.split(' ')[-1]
+    remote_port = ssh_cmd.split(' ')[2]
+    if is_code_repo:
+        ignore_list = [".git/", "__pycache__/", "*.pyc", ".vscode/", ".idea/", ".DS_Store", "logs/", "output/"]
+        # read from gitignore
+        if os.path.exists(os.path.join(local_path, ".gitignore")):
+            with open(os.path.join(local_path, ".gitignore"), "r") as f:
+                ignore_list += [line.strip() for line in f.readlines() if line.strip() and not line.startswith("#")]
+        exclude_args = ' '.join([f"--exclude='{item}'" for item in ignore_list])
+        cmd = [
+            "rsync", "-av", "--progress", "-e", "ssh", "-p", remote_port,
+            exclude_args,
+            f"{local_path}/",
+            f"{ssh_cmd.split(' ')[-1]}:{remote_path}/"
+        ]
+        subprocess.run(' '.join(cmd), shell=True, check=True)
+    else:
+        subprocess.run(f"rsync -av --progress -e ssh -p {remote_port} {local_path}/ {remote_host}:{remote_path}/", shell=True, check=True)
+
+
 
 
 if __name__ == "__main__":
@@ -112,9 +134,16 @@ if __name__ == "__main__":
 
     # list_files("/home/yuan/data/OpenEarthMap/xview2")
 
-    syncronize_to_remote(
-        "/home/yuan/data/syntra/siegfried",
-        "/home/yuang/data/syntra/siegfried",
-        "yuang",
-        "130.75.51.199"
+    # syncronize_to_remote(
+    #     "/home/yuan/data/syntra/siegfried",
+    #     "/home/yuang/data/syntra/siegfried",
+    #     "yuang",
+    #     "130.75.51.199"
+    # )
+
+    sync_to_autodl(
+        local_path="/home/yuan/code/CD_SYNTRA",
+        remote_path="/root/autodl-fs/CD_SYNTRA",
+        ssh_cmd="ssh -p 36542 root@connect.westb.seetacloud.com",
+        is_code_repo=True
     )
