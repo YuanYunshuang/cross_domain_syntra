@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-DATADIR=/home/yuan/data/syntra
+DATADIR=/home/yuan/data/syntra/hismap
 
 
 for CONFIG in hameln_n1_s100 bayern_n1_s100 end; do
