@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-DATADIR=/home/yuan/data/syntra/hismap
+DATADIR=/home/yuan/data/syntra
 
 
-for CONFIG in hameln_n1_s100 bayern_n1_s100 end; do
+for CONFIG in hismap_n1_full end; do
 if [ "$CONFIG" = "end" ]; then
     break
 fi
