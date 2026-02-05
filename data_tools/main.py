@@ -236,11 +236,22 @@ if __name__ == "__main__":
         >> )
 
     """
-    convert_syntra2(
-        "/home/yuan/data/syntra/hismap",
-        "/home/yuan/data/syntra2/hismap",
-        subset="hameln",
+    from converting.hameln_roi import HamelnROIConverter, color_map
+    converter = HamelnROIConverter(
+        syntra_data_path="/home/yuan/data/syntra/hameln_roi/tile1024",
+        customized_data_path="/home/yuan/data/HisMap/ikg_ml_dataset/ROI",
+        color_map=color_map,
+        crop_roi=False,
+        img_size=1024,
+        redraw_grid=True,
     )
+    converter.convert(['test'])
+
+    # convert_syntra2(
+    #     "/home/yuan/data/syntra/hismap",
+    #     "/home/yuan/data/syntra2/hismap",
+    #     subset="hameln",
+    # )
 
     # convert_kitti(
     #     input_path="/koko/datasets/kitti/data_scene_flow",
