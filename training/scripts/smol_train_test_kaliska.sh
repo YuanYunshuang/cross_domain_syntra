@@ -36,9 +36,8 @@ for CONFIG in hameln_n1_full bayern_n1_full end; do
     --shm-size=16g \
     opheliayuan/syntra:latest \
     sh -lc "umask 000 && PYTHONPATH=. python syntra/train_one_gpu.py \
-    --config smol_${CONFIG}.yaml -d ../syntra -o /workspace/logs 
-    # --cache-data 
-    # --resume /workspace/logs/smol_${CONFIG}/model_latest.pth"
+    --config smol_${CONFIG}.yaml -d ../syntra -o /workspace/logs \
+    --resume /workspace/logs/smol_${CONFIG}/model_latest.pth"
 
   # Run testing directly (replace args as needed)
   docker run --gpus all --rm \
