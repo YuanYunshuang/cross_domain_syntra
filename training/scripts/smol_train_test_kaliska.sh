@@ -25,7 +25,7 @@ export WORKDIR=/home/yuang/data
 export DATA_SUBDIR=hismap
 # export CONFIG=hismap_n1_full
 
-for CONFIG in hameln_n1_full bayern_n1_full end; do
+for CONFIG in hameln_n1_s10 bayern_n1_s10 end; do
   if [ "$CONFIG" == "end" ]; then
       break
   fi

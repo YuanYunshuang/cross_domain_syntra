@@ -19,6 +19,7 @@ class ActiveLearningConfig:
     seed: int = 42
     device: str = "cpu"
     model_name: Optional[str] = None
+    tile_size: int = 1024
     extra: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -29,6 +30,7 @@ class ActiveLearningConfig:
 
 
 def load_yaml_config(path: str) -> Dict[str, Any]:
+    """Load a YAML file into a dict."""
     cfg_path = Path(path)
     if not cfg_path.exists():
         raise FileNotFoundError(f"Config not found: {cfg_path}")
@@ -40,6 +42,7 @@ def load_yaml_config(path: str) -> Dict[str, Any]:
 
 
 def merge_config(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge override values into base, ignoring None values."""
     merged = dict(base)
     for key, value in override.items():
         if value is not None:
@@ -48,6 +51,7 @@ def merge_config(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, An
 
 
 def build_config(data: Dict[str, Any]) -> ActiveLearningConfig:
+    """Build a typed config from a raw mapping, keeping unknown keys in extra."""
     known_keys = {
         "project_name",
         "data_dir",
@@ -59,6 +63,7 @@ def build_config(data: Dict[str, Any]) -> ActiveLearningConfig:
         "seed",
         "device",
         "model_name",
+        "tile_size",
     }
     kwargs: Dict[str, Any] = {}
     extra: Dict[str, Any] = {}

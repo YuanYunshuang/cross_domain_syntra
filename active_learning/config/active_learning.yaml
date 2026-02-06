@@ -1,0 +1,12 @@
+project_name: "syntra_al_rounds"
+data_dir: "/home/yuan/data/HisMap/ikg_ml_dataset/ROI"
+model_dir: "/home/yuan/code/CD_SYNTRA/syntra"
+output_dir: "/koko/SYNTRA_AL_logs"
+round: 1
+query_size: 100
+strategy: "random"
+seed: 42
+device: "cuda:0"
+model_name: "latest_model.pth"
+use_gui: true
+tile_size: 1024
