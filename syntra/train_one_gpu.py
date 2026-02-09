@@ -259,7 +259,7 @@ def main():
             ## Map model to be loaded to specified single GPU
             checkpoint = torch.load(args.resume, map_location=device, weights_only=False)
             model.load_trainable_state_dict(checkpoint["model"])
-            if not args.finetune:
+            if not getattr(args, 'finetune', False):
                 optimizer.load_state_dict(checkpoint["optimizer"])
                 start_epoch = checkpoint["epoch"] + 1
                 iter_num = len(train_dataloader) * checkpoint["epoch"] + 1
