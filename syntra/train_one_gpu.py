@@ -103,6 +103,7 @@ def parse_args():
     parser.add_argument("--warmup-itrs", type=int, metavar="warmup epochs", help="total number of warmup epochs")
     parser.add_argument("--use-amp", type=bool, help="use amp")
     parser.add_argument("--resume", type=str, help="Resuming training from checkpoint")
+    parser.add_argument("--finetune", type=bool, help="If specified, the epoch at the resume checkpoint will be ignored and training will be performed for the specified number of epochs.")
     parser.add_argument("--vis-freq", type=int, help="visualization frequency (in iterations)")
     # parser.add_argument("--train-patch-emb", action="store_true", default=False, help="Train patch embedding parameters")
     parser.add_argument("--lr-scheduler", type=str, help="learning rate scheduler: cosine, exp or none")
@@ -174,7 +175,10 @@ def main():
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
 
-    loss_fn = get_loss_fn("SAMLoss", ce_neg_weight=args.ce_neg_weight, 
+    loss_fn = get_loss_fn("SAMLoss", 
+                          ce_neg_weight=getattr(args, 'ce_neg_weight', 1.0),
+                          dice_pos_weight = getattr(args, 'dice_pos_weight', 1.0),
+                          dice_neg_weight = getattr(args, 'dice_neg_weight', 1.0),
                           dataset_weights=getattr(args, 'dataset_weights', None)).to(device)
 
     # dataset
@@ -255,9 +259,11 @@ def main():
             ## Map model to be loaded to specified single GPU
             checkpoint = torch.load(args.resume, map_location=device, weights_only=False)
             model.load_trainable_state_dict(checkpoint["model"])
-            optimizer.load_state_dict(checkpoint["optimizer"])
-            start_epoch = checkpoint["epoch"] + 1
-            iter_num = len(train_dataloader) * checkpoint["epoch"] + 1
+            if not args.finetune:
+                optimizer.load_state_dict(checkpoint["optimizer"])
+                start_epoch = checkpoint["epoch"] + 1
+                iter_num = len(train_dataloader) * checkpoint["epoch"] + 1
+            print(f"Resumed training from checkpoint {args.resume} at epoch {checkpoint['epoch']} and iteration {iter_num}.")
     if getattr(args, 'use_amp', False):
         scaler = torch.cuda.amp.GradScaler()
 

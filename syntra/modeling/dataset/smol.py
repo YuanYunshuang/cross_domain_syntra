@@ -89,6 +89,7 @@ class SMOLDataset(Dataset):
             except:
                 raise ValueError("info_file should be either a str or a dict mapping info_file to dataset list.")
             info_file_dict = {info_file_name: [os.path.join(self.data_root, x) for x in ds_list] for info_file_name, ds_list in info_file.items()}
+        print(info_file_dict)
 
         for info_file, datasets in info_file_dict.items():
             info_file += '.json'
@@ -159,6 +160,7 @@ class SMOLDataset(Dataset):
 
         self.src_pool[ds] = _load_samples(os.path.join(ds_path, source_file))
         self.file_list += _load_samples(os.path.join(ds_path, target_file))
+        # self.file_list = ['railway.111_sie'] # for debug
 
 
     def _parse_samples(self):

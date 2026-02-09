@@ -125,12 +125,12 @@ if __name__ == "__main__":
     #     # ignore_list=["imgs/", "lbls/"]
     # )
 
-    # syncronize_from_remote(
-    #     "/home/yuan/code/CD_SYNTRA/logs/smol_hismap_n1_s10",
-    #      "/koko/SYNTRA_logs/smol_hismap_n1_s10",
-    #     "yuan",
-    #     "130.75.51.193"
-    # )
+    syncronize_from_remote(
+        "/home/yuang/data/logs/smol_hameln_n1_s10",
+         "/koko/SYNTRA_logs/smol/smol_hameln_n1_s10",
+        "yuang",
+        "130.75.51.199"
+    )
 
     # list_files("/home/yuan/data/OpenEarthMap/xview2")
 
@@ -141,9 +141,9 @@ if __name__ == "__main__":
     #     "130.75.51.199"
     # )
 
-    sync_to_autodl(
-        local_path="/home/yuan/code/CD_SYNTRA",
-        remote_path="/root/autodl-fs/CD_SYNTRA",
-        ssh_cmd="ssh -p 36542 root@connect.westb.seetacloud.com",
-        is_code_repo=True
-    )
+    # sync_to_autodl(
+    #     local_path="/home/yuan/code/CD_SYNTRA",
+    #     remote_path="/root/autodl-fs/CD_SYNTRA",
+    #     ssh_cmd="ssh -p 36542 root@connect.westb.seetacloud.com",
+    #     is_code_repo=True
+    # )

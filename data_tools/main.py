@@ -85,22 +85,22 @@ def convert_demo(convert_obj, input_path, output_path, color_map, fg_ratio=0.05,
         **kwargs
     )
 
-    converter.convert(['train', 'test', 'val'])
+    # converter.convert(['train', 'test', 'val'])
     # converter.select_cls_samples(n=100)
     # converter.select_cls_samples(n=50)
     # converter.select_cls_samples(n=10)
-    # pairing_options = [
-    #     # ("cls_selection_100.json", "cls_selection_100.json"),
-    #     # ("cls_selection_100.json", "test_samples.txt"),
-    #     # ("cls_selection_50.json", "cls_selection_50.json"),
-    #     # ("cls_selection_50.json", "test_samples.txt"),
-    #     # ("cls_selection_10.json", "cls_selection_10.json"),
-    #     # ("cls_selection_10.json", "test_samples.txt"),
-    #     ("train_samples.txt", "train_samples.txt"),
-    #     ("train_samples.txt", "test_samples.txt"),
-    # ]
-    # for src_file, tgt_file in pairing_options:
-    #     converter.pairing_sample_intra_cls(src_info_file=src_file, tgt_info_file=tgt_file)
+    pairing_options = [
+        # ("cls_selection_100.json", "cls_selection_100.json"),
+        # ("cls_selection_100.json", "test_samples.txt"),
+        # ("cls_selection_50.json", "cls_selection_50.json"),
+        # ("cls_selection_50.json", "test_samples.txt"),
+        # ("cls_selection_10.json", "cls_selection_10.json"),
+        # ("cls_selection_10.json", "test_samples.txt"),
+        ("train_samples.txt", "train_samples.txt"),
+        ("train_samples.txt", "test_samples.txt"),
+    ]
+    for src_file, tgt_file in pairing_options:
+        converter.pairing_sample_intra_cls(src_info_file=src_file, tgt_info_file=tgt_file)
 
 
 def convert_siegfried(convert_obj, input_path, output_path, color_map, selections, fg_ratio=0.05, **kwargs):
@@ -236,16 +236,24 @@ if __name__ == "__main__":
         >> )
 
     """
-    from converting.hameln_roi import HamelnROIConverter, color_map
-    converter = HamelnROIConverter(
-        syntra_data_path="/home/yuan/data/syntra/hameln_roi/tile1024",
-        customized_data_path="/home/yuan/data/HisMap/ikg_ml_dataset/ROI",
-        color_map=color_map,
-        crop_roi=False,
-        img_size=1024,
-        redraw_grid=True,
+    from converting.hismap_zs import SyntraDataConverter, color_map_zs1
+    convert_demo(
+        convert_obj=SyntraDataConverter,
+        input_path="/home/yuan/data/syntra/hismap",
+        output_path="/home/yuan/data/syntra/hismap_zs/c3821_zs1",
+        color_map=color_map_zs1,
+        fg_ratio=0.005,
     )
-    converter.convert(['test'])
+    # from converting.hameln_roi import HamelnROIConverter, color_map
+    # converter = HamelnROIConverter(
+    #     syntra_data_path="/home/yuan/data/syntra/hameln_roi/tile1024",
+    #     customized_data_path="/home/yuan/data/HisMap/ikg_ml_dataset/ROI",
+    #     color_map=color_map,
+    #     crop_roi=False,
+    #     img_size=1024,
+    #     redraw_grid=True,
+    # )
+    # converter.convert(['test'])
 
     # convert_syntra2(
     #     "/home/yuan/data/syntra/hismap",

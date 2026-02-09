@@ -29,7 +29,7 @@ color_map_zs2 = {
 }
 
 
-class HiamapZSConverter(SyntraDataConverter):
+class HismapZSConverter(SyntraDataConverter):
     def __init__(self, syntra_data_path, customized_data_path, color_map, filtering_keys=None,
                  zeroshot=True, fg_ratio=0.01, img_size=384, **kwargs):
         """

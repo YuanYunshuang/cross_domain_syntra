@@ -51,7 +51,25 @@ def map_crop_and_save_ROI(map_file, save_path):
     lbl_merged_img.save(os.path.join(save_path, f'{base_name}_lbl.png'))
 
 
+def prob_to_pred(img_path, save_path):
+    if img_path.endswith('.tif'):
+        img = imread(img_path)
+        pred_mask = np.array(img) > 0  # thresholding to get binary mask
+    else:
+        img = Image.open(img_path)
+        pred_mask = np.array(img) > 128  # thresholding to get binary mask
+    
+    pred_mask_img = Image.fromarray(pred_mask.astype(np.uint8) * 255)
+    pred_mask_img.save(save_path)
 
 if __name__ == "__main__":
 
-    map_crop_and_save_ROI('/home/yuan/data/HisMap/ikg_ml_dataset/tk_image/1960.tif', '/home/yuan/data/syntra/test_hameln_ROI/data')
+    # map_crop_and_save_ROI('/home/yuan/data/HisMap/ikg_ml_dataset/tk_image/1960.tif', '/home/yuan/data/syntra/test_hameln_ROI/data')
+    # prob_to_pred(
+    #     '/koko/SYNTRA_logs/smol/smol_siegfried_railway_n1_s10/railway/railway/railway/111_sie.png', 
+    #     '/home/yuan/Downloads/111_sie_smol_pred.png')
+
+    lbl = imread("/home/yuan/data/HisMap/Siegfried_Railway_Vineyard/dataset_vineyard/full/test/540_tile_448_4032.tif")
+    # lbl = np.array(lbl) == 1
+    lbl = Image.fromarray(lbl.astype(np.uint8))
+    lbl.save('/home/yuan/Downloads/540_tile_448_4032.png')

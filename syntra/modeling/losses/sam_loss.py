@@ -4,12 +4,19 @@ import torch
 
 
 class SAMLoss(nn.Module):
-    def __init__(self, ignore_index=255, ce_neg_weight=1.0, dataset_weights: dict=None):
+    def __init__(self, 
+                 ignore_index=255, 
+                 ce_neg_weight=1.0, 
+                 dice_pos_weight=1.0,
+                 dice_neg_weight=0.0,
+                 dataset_weights: dict=None):
         super(SAMLoss, self).__init__()
         self.seg_loss_fn = monai.losses.DiceLoss(sigmoid=True, squared_pred=True, reduction='none')
         self.ce_loss_fn = nn.BCEWithLogitsLoss(reduction='none')
         self.ignore_index = ignore_index
         self.ce_neg_weight = ce_neg_weight
+        self.dice_pos_weight = dice_pos_weight
+        self.dice_neg_weight = dice_neg_weight
         self.dataset_weights = dataset_weights
 
     def get_dataset_weights(self, aux, device):
@@ -45,17 +52,25 @@ class SAMLoss(nn.Module):
         gt_masks_neg = gt_masks[~pos_inds].float()  # (K, H, W)
         weights_neg = weights[~pos_inds]
 
-        seg_loss = self.seg_loss_fn(pred_masks_pos, gt_masks_pos) * weights_pos
+        
         ce_loss_pos = self.ce_loss_fn(pred_masks_pos, gt_masks_pos) * weights_pos
-        seg_loss = seg_loss.mean()
         ce_loss_pos = ce_loss_pos.mean()
         if pred_masks_neg.shape[0] == 0:
             ce_loss_neg = torch.tensor(0.0, device=pred_masks.device)
         else:
             ce_loss_neg = self.ce_loss_fn(pred_masks_neg, gt_masks_neg) * weights_neg       
-            ce_loss_neg = ce_loss_neg.mean() 
+            ce_loss_neg = ce_loss_neg.mean() * self.ce_neg_weight
 
-          
+        if self.dice_pos_weight > 0:
+            seg_loss_pos = self.seg_loss_fn(pred_masks_pos, gt_masks_pos) * weights_pos
+            seg_loss_pos = seg_loss_pos.mean()
+        else:
+            seg_loss_pos = torch.tensor(0.0, device=pred_masks.device)
+        if self.dice_neg_weight > 0 and pred_masks_neg.shape[0] > 0:
+            seg_loss_neg = self.seg_loss_fn(pred_masks_neg, gt_masks_neg) * weights_neg
+            seg_loss_neg = seg_loss_neg.mean()
+        else:
+            seg_loss_neg = torch.tensor(0.0, device=pred_masks.device)
 
         # if 'aux' in kwargs and kwargs['aux']:
         #     valid_notions_inds = []
@@ -79,7 +94,8 @@ class SAMLoss(nn.Module):
         # seg_loss = self.seg_loss_fn(pred_masks, gt_masks)
         # ce_loss = self.ce_loss_fn(pred_masks[cared], gt_masks[cared].float())
 
-        total_loss = seg_loss + ce_loss_pos + self.ce_neg_weight * ce_loss_neg
-        return total_loss, {"seg_loss": seg_loss.item(),
+        total_loss = seg_loss_pos + seg_loss_neg + ce_loss_pos + ce_loss_neg
+            
+        return total_loss, {"seg_loss": seg_loss_pos.item() + seg_loss_neg.item(),
                             "ce_loss_pos": ce_loss_pos.item(),
                             "ce_loss_neg": ce_loss_neg.item()}
