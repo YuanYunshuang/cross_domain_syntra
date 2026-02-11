@@ -69,7 +69,17 @@ if __name__ == "__main__":
     #     '/koko/SYNTRA_logs/smol/smol_siegfried_railway_n1_s10/railway/railway/railway/111_sie.png', 
     #     '/home/yuan/Downloads/111_sie_smol_pred.png')
 
-    lbl = imread("/home/yuan/data/HisMap/Siegfried_Railway_Vineyard/dataset_vineyard/full/test/540_tile_448_4032.tif")
-    # lbl = np.array(lbl) == 1
-    lbl = Image.fromarray(lbl.astype(np.uint8))
-    lbl.save('/home/yuan/Downloads/540_tile_448_4032.png')
+    # convert a probability map to a binary mask with a given color
+    color_map = {
+  "forest": [34, 139, 34],          
+  "grass": [221, 223, 0],     
+  "settlement": [220, 20, 60],               
+  "water": [30, 144, 255]
+    }
+    img = Image.open('logs/smol_hismap_n1_full/hismap,siegfried/bayern.489_1910/forest/384_1920.png')
+    alpha = np.array(img)
+    color = color_map['forest']
+    color_mask = np.zeros((*alpha.shape, 3), dtype=np.uint8)
+    color_mask[alpha > 128] = color  # apply color where alpha is above threshold
+    color_mask_img = Image.fromarray(color_mask)
+    color_mask_img.save('logs/smol_hismap_n1_full/hismap,siegfried/bayern.489_1910/forest/384_1920_color.png')

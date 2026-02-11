@@ -23,7 +23,7 @@ TRAIN:
   foreground_ratio: 
     hameln: 0.05
     bayern: 0.05
-    siegfried: 0.01
+    siegfried: 0.001
   sampler: group_fixed_m # grouped_prob | uniform | prob
   data_keywords: hismap,siegfried
   validation_data: null

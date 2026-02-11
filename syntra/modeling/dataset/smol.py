@@ -89,7 +89,6 @@ class SMOLDataset(Dataset):
             except:
                 raise ValueError("info_file should be either a str or a dict mapping info_file to dataset list.")
             info_file_dict = {info_file_name: [os.path.join(self.data_root, x) for x in ds_list] for info_file_name, ds_list in info_file.items()}
-        print(info_file_dict)
 
         for info_file, datasets in info_file_dict.items():
             info_file += '.json'
@@ -101,7 +100,7 @@ class SMOLDataset(Dataset):
                 if not os.path.isfile(os.path.join(ds_path, info_file)):
                     Warning(f"Info file {info_file} does not exist in dataset folder {ds_path}. Skip this dataset.")
                     continue
-                self._parse_source_target_samples(info_file, ds_path, ds)
+                
                 with open(os.path.join(ds_path, f"{ds}.json")) as f:
                     self.label_ratios.update(json.load(f))
                 with open(os.path.join(ds_path, f"color_map.json")) as f:
@@ -116,10 +115,13 @@ class SMOLDataset(Dataset):
                         if k in ds_path:
                             self.fg_ratio[ds] = v
                             continue
+                self._parse_source_target_samples(info_file, ds_path, ds)
                 self.dataset_full_paths[ds] = ds_path
 
         print(f"Datasets loaded for mode {mode}: {self.dataset_full_paths.keys()}")
-        self._parse_samples()
+        self._parse_source_samples()
+        if self.mode != "train":
+            self._parse_classes()
 
         self.uni_transform = uni_transform
         self.aug_transform = aug_transform
@@ -128,6 +130,17 @@ class SMOLDataset(Dataset):
         
         assert len(self.file_list) > 0, f"No samples found in info files {info_file_dict} for mode {mode} with filtering keys {self.filtering_keys}."
         print(f"Number of {mode} samples: {len(self.file_list)}")
+
+    def _parse_classes(self):
+        file_list = []
+        for full_name in self.file_list:
+            ds, name = full_name.rsplit('.', 1)
+            availabel_classes = [k for k in self.label_ratios[full_name].keys() if k not in self.INVALID_CLS]
+            for cls in availabel_classes:
+                available_src = self.loading_list[ds][cls]
+                if len(available_src) > 0 and cls not in self.INVALID_CLS:
+                    file_list.append((full_name, cls))
+        self.file_list = file_list
 
     def _parse_source_target_samples(self, info_file: str, ds_path: str, ds: str):
         def _load_samples(file_path: str) -> List[str]:
@@ -148,7 +161,7 @@ class SMOLDataset(Dataset):
                 source_file = f"cls_selection_{info.split('_')[2]}.json"
             else:
                 source_file = "train_samples.txt"
-            if info.split('_')[-2]=='selection':
+            if info.split('_')[-2]=='selection' and self.mode == 'train':
                 target_file = f"cls_selection_{info.split('_')[-1]}.json"
             else:
                 target_file = "test_samples.txt"
@@ -158,24 +171,27 @@ class SMOLDataset(Dataset):
             source_file = f"{info[2]}_samples.txt"
             target_file = f"{info[4]}_samples.txt"
 
+        print(f"source: {source_file}, target: {target_file}, dataset: {ds}.")
         self.src_pool[ds] = _load_samples(os.path.join(ds_path, source_file))
         self.file_list += _load_samples(os.path.join(ds_path, target_file))
+                
         # self.file_list = ['railway.111_sie'] # for debug
 
 
-    def _parse_samples(self):
+    def _parse_source_samples(self):
         loading_list_src = {}
-        for full_name in self.file_list:
-            ds, name = full_name.rsplit('.', 1) # ds: subdataset name, key: image name
-            info = self.label_ratios[full_name]
-       
-            if ds not in loading_list_src:
-                loading_list_src[ds] = {c: [] for c in info.keys() if c not in self.INVALID_CLS}
-            for k, v in info.items(): # k: class, v: ratio
-                if k in self.INVALID_CLS:
-                    continue
-                if self.fg_ratio[ds] < v < 0.9 :
-                    loading_list_src[ds][k].append(full_name)
+        for full_name_list in self.src_pool.values():
+            for full_name in full_name_list:
+                ds, name = full_name.rsplit('.', 1) # ds: subdataset name, key: image name
+                info = self.label_ratios[full_name]
+        
+                if ds not in loading_list_src:
+                    loading_list_src[ds] = {c: [] for c in info.keys() if c not in self.INVALID_CLS}
+                for k, v in info.items(): # k: class, v: ratio
+                    if k in self.INVALID_CLS:
+                        continue
+                    if self.fg_ratio[ds] < v < 0.9 :
+                        loading_list_src[ds][k].append(full_name)
         self.loading_list = loading_list_src
 
     def select_tgt_cls(self, tgt_full_name):
@@ -203,11 +219,14 @@ class SMOLDataset(Dataset):
         return len(self.file_list)
 
     def __getitem__(self, index):
-        tgt_full_name = self.file_list[index]
-        dataset, _ = tgt_full_name.rsplit(".", 1)
+        if self.mode == "train":
+            tgt_full_name = self.file_list[index]
+            selected_cls = self.select_tgt_cls(tgt_full_name)    
+        else:
+            tgt_full_name, selected_cls = self.file_list[index]
 
-        selected_cls = self.select_tgt_cls(tgt_full_name) 
-        selected_colors = [self.label_colors[dataset][selected_cls] if selected_cls is not None else None]      
+        dataset, _ = tgt_full_name.rsplit(".", 1)
+        selected_colors = [self.label_colors[dataset][selected_cls] if selected_cls is not None else None]
         available_src = self.loading_list[dataset][selected_cls]
         if len(available_src) == 0:
             print(f"Warning: No available source images for target image {tgt_full_name} and selected class {selected_cls}.")

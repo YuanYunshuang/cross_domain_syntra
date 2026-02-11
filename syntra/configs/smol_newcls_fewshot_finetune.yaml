@@ -22,7 +22,7 @@ TRAIN:
   img_size: 384
   foreground_ratio: 0.005
   sampler: group_fixed_m # grouped_prob | uniform | prob
-  data_keywords: hismap_zs
+  data_keywords: c3821
   validation_data: null
   uni_transform:
     - name: ToTensor
@@ -59,7 +59,7 @@ TEST:
   num_notions: 1
   num_src: 1
   data_info: sample_pair_train_samples_test_samples_intracls
-  data_keywords: hismap_zs
+  data_keywords: c3821
   checkpoint: null # will be set to the path ./logs/<task_name>/model_latest.pth
   save_result: true
   output_dir: null # will be set to the checkpoint's parent directory

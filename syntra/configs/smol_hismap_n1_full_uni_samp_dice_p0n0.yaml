@@ -24,8 +24,7 @@ TRAIN:
     hameln: 0.05
     bayern: 0.05
     siegfried: 0.01
-  sampler: uniform
- # grouped_prob | uniform | prob
+  sampler: uniform # grouped_prob | uniform | prob
   data_keywords: hismap,siegfried
   validation_data: null
   uni_transform:
@@ -56,9 +55,8 @@ TRAIN:
   weight_decay: 0.01
   warmup_itrs: 1000
   resume: null
-  ce_neg_weight: 1.0
   dice_pos_weight: 1.0
-  dice_neg_weight: 1.0
+  dice_neg_weight: 0.0
 
 TEST:
   num_notions: 1
