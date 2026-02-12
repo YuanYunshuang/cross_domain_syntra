@@ -1,7 +1,7 @@
 TRAIN:
   # common
   task_name: null # will be set to the config file name
-  root_dir: /home/yuan/data/syntra
+  root_dir: /home/yuan/data/syntra/remote_sensing
   data_info: sample_pair_train_samples_train_samples_intracls
   batch_size: 8
   num_workers: 8

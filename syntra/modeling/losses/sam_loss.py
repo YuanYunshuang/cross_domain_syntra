@@ -9,7 +9,7 @@ class SAMLoss(nn.Module):
                  ce_neg_weight=1.0, 
                  dice_pos_weight=1.0,
                  dice_neg_weight=0.0,
-                 dataset_weights: dict=None):
+                 **kwargs):
         super(SAMLoss, self).__init__()
         self.seg_loss_fn = monai.losses.DiceLoss(sigmoid=True, squared_pred=True, reduction='none')
         self.ce_loss_fn = nn.BCEWithLogitsLoss(reduction='none')
@@ -17,21 +17,6 @@ class SAMLoss(nn.Module):
         self.ce_neg_weight = ce_neg_weight
         self.dice_pos_weight = dice_pos_weight
         self.dice_neg_weight = dice_neg_weight
-        self.dataset_weights = dataset_weights
-
-    def get_dataset_weights(self, aux, device):
-        if self.dataset_weights is None:
-            return torch.ones((len(aux),), device=device).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
-        weights = []
-        for i, aux in enumerate(aux):
-            dataset = aux['tgt_name'].split('.')[0]
-            if dataset in self.dataset_weights:
-                weights.append(self.dataset_weights[dataset])
-            else:
-                weights.append(1.0)
-        weights = torch.tensor(weights, device=device)
-        weights = weights.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
-        return weights
 
     def forward(self, pred_masks, gt_masks, **kwargs):
         """
@@ -42,32 +27,38 @@ class SAMLoss(nn.Module):
             total_loss: scalar tensor
         """
         pos_inds = gt_masks.flatten(2, 3).sum(-1) > 0  # (B, N)
-        weights = self.get_dataset_weights(kwargs['aux'], pred_masks.device)
+        # weights = self.get_dataset_weights(kwargs['aux'], pred_masks.device) # B
+        # weights = weights.unsqueeze(1).expand(-1, gt_masks.shape[1])  # (B, N)
         # dice loss only considers the foreground class
         pred_masks_pos = pred_masks[pos_inds].squeeze(1)  # (M, 1, H, W)
         gt_masks_pos = gt_masks[pos_inds].float()  # (M, H, W)
-        weights_pos = weights[pos_inds]
+        
+        cared = gt_masks_pos != self.ignore_index
+        pred_masks_pos = pred_masks_pos[cared].unsqueeze(1)
+        gt_masks_pos = gt_masks_pos[cared].unsqueeze(1)
 
         pred_masks_neg = pred_masks[~pos_inds].squeeze(1)  # (K, 1, H, W)
         gt_masks_neg = gt_masks[~pos_inds].float()  # (K, H, W)
-        weights_neg = weights[~pos_inds]
+        cared_neg = gt_masks_neg != self.ignore_index
+        pred_masks_neg = pred_masks_neg[cared_neg].unsqueeze(1)
+        gt_masks_neg = gt_masks_neg[cared_neg].unsqueeze(1)
 
         
-        ce_loss_pos = self.ce_loss_fn(pred_masks_pos, gt_masks_pos) * weights_pos
+        ce_loss_pos = self.ce_loss_fn(pred_masks_pos, gt_masks_pos)
         ce_loss_pos = ce_loss_pos.mean()
-        if pred_masks_neg.shape[0] == 0:
+        if torch.sum(~pos_inds) == 0:
             ce_loss_neg = torch.tensor(0.0, device=pred_masks.device)
         else:
-            ce_loss_neg = self.ce_loss_fn(pred_masks_neg, gt_masks_neg) * weights_neg       
+            ce_loss_neg = self.ce_loss_fn(pred_masks_neg, gt_masks_neg)   
             ce_loss_neg = ce_loss_neg.mean() * self.ce_neg_weight
 
         if self.dice_pos_weight > 0:
-            seg_loss_pos = self.seg_loss_fn(pred_masks_pos, gt_masks_pos) * weights_pos
+            seg_loss_pos = self.seg_loss_fn(pred_masks_pos, gt_masks_pos) 
             seg_loss_pos = seg_loss_pos.mean()
         else:
             seg_loss_pos = torch.tensor(0.0, device=pred_masks.device)
         if self.dice_neg_weight > 0 and pred_masks_neg.shape[0] > 0:
-            seg_loss_neg = self.seg_loss_fn(pred_masks_neg, gt_masks_neg) * weights_neg
+            seg_loss_neg = self.seg_loss_fn(pred_masks_neg, gt_masks_neg)
             seg_loss_neg = seg_loss_neg.mean()
         else:
             seg_loss_neg = torch.tensor(0.0, device=pred_masks.device)

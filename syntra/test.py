@@ -69,7 +69,12 @@ def setup_parser():
     parser.add_argument("-fg", "--foreground-ratio", type=float, help="minimum foreground ratio in the target image")
     args = parser.parse_args()
 
-    initialize_config_module(config_module="syntra.configs", version_base=None)
+    if len(args.config.split("/")) == 2:
+        config_module, args.config = args.config.split("/")
+        config_module = "syntra.configs." + config_module
+    else:
+        config_module = 'syntra.configs'
+    initialize_config_module(config_module=config_module, version_base=None)
     cfg = compose(config_name=args.config)
     cfg_test = cfg['TRAIN'].copy() # initialize with TRAIN config
 

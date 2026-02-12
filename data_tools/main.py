@@ -85,17 +85,17 @@ def convert_demo(convert_obj, input_path, output_path, color_map, fg_ratio=0.05,
         **kwargs
     )
 
-    # converter.convert(['train', 'test', 'val'])
+    converter.convert(['train', 'test', 'val'])
     # converter.select_cls_samples(n=100)
     # converter.select_cls_samples(n=50)
     # converter.select_cls_samples(n=10)
     pairing_options = [
-        # ("cls_selection_100.json", "cls_selection_100.json"),
-        # ("cls_selection_100.json", "test_samples.txt"),
-        # ("cls_selection_50.json", "cls_selection_50.json"),
-        # ("cls_selection_50.json", "test_samples.txt"),
-        # ("cls_selection_10.json", "cls_selection_10.json"),
-        # ("cls_selection_10.json", "test_samples.txt"),
+        ("cls_selection_100.json", "cls_selection_100.json"),
+        ("cls_selection_100.json", "test_samples.txt"),
+        ("cls_selection_50.json", "cls_selection_50.json"),
+        ("cls_selection_50.json", "test_samples.txt"),
+        ("cls_selection_10.json", "cls_selection_10.json"),
+        ("cls_selection_10.json", "test_samples.txt"),
         ("train_samples.txt", "train_samples.txt"),
         ("train_samples.txt", "test_samples.txt"),
     ]
@@ -236,14 +236,14 @@ if __name__ == "__main__":
         >> )
 
     """
-    from converting.hismap_zs import SyntraDataConverter, color_map_zs1
-    convert_demo(
-        convert_obj=SyntraDataConverter,
-        input_path="/home/yuan/data/syntra/hismap",
-        output_path="/home/yuan/data/syntra/hismap_zs/c3821_zs1",
-        color_map=color_map_zs1,
-        fg_ratio=0.005,
-    )
+    # from converting.hismap_zs import SyntraDataConverter, color_map_zs1
+    # convert_demo(
+    #     convert_obj=SyntraDataConverter,
+    #     input_path="/home/yuan/data/syntra/hismap",
+    #     output_path="/home/yuan/data/syntra/hismap_zs/c3821_zs1",
+    #     color_map=color_map_zs1,
+    #     fg_ratio=0.005,
+    # )
     # from converting.hameln_roi import HamelnROIConverter, color_map
     # converter = HamelnROIConverter(
     #     syntra_data_path="/home/yuan/data/syntra/hameln_roi/tile1024",
@@ -317,14 +317,14 @@ if __name__ == "__main__":
     #     fg_ratio=0.01,
     # )
 
-    # from converting.hameln_rs import HamelnRSConverter, color_map
-    # convert_demo(
-    #     convert_obj=HamelnRSConverter,
-    #     input_path="/home/yuan/data/labels_v3_manual_atkis_2000_2010_2022",
-    #     output_path="/home/yuan/data/syntra/remote_sensing/hameln",
-    #     color_map=color_map,
-    #     fg_ratio=0.01,
-    # )
+    from converting.hameln_rs import HamelnRSConverter, color_map
+    convert_demo(
+        convert_obj=HamelnRSConverter,
+        input_path="/home/yuan/data/labels_v3_manual_atkis_2000_2010_2022",
+        output_path="/home/yuan/data/syntra/remote_sensing/hameln",
+        color_map=color_map,
+        fg_ratio=0.001,
+    )
 
     # hismap
     # root_dir = "/home/yuan/data/syntra/hismap"

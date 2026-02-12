@@ -22,12 +22,13 @@ color_map = {
   "running_water": [40, 90, 200],        #9 clear blue
   "shrubbery": [100, 160, 100],          #10 medium sage green
   "standing water": [20, 50, 140],       #11 deep navy blue
-  "underground_working": [120, 90, 60],  #12 earthy brown
+  "superstructure_work": [150, 50, 30],  #12 reddish brown
+  "underground_working": [120, 90, 60],  #13 earthy brown
 }
 
 
 class HamelnRSConverter(SyntraDataConverter):
-    def __init__(self, syntra_data_path, customized_data_path, color_map, manual=True, fg_ratio=0.05, img_size=384, **kwargs):
+    def __init__(self, syntra_data_path, customized_data_path, color_map, manual=True, fg_ratio=0.001, img_size=384, **kwargs):
         """
         Data structure in customized_data_path:
 
@@ -70,7 +71,7 @@ class HamelnRSConverter(SyntraDataConverter):
         assert lbl.max() <= len(color_map), f"Label image has value {lbl.max()} which exceeds number of classes {len(color_map)}."
         # assert lbl.dtype == np.uint8, f"Label dtype must be uint8, got {lbl.dtype}."
         # assert lbl.ndim == 2, f"Label image must be 2D, got shape {lbl.shape}."
-        lbl += 1  # shift to 1~N
+        lbl += 1  # shift to 0~N
         lbl[lbl == 0] = 255  # ignore index
         lbl = lbl.astype(np.uint8)
         lbl = Image.fromarray(lbl)

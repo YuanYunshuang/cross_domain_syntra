@@ -111,9 +111,15 @@ def parse_args():
     parser.add_argument("--disable-runid", type=bool, help="disable run id in output folder name")
     args = parser.parse_args()
 
+    if len(args.config.split("/")) == 2:
+        config_module, args.config = args.config.split("/")
+        config_module = "syntra.configs." + config_module
+    else:
+        config_module = 'syntra.configs'
+    
     # print all available hydra config files
     if not GlobalHydra().is_initialized():
-        initialize_config_module(config_module="syntra.configs", version_base=None)
+        initialize_config_module(config_module=config_module, version_base=None)
     
     hydra_cfg = compose(config_name=args.config)
     cfg = hydra_cfg['TRAIN']
