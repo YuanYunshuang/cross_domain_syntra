@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 
-DATADIR=/home/yuan/data/syntra/hismap
+DATADIR=/koko/datasets/syntra/hismap
+SHEET=3922
 
+for YEAR in 1898 1974 1982 1996; do
 
-PYTHONPATH=. python syntra/tools/inference_map.py test \
--d ${DATADIR}/hameln.3822_2023 \
--i ${DATADIR}/hameln.3822_2023/train_samples.txt \
+PYTHONPATH=. python syntra/tools/inference_smol.py \
+-d ${DATADIR}/hameln.${SHEET}_${YEAR} \
+-i train_samples.txt \
 -w /koko/SYNTRA_logs/smol/smol_hameln_n1_full/model_latest.pth \
 -c smol/smol_hameln_n1_full.yaml \
--o /koko/SYNTRA_logs/smol/smol_hameln_n1_full/inference_results \
--n 1
+-o logs/inference_results 
+
+done
 
