@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-DATADIR=/home/yuan/data/syntra
+DATADIR=/home/yuan/data/syntra/hismap
 
 
 for CONFIG in \
-hismap_n1_s10 \
+hameln_n1_full \
 end; do
 
 if [ "$CONFIG" = "end" ]; then
@@ -16,8 +16,8 @@ fi
   # --resume ./logs/smol_${CONFIG}/model_latest.pth # --vis-freq 100   logs/smol_hismap_n1_full_uni_samp/model_90000.pth
 
   PYTHONPATH=. python syntra/test.py \
-  --config smol_${CONFIG}.yaml -d ${DATADIR} \
-  --save-result --checkpoint /koko/SYNTRA_logs/smol/smol_${CONFIG}/model_50000.pth 
+  --config smol/smol_${CONFIG}.yaml -d ${DATADIR} \
+  --save-result --checkpoint /koko/SYNTRA_logs/smol/smol_${CONFIG}/model_latest.pth 
 
 done
 

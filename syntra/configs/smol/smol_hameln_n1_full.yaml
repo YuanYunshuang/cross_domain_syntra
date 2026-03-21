@@ -60,7 +60,7 @@ TRAIN:
 TEST:
   num_notions: 1
   num_src: 1
-  data_info: sample_pair_train_samples_test_samples_intracls
+  data_info: sample_pair_train_samples_train_samples_intracls
   data_keywords: hameln
   checkpoint: null # will be set to the path ./logs/<task_name>/model_latest.pth
   save_result: true

@@ -164,7 +164,7 @@ class SMOLDataset(Dataset):
             if info.split('_')[-2]=='selection' and self.mode == 'train':
                 target_file = f"cls_selection_{info.split('_')[-1]}.json"
             else:
-                target_file = "test_samples.txt"
+                target_file = f"{self.mode}_samples.txt"
             
         else:
             info = info_file.split('_')
