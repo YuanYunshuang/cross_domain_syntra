@@ -5,8 +5,8 @@ Status: draft, 2026-08-01. Scope decided with the author: **historical maps**, c
 **MapSAM2** (arXiv 2510.27547).
 
 Assumption still open: target venue (planned for an ISPRS-Journal-style scope, cuttable to a
-conference submission). Compute: **RTX 4090** (~7.7 h per 100k-iteration run, measured from the
-existing logs) plus an **RTX 3090 desktop** (~12 h for the same run, estimated); see §4.
+conference submission). Compute: **RTX 4090** plus an **RTX 3090 desktop**; see §4 for the
+measured training recipe and the schedule that follows from it.
 
 ---
 
@@ -209,11 +209,40 @@ All of the above is evaluated at **natural prevalence** - every class keeps its 
 positive/negative tile ratio, as a sliding window over a whole sheet meets it. Balanced sampling
 understates false positives and, as the E1 sweep showed, can hide the retrieval effect entirely.
 
-## 4. Two-GPU schedule
+## 4. Training recipe and two-GPU schedule
 
-Both cards have 24 GB, so the training recipe is unchanged (batch 8 × 4 accumulation steps).
-The 3090 is roughly 1.5× slower per iteration, so give it the runs that are either short or not
-on the critical path.
+### Measured recipe (RTX 4090, `syntra_maps_s100`, num_src=3, 384 px)
+
+| batch | AMP | samples/s | peak GB | h per run |
+| ---: | --- | ---: | ---: | ---: |
+| 8 | off | 15.7 | 14.3 | 14.1 |
+| 8 | **on** | **22.4** | 12.4 | **9.9** |
+| 12 | off | 14.1 | 21.1 | 15.7 |
+| 12 | on | 19.8 | 18.2 | 11.2 |
+| 16 | either | OOM | | |
+
+**Decision: batch 8 with AMP.** Mixed precision is worth +43% throughput and 1.9 GB, and is
+free of any recipe risk beyond numerics. Larger batches are *slower per sample*: each training
+sample carries `num_src` source tiles plus a target, so the encoder already processes
+`batch × 4` = 32 images per iteration at batch 8 and the GPU is saturated; a larger batch only
+adds memory pressure, and batch 16 does not fit at all.
+
+**Correction to an earlier estimate.** The ~7.7 h per run used when this plan was first drafted
+was read from `smol_hismap_n1_s100`, a SMOL run with `num_src: 1`, whose encoder sees half as
+many images. A SYNTRA run costs **14.1 h in fp32 and 9.9 h with AMP**, so the schedule below
+only holds because of AMP.
+
+**Caveat.** AMP changes numerics, so the 85.89 baseline is not comparable to AMP runs and has to
+be re-run under the new recipe. Training loss over 40 iterations is indistinguishable
+(1.5147 fp32 vs 1.5267 AMP), which is not evidence about final quality.
+
+`num_src` is also a throughput lever: k=1 would roughly halve the cost. E9 justifies keeping
+k=3 for the global-pool setting, where k=3 beats k=1 (80.95 vs 80.01 mIoU).
+
+### Schedule
+
+Both cards have 24 GB, so the recipe carries over unchanged. The 3090 is roughly 1.5× slower per
+iteration, so give it the runs that are either short or not on the critical path.
 
 **Data to copy to the 3090 box** — 3.9 GB total, everything the map-scoped paper needs:
 
