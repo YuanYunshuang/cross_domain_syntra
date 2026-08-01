@@ -41,11 +41,14 @@ def load_config(config_name):
     return compose(config_name=config_name)
 
 
-def build_dataset(cfg, args, src_selection, num_src):
+def build_dataset(cfg, args, src_selection, num_src, scope=None):
+    info_file = args.data_info or cfg.data_info
+    if scope is not None:
+        info_file = args.info_template.format(scope=scope)
     return get_dataset(
         cfg.dataset_name,
         data_root=args.root_dir or cfg.root_dir,
-        info_file=args.data_info or cfg.data_info,
+        info_file=info_file,
         num_notions=cfg.num_notions,
         num_src=num_src,
         fg_ratio=cfg.foreground_ratio,
@@ -59,7 +62,7 @@ def build_dataset(cfg, args, src_selection, num_src):
     )
 
 
-def stratified_indices(dataset, per_class, seed, negatives_per_class):
+def stratified_entries(entries, per_class, seed, negatives_per_class):
     """Pick target tiles per (class, subdataset) group, positives and negatives separately.
 
     ``file_list`` entries look like ``forest.hameln.pos/hameln.3922_1898.0_0``. Positives and
@@ -73,13 +76,13 @@ def stratified_indices(dataset, per_class, seed, negatives_per_class):
     every additional source is another chance to fire on a target that has no foreground.
     """
     pos_groups, neg_groups = {}, {}
-    for i, entry in enumerate(dataset.file_list):
+    for entry in entries:
         prefix = entry.split("/")[0]
         group = prefix.rsplit(".", 1)[0]
-        (neg_groups if prefix.endswith(".neg") else pos_groups).setdefault(group, []).append(i)
+        (neg_groups if prefix.endswith(".neg") else pos_groups).setdefault(group, []).append(entry)
 
     rng = np.random.RandomState(seed)
-    indices = []
+    chosen = []
     for group in sorted(set(pos_groups) | set(neg_groups)):
         pos_pool, neg_pool = pos_groups.get(group, []), neg_groups.get(group, [])
         n_pos = min(per_class, len(pos_pool))
@@ -91,11 +94,11 @@ def stratified_indices(dataset, per_class, seed, negatives_per_class):
         else:
             n_neg = min(negatives_per_class, len(neg_pool))
         if n_pos:
-            indices.extend(rng.choice(pos_pool, n_pos, replace=False).tolist())
+            chosen.extend(rng.choice(pos_pool, n_pos, replace=False).tolist())
         if n_neg:
-            indices.extend(rng.choice(neg_pool, n_neg, replace=False).tolist())
+            chosen.extend(rng.choice(neg_pool, n_neg, replace=False).tolist())
         print(f"    {group:<28} {n_pos:>5} pos of {len(pos_pool):<6} {n_neg:>5} neg of {len(neg_pool)}")
-    return sorted(indices)
+    return sorted(chosen)
 
 
 @torch.no_grad()
@@ -162,6 +165,12 @@ def main():
                              "which is what a sliding window over a whole map sheet meets.")
     parser.add_argument("-bs", "--batch-size", type=int, default=8)
     parser.add_argument("-nw", "--num-workers", type=int, default=8)
+    parser.add_argument("--scopes", default=None,
+                        help="comma-separated pool scopes to compare, e.g. subset,footprint,global. "
+                             "Each is read from --info-template; the target-class pairs common to "
+                             "all scopes are used so the comparison stays paired.")
+    parser.add_argument("--info-template", default="sample_pair_train_samples_test_samples_{scope}",
+                        help="data_info name per scope, with a {scope} placeholder")
     parser.add_argument("--selections", default="retrieved,topk,random")
     parser.add_argument("--ks", default="1,3,7", help="numbers of source examples to try")
     parser.add_argument("--fusions", default="max")
@@ -182,12 +191,22 @@ def main():
     ks = [int(k) for k in args.ks.split(",")]
     fusions = [f.strip() for f in args.fusions.split(",")]
 
-    # Fixed target subset, identical for every combination and stratified per class, so that
-    # every class contributes comparable evidence regardless of how rare it is.
-    probe = build_dataset(cfg, args, selections[0], ks[0])
+    # Fixed target set, identical for every combination and stratified per class. With several
+    # pool scopes the file lists differ - a global pool makes a class answerable for targets
+    # whose own sheet holds no annotated example of it - so the target-class pairs common to all
+    # scopes are intersected first and selected by name rather than by index.
+    scopes = [s.strip() for s in args.scopes.split(",")] if args.scopes else [None]
+    entries_of_scope = {}
+    for scope in scopes:
+        probe = build_dataset(cfg, args, selections[0], ks[0], scope)
+        entries_of_scope[scope] = set(probe.file_list)
+        print(f"  scope {str(scope):<10} {len(probe.file_list)} target-class pairs")
+    common = set.intersection(*entries_of_scope.values())
+    print(f"common to all scopes: {len(common)}")
+
     n_neg_per_class = args.num_samples if args.negatives is None else args.negatives
-    indices = stratified_indices(probe, args.num_samples, args.seed, n_neg_per_class)
-    print(f"Evaluating {len(indices)} of {len(probe)} test targets "
+    chosen = stratified_entries(sorted(common), args.num_samples, args.seed, n_neg_per_class)
+    print(f"Evaluating {len(chosen)} target-class pairs "
           f"(up to {args.num_samples} positives and {n_neg_per_class} negatives per class), "
           f"identical across all combinations")
 
@@ -201,22 +220,26 @@ def main():
         model.load_trainable_state_dict(state["model"])
         model.to(device).eval()
 
-        for selection in selections:
-            for k in ks:
-                dataset = build_dataset(cfg, args, selection, k)
-                per_class, mean, negatives = evaluate(model, dataset, indices, args.batch_size,
-                                                      args.num_workers, device, args.seed)
-                print(f"  {selection:<10} k={k}  fusion={fusion:<4}  mIoU={mean:6.2f}  "
-                      f"neg_fg={negatives['neg_fg_pct']:.3f}%  "
-                      f"false_alarms={negatives['false_alarm_pct']:.1f}%")
-                rows.append({"selection": selection, "num_src": k, "fusion": fusion,
-                             "mIoU": round(mean, 2), "n_targets": len(indices), **negatives,
-                             **{c: round(v, 2) for c, v in per_class.items()}})
+        for scope in scopes:
+            for selection in selections:
+                for k in ks:
+                    dataset = build_dataset(cfg, args, selection, k, scope)
+                    index_of = {e: i for i, e in enumerate(dataset.file_list)}
+                    indices = sorted(index_of[e] for e in chosen)
+                    per_class, mean, negatives = evaluate(model, dataset, indices, args.batch_size,
+                                                          args.num_workers, device, args.seed)
+                    print(f"  scope={str(scope):<10} {selection:<8} k={k}  fusion={fusion:<4}  "
+                          f"mIoU={mean:6.2f}  neg_fg={negatives['neg_fg_pct']:.3f}%  "
+                          f"false_alarms={negatives['false_alarm_pct']:.1f}%")
+                    rows.append({"scope": scope, "selection": selection, "num_src": k,
+                                 "fusion": fusion, "mIoU": round(mean, 2),
+                                 "n_targets": len(indices), **negatives,
+                                 **{c: round(v, 2) for c, v in per_class.items()}})
         del model
         torch.cuda.empty_cache()
 
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
-    keys = ["selection", "num_src", "fusion", "mIoU", "neg_fg_pct", "false_alarm_pct",
+    keys = ["scope", "selection", "num_src", "fusion", "mIoU", "neg_fg_pct", "false_alarm_pct",
             "n_targets", "n_neg"]
     keys += sorted({k for r in rows for k in r if k not in keys})
     with open(args.output, "w", newline="") as f:
