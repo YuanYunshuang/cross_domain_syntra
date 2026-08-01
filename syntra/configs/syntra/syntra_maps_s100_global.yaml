@@ -10,7 +10,13 @@
 #   src_fusion     mean - E1: max fusion costs false positives on tiles without the class, and
 #                  the wider the pool the more it costs (0.672% vs 0.312% at global scope)
 #   num_src        3    - E9: k=3 beats k=1 at global scope (80.95 vs 80.01)
-#   use_amp        true - benchmark: +43% throughput, 9.9 h instead of 14.1 h per run
+#   use_amp        true - benchmark: +43% throughput
+#   data_keywords  hismap only. The standard Siegfried build is 224 px and would be upsampled to
+#                  384, which destroys the thin railway lines the class depends on: including it
+#                  raises the initial loss from 0.64 to 0.88, against 0.37 for the historical run
+#                  that used the 384-native Siegfried build. Siegfried stays out of the
+#                  cross-year experiments and is kept for the SMOL comparison table, where the
+#                  384-native build must be used.
 #
 # The question this run answers: a model trained on same-sheet prompts loses 5.5 mIoU when the
 # pool is opened up (85.5 -> 80.0, E9). Does training on global pools recover it?
@@ -42,9 +48,8 @@ TRAIN:
   foreground_ratio:
     hameln: 0.05
     bayern: 0.05
-    siegfried: 0.01
   sampler: group_fixed_m
-  data_keywords: hismap,siegfried
+  data_keywords: hismap
   # hameln.3921_2023 is the same scan as hameln.3921_2017 with a second, more incomplete set
   # of labels; see docs/DATA_ISSUE_hameln_3921_duplicate.md
   exclude_keys: hameln.3921_2023
@@ -80,7 +85,7 @@ TEST:
   num_notions: 1
   num_src: 3
   data_info: sample_pair_cls_selection_100_test_samples_global
-  data_keywords: hismap,siegfried
+  data_keywords: hismap
   exclude_keys: hameln.3921_2023
   checkpoint: null # will be set to the path ./logs/<task_name>/model_latest.pth
   save_result: true
