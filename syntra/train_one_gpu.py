@@ -87,6 +87,8 @@ def parse_args():
     parser.add_argument("--num-notions", type=int, help="number of notions")
     parser.add_argument("-fg", "--foreground-ratio", type=float, help="foreground ratio in a training patch")
     parser.add_argument("-val", "--validation-data", type=str, help="path to validation dataset")
+    parser.add_argument("-xkw", "--exclude-keys", type=str,
+                        help="comma-separated keys of subsets to drop, e.g. a held-out sheet")
     parser.add_argument("--src-selection", type=str,
                         help="source selection: retrieved (default), topk, or random")
     parser.add_argument("--src-fusion", type=str,
@@ -199,6 +201,8 @@ def main():
         kwargs['pos_prob'] = args.pos_prob
     if getattr(args, 'src_selection', None) is not None:
         kwargs['src_selection'] = args.src_selection
+    if getattr(args, 'exclude_keys', None) is not None:
+        kwargs['exclude_keys'] = args.exclude_keys
     train_dataset = get_dataset(args.dataset_name,
                                data_root=args.root_dir,
                                num_src=args.num_src,

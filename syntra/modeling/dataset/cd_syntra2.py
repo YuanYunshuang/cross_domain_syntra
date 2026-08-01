@@ -30,6 +30,7 @@ class CrossDomainSynTraDataset2(Dataset):
                  uni_transform: Optional[object] = None,
                  aug_transform: Optional[object] = None,
                  src_selection : str = "retrieved",
+                 exclude_keys : str = None,
                  **kwargs):
         """
         Initializes an instance of the class with dataset information, loads file lists,
@@ -62,6 +63,10 @@ class CrossDomainSynTraDataset2(Dataset):
             retrieved neighbours of the target, the default and the behaviour of all earlier
             runs), "topk" (the closest neighbours in ranking order) or "random" (uniformly from
             all annotated tiles of the same subset and class, i.e. retrieval disabled).
+        exclude_keys: str, optional
+            Comma-separated keys; any subset whose path contains one of them is dropped, after
+            filtering_keys has been applied. Used to hold subsets out of training and to drop
+            the duplicated scan (see docs/DATA_ISSUE_hameln_3921_duplicate.md).
         """
         self.data_root = data_root
         self.num_notions = num_notions
@@ -81,6 +86,7 @@ class CrossDomainSynTraDataset2(Dataset):
         self.meta_info = {}
         self.dataset_full_paths = {}
         self.filtering_keys = [x.strip() for x in filtering_keys.split(",")] if filtering_keys is not None else None
+        self.exclude_keys = [x.strip() for x in exclude_keys.split(",")] if exclude_keys else None
 
         # parse info files
         if isinstance(info_file, str):
@@ -101,6 +107,9 @@ class CrossDomainSynTraDataset2(Dataset):
                 ds = os.path.basename(ds_path)
                 
                 if self.filtering_keys is not None and not any([k in ds_path for k in self.filtering_keys]):
+                    continue
+                if self.exclude_keys is not None and any([k in ds_path for k in self.exclude_keys]):
+                    print(f"Excluding subset {ds}")
                     continue
                 if not os.path.isfile(os.path.join(ds_path, info_file)):
                     Warning(f"Info file {info_file} does not exist in dataset folder {ds_path}. Skip this dataset.")

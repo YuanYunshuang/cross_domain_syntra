@@ -39,6 +39,9 @@ TRAIN:
     siegfried: 0.01
   sampler: group_fixed_m # grouped_prob | uniform | prob
   data_keywords: hismap,siegfried
+  # hameln.3921_2023 is the same scan as hameln.3921_2017 with a second, more incomplete set
+  # of labels; see docs/DATA_ISSUE_hameln_3921_duplicate.md
+  exclude_keys: hameln.3921_2023
   validation_data: null
   uni_transform:
     - name: ToTensor
@@ -71,6 +74,7 @@ TEST:
   num_src: 7 # k at test time may differ from training; E1 measures the mismatch
   data_info: sample_pair_cls_selection_50_test_samples_intracls
   data_keywords: hismap,siegfried
+  exclude_keys: hameln.3921_2023
   checkpoint: null # will be set to the path ./logs/<task_name>/model_latest.pth
   save_result: true
   output_dir: null # will be set to the checkpoint's parent directory

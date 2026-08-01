@@ -52,9 +52,30 @@ A-train ∩ B-test: 0        B-train ∩ A-test: 0
    - or the reverse - is not a hold-out at all. Any leave-one-sheet-out or leave-one-year-out
    protocol has to treat the two as one unit.
 
+## Which version is worse: 2023
+
+The 2023 labels omit annotated area that the 2017 version covers and that the scan supports:
+
+- Grassland is 0.47 percentage points of all pixels smaller in 2023, the largest class-wise
+  difference; forest and settlement differ by less than 0.17 pp and water not at all.
+- A class disappears completely on **52 tiles** going 2017 → 2023, but on only **27** the other
+  way, so the differences are dominated by omissions rather than additions.
+- On the most divergent tiles the omission is visible in the scan. In `4992_1152` (78% of pixels
+  disagree) the pale green grassland tint covers most of the tile; 2017 labels it, 2023 leaves
+  nearly all of it as background. The same pattern appears in `1920_7680` and `4992_768`. In
+  `5760_4224` the 2017 grassland polygon follows the Humme valley band visible in the scan while
+  the 2023 polygon spills beyond it.
+
+Both versions are coarse straight-edged polygons and 2023 is occasionally the tidier of the two
+(`768_1152`), so this says 2023 is the more incomplete version, not that 2017 is flawless.
+
+**Decision: `hameln.3921_2023` is excluded from the SYNTRA experiments**, via
+`exclude_keys: hameln.3921_2023` in the `syntra_maps_*` config family. This leaves 26 subsets
+and 36,056 training samples.
+
 ## Suggested actions
 
-- Decide which label version is authoritative, and drop the other from the release.
+- Confirm that 2023 is the version to retire, and drop it from the release.
 - Correct the sheet count in the Zenodo record (and in the paper, if the proofs are still open).
 - Until then, exclude one of the two subsets from all SYNTRA experiments, and treat them as one
   unit in every hold-out split.

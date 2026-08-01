@@ -54,6 +54,8 @@ def build_dataset(cfg, args, src_selection, num_src):
         img_size=cfg.img_size,
         uni_transform=TransformCompose(cfg.uni_transform),
         src_selection=src_selection,
+        exclude_keys=args.exclude_keys if getattr(args, "exclude_keys", None) is not None
+        else cfg.get("exclude_keys", None),
     )
 
 
@@ -147,6 +149,7 @@ def main():
     parser.add_argument("-w", "--checkpoint", required=True)
     parser.add_argument("-d", "--root-dir", default=None)
     parser.add_argument("-dkw", "--data-keywords", default=None)
+    parser.add_argument("-xkw", "--exclude-keys", default=None)
     parser.add_argument("--data-info", default=None)
     parser.add_argument("-n", "--num-samples", type=int, default=150,
                         help="target tiles per class; the same ones for every combination")
