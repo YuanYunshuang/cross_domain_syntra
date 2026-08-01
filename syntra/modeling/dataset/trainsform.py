@@ -65,12 +65,13 @@ class Resize:
         def apply_one(i, l):
             i = self.resize_img(i)
             if l is not None:
+                # Nearest interpolation keeps the label values; the dtype is preserved so that
+                # class-id labels survive. Casting to bool here would collapse every class to
+                # one, which stays invisible for datasets that binarize before transforming.
+                dtype = getattr(l, "dtype", None)
                 l = self.resize_lbl(l.unsqueeze(0)).squeeze(0)
-                try:
-                    l = l.to(torch.bool)
-                except Exception:
-                    # fallback if returned type isn't a tensor
-                    pass
+                if dtype is not None and getattr(l, "dtype", None) != dtype:
+                    l = l.to(dtype)
             return i, l
 
         if isinstance(imgs, list):
@@ -459,12 +460,13 @@ class MapTransformTrain:
         def apply_one(i, l):
             i = self.resize_img(i)
             if l is not None:
+                # Nearest interpolation keeps the label values; the dtype is preserved so that
+                # class-id labels survive. Casting to bool here would collapse every class to
+                # one, which stays invisible for datasets that binarize before transforming.
+                dtype = getattr(l, "dtype", None)
                 l = self.resize_lbl(l.unsqueeze(0)).squeeze(0)
-                try:
-                    l = l.to(torch.bool)
-                except Exception:
-                    # fallback if returned type isn't a tensor
-                    pass
+                if dtype is not None and getattr(l, "dtype", None) != dtype:
+                    l = l.to(dtype)
             return i, l
 
         if isinstance(imgs, list):
@@ -570,12 +572,13 @@ class MapTransformTest:
         def apply_one(i, l):
             i = self.resize_img(i)
             if l is not None:
+                # Nearest interpolation keeps the label values; the dtype is preserved so that
+                # class-id labels survive. Casting to bool here would collapse every class to
+                # one, which stays invisible for datasets that binarize before transforming.
+                dtype = getattr(l, "dtype", None)
                 l = self.resize_lbl(l.unsqueeze(0)).squeeze(0)
-                try:
-                    l = l.to(torch.bool)
-                except Exception:
-                    # fallback if returned type isn't a tensor
-                    pass
+                if dtype is not None and getattr(l, "dtype", None) != dtype:
+                    l = l.to(dtype)
             return i, l
 
         if isinstance(imgs, list):

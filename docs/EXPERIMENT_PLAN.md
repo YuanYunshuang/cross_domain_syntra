@@ -100,6 +100,89 @@ whether our gains come from retrieval or from the backbone.
 
 ---
 
+## 3b. Cross-year retrieval and annotation budget (E9-E12)
+
+Added after the E1 inference sweep (results in `results/e1_sweep_natural_prevalence.csv`), which
+showed that **retrieval pays for itself in precision, not recall**: at the natural
+positive/negative ratio of a map sheet, `topk` beats `random` by 1.4-1.6 mIoU at every k and
+roughly halves the false-positive rate (0.119% vs 0.195% of pixels at k=1). It also showed that
+`max` fusion degrades as k grows (86.07 → 84.32 for k = 1 → 7) because each additional source is
+another chance to fire on a tile that does not contain the class, while `mean` fusion does not.
+Best measured configuration: `mean` + `topk` + k=3, at 86.35 mIoU and the lowest false-positive
+rate of all 18 combinations.
+
+The pool so far is built per (subset, class), i.e. within one map sheet of one year, where the
+style is already homogeneous and retrieval has little left to do. The experiments below open the
+pool across years and sheets, which is both the harder and the realistic setting.
+
+**Why this is cheap.** The pool is an inference-time object. One trained model supports
+arbitrarily many pool variations - which years are in it, how large it is, how it was selected -
+at minutes per evaluation. That is also the claim itself: adapting to a new sheet must not
+require a gradient step.
+
+**What already exists.** Every subset carries a DINOv2 ViT-S/14 index (`train_samples.faiss`,
+384-d, `IndexFlatL2`, reconstructable) plus its name map, so the embeddings for all 15,300
+training tiles are available without recomputation. Test tiles are not indexed yet (~12,000
+tiles, minutes on the 4090).
+
+| # | Experiment | Tests | Training runs |
+| --- | --- | --- | ---: |
+| **E9** | Pool scope: subset-local vs same-footprint-other-years vs global-all-sheets vs random-global, for targets of seen and unseen years | does retrieval matter once the pool is stylistically heterogeneous | 0 |
+| **E10** | Held-out footprint: train without sheet 3922 entirely, then the full year × year pool/target transfer matrix over 1898-2017 | H3, style drift over 119 years | 1 |
+| **E11** | Annotation budget: fixed total budget B ∈ {50, 100, 300, 1000} tiles, selected by per-sheet uniform / random / k-center greedy in DINOv2 space / k-means centroids | H4, and the user's diverse-selection hypothesis | 0 for pool, 2 for training-set selection |
+| **E12** | Coverage diagnostic: distance to the nearest pool exemplar vs per-tile IoU | turns "annotate more" into a measurable criterion; feeds the active-learning loop | 0 |
+
+### E10 in detail - the design that buys the most per GPU-hour
+
+Hold out **the entire 3922 footprint** (1898, 1974, 1982, 1996, 2005, 2017) from training and
+train on the remaining sheets. One run then yields:
+
+- a complete 6 × 6 matrix of *pool year* × *target year* IoU, on a footprint the model has never
+  seen, spanning 119 years of cartographic style;
+- the budget curve of E5 for every one of those years (pool = n annotated tiles of the target
+  year, n ∈ {0, 1, 5, 10, 50}, no fine-tuning);
+- the comparison against SMOL-MapSeg (one hand-picked legend, k=1) and, where available,
+  MapSAM2 (few-shot fine-tuned) at equal annotation budget.
+
+Holding out one year per footprint instead would need one training run per held-out year for the
+same matrix. The cost is that the model then never sees a 19th-century style at all, which makes
+1898 the hardest case - that is the honest test, and the pool is exactly what is supposed to
+supply the missing style.
+
+### E11 in detail - budget allocation
+
+Two knobs that must be separated, because they answer different questions:
+
+1. **Pool composition** (inference only): the model is fixed, B annotated tiles form the pool.
+2. **Training-set selection** (needs training): B annotated tiles are all that the model trains on.
+
+Strategies: per-sheet uniform (the current n-shot scheme), random global, k-center greedy
+(farthest-point sampling in DINOv2 space, maximising coverage), and k-means centroids.
+
+Expected failure mode to guard against: farthest-point sampling maximises spread and therefore
+gravitates to outliers - sheet borders, blank tiles, scanning artefacts. Restrict the candidates
+to tiles that actually contain the class above the foreground threshold, and report k-means
+centroids next to it, which trade coverage for typicality.
+
+### Implementation steps
+
+1. `build_global_index.py` - merge the per-subset faiss indices and name maps into one
+   `{name: vector}` store; extend it to test tiles.
+2. `make_pool_pairing.py` - write `sample_pair_*`-format files with a configurable scope
+   (`subset` | `footprint` | `global`) and a class restriction. **No dataset change is needed**:
+   the dataset resolves each source name to its own subset folder, so cross-subset sources
+   already work.
+3. `select_budget.py` - k-center greedy / k-means / random / per-sheet-uniform selection over
+   the embedding store, writing a `cls_selection_*.json`-compatible file.
+4. `exclude_keys` in the dataset, so leave-years-out is a config field rather than a hand-edited
+   subset list (`filtering_keys` only includes).
+
+### Protocol note
+
+All of the above is evaluated at **natural prevalence** - every class keeps its true
+positive/negative tile ratio, as a sliding window over a whole sheet meets it. Balanced sampling
+understates false positives and, as the E1 sweep showed, can hide the retrieval effect entirely.
+
 ## 4. Two-GPU schedule
 
 Both cards have 24 GB, so the training recipe is unchanged (batch 8 × 4 accumulation steps).
