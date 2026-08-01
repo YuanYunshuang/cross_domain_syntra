@@ -41,12 +41,7 @@ class SyntraModel(SemSegModelBase):
         ).view(B, T-1, N, 1, H, W)  # (B, N, 1, H, W)
 
         src_lbl_mask = lbl_src.flatten(3).any(dim=3).view(B, T-1, N, 1, 1, 1)  # (B, T-1, N)
-        neg = torch.log(torch.tensor(1e-4, device=ori_res_masks.device))
-        # set the masks to a very low value where there is no source label
-        x, y, z = torch.where(src_lbl_mask == False)[:3]
-        ori_res_masks[x, y, z] = neg # (B, T-1, N, H, W)
-        ori_res_masks = ori_res_masks.max(dim=1).values  # (B, N, 1, H, W)
-        return ori_res_masks
+        return self.fuse_sources(ori_res_masks, src_lbl_mask)  # (B, N, 1, H, W)
     
     def reshape_backbone_out(self, backbone_out, B, T):
         """Reshape the backbone output from (B*T, C, H, W) to (B, T, C, H, W)"""

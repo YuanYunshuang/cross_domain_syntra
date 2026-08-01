@@ -87,6 +87,10 @@ def parse_args():
     parser.add_argument("--num-notions", type=int, help="number of notions")
     parser.add_argument("-fg", "--foreground-ratio", type=float, help="foreground ratio in a training patch")
     parser.add_argument("-val", "--validation-data", type=str, help="path to validation dataset")
+    parser.add_argument("--src-selection", type=str,
+                        help="source selection: retrieved (default), topk, or random")
+    parser.add_argument("--src-fusion", type=str,
+                        help="fusion over the source predictions: max or mean")
     parser.add_argument("--sampler", type=str, help="sampler name: random, weighted_random, sequential")
     parser.add_argument("-dkw", "--data-keywords", type=str, help='dataset key words for filtering, e.g., railway, vineyard, bayern, hameln')
     # train
@@ -193,6 +197,8 @@ def main():
     kwargs = {}
     if hasattr(args, 'pos_prob'):
         kwargs['pos_prob'] = args.pos_prob
+    if getattr(args, 'src_selection', None) is not None:
+        kwargs['src_selection'] = args.src_selection
     train_dataset = get_dataset(args.dataset_name,
                                data_root=args.root_dir,
                                num_src=args.num_src,

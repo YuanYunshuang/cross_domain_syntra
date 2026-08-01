@@ -92,6 +92,7 @@ def build_segmentation_model(model_name: str, **kwargs):
         image_encoder=img_encoder,
         prompt_encoder=prompt_encoder,
         mask_decoder=mask_decoder,
+        src_fusion=kwargs.get('src_fusion', 'max'),
     )
     
 

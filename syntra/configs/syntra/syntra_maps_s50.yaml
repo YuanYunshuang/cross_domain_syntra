@@ -1,0 +1,76 @@
+# SYNTRA on the historical-map datasets, 50-shot per class and map subset.
+#
+# Base config of the map experiments. Derived from syntra_hismap_n1_s100_v3 (the best run so
+# far, 85.89 mIoU) and re-pointed at the standard data root, with the data pipeline aligned to
+# the published SMOL-Uni baseline so that the two are directly comparable:
+#   - Resize to 384: Siegfried tiles are 224, Hameln/Donauwörth are 384
+#   - per-dataset foreground_ratio: 0.01 for Siegfried, whose railway lines are thin
+#
+# The experiment switches are explicit below; E1-E3 are overrides of this file, e.g.
+#   --src-selection random   --num-src 1   --src-fusion mean
+TRAIN:
+  # common
+  task_name: null # will be set to the config file name
+  root_dir: /home/yuan/data/syntra
+  data_info: sample_pair_cls_selection_50_cls_selection_50_intracls
+  batch_size: 8
+  num_workers: 8
+  accum_steps: 4
+  vis_freq: null
+
+  # model
+  model_name: smol # architecture: SAM ViT-B + OND prompt encoder + SAM mask decoder
+  dora_rank: 16
+  backbone: vit_b
+  prompt_encoder: example
+  mask_decoder: default
+  src_fusion: max # max | mean, how the per-source predictions are merged
+
+  # data
+  dataset_name: cd_syntra2_efficient
+  num_src: 3 # k: number of source examples per target during training
+  num_notions: 1
+  img_size: 384
+  src_selection: retrieved # retrieved | topk | random (random = retrieval disabled, E1 control)
+  retrieval_encoder: dinov2 # documents which encoder produced the sample_pair_* files
+  foreground_ratio:
+    hameln: 0.05
+    bayern: 0.05
+    siegfried: 0.01
+  sampler: group_fixed_m # grouped_prob | uniform | prob
+  data_keywords: hismap,siegfried
+  validation_data: null
+  uni_transform:
+    - name: ToTensor
+    - name: Resize
+      args:
+        target_size: 384
+    - name: Normalize
+      args:
+        mean: [0.5, 0.5, 0.5]
+        std: [0.25, 0.25, 0.25]
+  aug_transform:
+    - name: RandomRotateBatch
+      args:
+        degrees: 30
+
+  # train
+  num_epochs: 200
+  max_iterations: 100000
+  lr: 1e-3
+  lr_scheduler: exp
+  output_dir: logs
+  disable_runid: true
+  weight_decay: 0.01
+  warmup_itrs: 1000
+  resume: null
+  ce_neg_weight: 1.0
+
+TEST:
+  num_notions: 1
+  num_src: 7 # k at test time may differ from training; E1 measures the mismatch
+  data_info: sample_pair_cls_selection_50_test_samples_intracls
+  data_keywords: hismap,siegfried
+  checkpoint: null # will be set to the path ./logs/<task_name>/model_latest.pth
+  save_result: true
+  output_dir: null # will be set to the checkpoint's parent directory

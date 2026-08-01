@@ -22,11 +22,42 @@ class SemSegModelBase(nn.Module):
         image_encoder,
         prompt_encoder,
         mask_decoder,
+        src_fusion: str = "max",
     ):
+        """
+        Args:
+            src_fusion: how the per-source predictions are merged into one mask.
+                "max"  - element-wise maximum over the sources (default, used by all runs so far)
+                "mean" - mean over the sources that actually carry the class in their label
+        """
         super().__init__()
         self.image_encoder = image_encoder
         self.mask_decoder = mask_decoder
         self.prompt_encoder = prompt_encoder
+        assert src_fusion in ("max", "mean"), f"Unknown source fusion: {src_fusion}"
+        self.src_fusion = src_fusion
+
+    def fuse_sources(self, masks, src_lbl_mask):
+        """Merge the per-source mask logits (B, T-1, N, 1, H, W) into (B, N, 1, H, W).
+
+        Sources whose label does not contain the queried class carry no evidence; they are
+        pushed to a very low logit for "max" and excluded from the average for "mean".
+
+        Args:
+            masks: per-source mask logits, shape (B, T-1, N, 1, H, W).
+            src_lbl_mask: bool tensor (B, T-1, N, 1, 1, 1), True where the source label is
+                non-empty for that class.
+        """
+        neg = torch.log(torch.tensor(1e-4, device=masks.device))
+        if self.src_fusion == "max":
+            masks = torch.where(src_lbl_mask, masks, neg)
+            return masks.max(dim=1).values
+
+        # mean over valid sources only; fall back to `neg` when no source carries the class
+        valid = src_lbl_mask.to(masks.dtype)
+        masked_sum = (masks * valid).sum(dim=1)
+        count = valid.sum(dim=1)
+        return torch.where(count > 0, masked_sum / count.clamp_min(1.0), neg)
 
     def trainable_state_dict(self) -> dict:
         filtered_state_dict = {}

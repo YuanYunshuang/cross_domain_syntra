@@ -25,10 +25,11 @@ class CrossDomainSynTraDataset2(Dataset):
                  num_src : int = 1, 
                  mode : str = "train", 
                  fg_ratio : float | Dict[str, float] = 0.05,
-                 pos_prob : float = 0.8, 
-                 filtering_keys : str = None, 
+                 pos_prob : float = 0.8,
+                 filtering_keys : str = None,
                  uni_transform: Optional[object] = None,
                  aug_transform: Optional[object] = None,
+                 src_selection : str = "retrieved",
                  **kwargs):
         """
         Initializes an instance of the class with dataset information, loads file lists,
@@ -56,11 +57,19 @@ class CrossDomainSynTraDataset2(Dataset):
         aug_transform: object, optional
             Augmentation Transformations to be applied to the images and labels. Such as RandomRotate, RandomFlip, etc.
             Default is MapTransformTrain which contains random rotate and flip.
+        src_selection: str, optional
+            How the num_src source examples are drawn: "retrieved" (uniformly among the
+            retrieved neighbours of the target, the default and the behaviour of all earlier
+            runs), "topk" (the closest neighbours in ranking order) or "random" (uniformly from
+            all annotated tiles of the same subset and class, i.e. retrieval disabled).
         """
         self.data_root = data_root
         self.num_notions = num_notions
         self.num_src = num_src
         self.mode = mode
+        assert src_selection in ("retrieved", "topk", "random"), \
+            f"Unknown source selection: {src_selection}"
+        self.src_selection = src_selection
         self.fg_ratio = {}
         self.pos_prob = pos_prob
         self.img_size = img_size
@@ -166,15 +175,53 @@ class CrossDomainSynTraDataset2(Dataset):
     def __len__(self):
         return len(self.file_list)
     
+    def _build_candidate_pools(self):
+        """Union of all retrieved source samples per (subdataset, class).
+
+        This is the set of annotated tiles a user would have to provide for a subset, i.e. the
+        annotation budget. Drawing from it uniformly is the control condition for the retrieval
+        experiment: same budget, same candidates, similarity ranking removed.
+        """
+        pools = {}
+        for tgt_full_name, pairing_dict in self.src_pool.items():
+            ds = tgt_full_name.rsplit(".", 1)[0]
+            for cls_name, pairing_info in pairing_dict.items():
+                pools.setdefault((ds, cls_name), set()).update(pairing_info['src_samples'])
+        self.candidate_pools = {k: sorted(v) for k, v in pools.items()}
+
     def _select_src_samples(self, cls_name, tgt_full_name):
-        src_samples = self.src_pool[tgt_full_name][cls_name.split('.')[0]]['src_samples']
-        assert len(src_samples) > 0, f"No source samples found for target image {tgt_full_name} and class {cls_name}."
-        src_full_names = np.random.choice(
-            src_samples, 
-            self.num_src, 
-            replace=len(src_samples)<self.num_src
+        """Pick ``num_src`` source samples for one target image and class.
+
+        ``src_selection`` controls how:
+            "retrieved" - uniformly among the retrieved neighbours of this target (default,
+                          the behaviour of every run so far)
+            "topk"      - the ``num_src`` closest neighbours, in ranking order
+            "random"    - uniformly from all annotated tiles of the same subset and class,
+                          ignoring similarity (the control for the retrieval claim)
+        """
+        cls_key = cls_name.split('.')[0]
+        src_samples = self.src_pool[tgt_full_name][cls_key]['src_samples']
+        assert len(src_samples) > 0, \
+            f"No source samples found for target image {tgt_full_name} and class {cls_name}."
+
+        if self.src_selection == "topk":
+            # the pairing files store the neighbours in increasing distance
+            src_full_names = src_samples[:self.num_src]
+            while len(src_full_names) < self.num_src:
+                src_full_names.append(src_samples[len(src_full_names) % len(src_samples)])
+            return list(src_full_names)
+
+        if self.src_selection == "random":
+            if not hasattr(self, "candidate_pools"):
+                self._build_candidate_pools()
+            ds = tgt_full_name.rsplit(".", 1)[0]
+            src_samples = self.candidate_pools.get((ds, cls_key), src_samples)
+
+        return np.random.choice(
+            src_samples,
+            self.num_src,
+            replace=len(src_samples) < self.num_src
         ).tolist()
-        return src_full_names
     
     def _load_image_label(self, full_name):
         ds, img_name = full_name.rsplit(".", 1)

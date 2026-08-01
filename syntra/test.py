@@ -64,6 +64,10 @@ def setup_parser():
     parser.add_argument("--dataset-name", type=str, )
     parser.add_argument("--data-info", type=str, )
     parser.add_argument("--img-size", type=int)
+    parser.add_argument("--src-selection", type=str,
+                        help="source selection: retrieved (default), topk, or random")
+    parser.add_argument("--src-fusion", type=str,
+                        help="fusion over the source predictions: max or mean")
     parser.add_argument("--num-src", type=int, help="number of source images")
     parser.add_argument("--num-notions", type=int, help="number of notions")
     parser.add_argument("-fg", "--foreground-ratio", type=float, help="minimum foreground ratio in the target image")
@@ -110,7 +114,9 @@ def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_lo
                                mode="test",
                                src_cls=fixed_src_cls,
                                img_size=args.img_size,
-                               uni_transform=uni_transform,)
+                               uni_transform=uni_transform,
+                               **({'src_selection': args.src_selection}
+                                  if getattr(args, 'src_selection', None) is not None else {}))
     num_samples = len(test_dataset)
 
     logger.info(f"# testing samples: {num_samples}")
