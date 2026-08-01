@@ -253,6 +253,18 @@ class CrossDomainSynTraDataset2(Dataset):
 
         return img, lbl
     
+    def class_ids_in(self, subset, class_names):
+        """Label values of `class_names` inside `subset`.
+
+        Class ids are the palette indices of each subset's own color map, so they do **not**
+        agree across subsets: `water` is 4 in the Hameln sheets and 3 in the Donauwörth ones,
+        where 3 is `settlement` for Hameln. A source tile from another subset must therefore be
+        decoded with its own ids, or the prompt shows the wrong class - or nothing at all.
+        Returns -1 for a class the subset does not annotate.
+        """
+        names = list(self.label_colors[subset].keys())
+        return [names.index(c) + 1 if c in names else -1 for c in class_names]
+
     def _select_notions(self, tgt_full_name, cls_full_name, dataset, src_full_names):
         cls_name = cls_full_name.split(".")[0]
         # if cls_name == "negative":
@@ -353,7 +365,11 @@ class CrossDomainSynTraDataset2(Dataset):
         lbls = []
         full_names = [tgt_full_name] + src_full_names
         for img_full_name in full_names:
-            img, multi_notion_lbl = self._load_one_img_lbl_pair(img_full_name, selected_cls_ids)
+            # decode every tile with the class ids of its own subset
+            own_subset = img_full_name.rsplit(".", 1)[0]
+            own_ids = (selected_cls_ids if own_subset == dataset
+                       else self.class_ids_in(own_subset, selected_classes))
+            img, multi_notion_lbl = self._load_one_img_lbl_pair(img_full_name, own_ids)
             imgs.append(img)
             lbls.append(multi_notion_lbl)
         if self.uni_transform is not None:

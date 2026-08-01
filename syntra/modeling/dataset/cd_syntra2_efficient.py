@@ -63,11 +63,14 @@ class CrossDomainSynTraDataset2E(CrossDomainSynTraDataset2):
         src_lbls = torch.cat(lbls[1:], 0)
         tgt_lbl = lbls[0].squeeze(0)
         full_cls_names = [f"{dataset}/{x}" for x in selected_classes] 
-        aux = {'src_name': src_full_names, 
-               'tgt_name': tgt_full_name, 
-               'cls_name': full_cls_names, 
+        aux = {'src_name': src_full_names,
+               'tgt_name': tgt_full_name,
+               'cls_name': full_cls_names,
                'cls_color': selected_colors,
-               'cls_id': selected_cls_ids}
+               'cls_id': selected_cls_ids,
+               # class ids differ per subset, so a cross-subset source needs its own
+               'src_cls_id': [self.class_ids_in(n.rsplit(".", 1)[0], selected_classes)
+                              for n in src_full_names]}
         # print(src_img_name, tgt_image_name)
         return src_imgs, src_lbls, tgt_img, tgt_lbl, aux
     
@@ -102,8 +105,15 @@ class CrossDomainSynTraDataset2E(CrossDomainSynTraDataset2):
         selected_cls_ids = [x['cls_id'] + [-1] * (self.num_notions - len(x['cls_id'])) for x in aux]
         selected_cls_ids = torch.tensor(selected_cls_ids, device=src_imgs.device, dtype=torch.int16)  # (B, num_notions)
 
+        # source tiles may come from another subset, whose palette assigns different ids to the
+        # same class; decode each source with the ids of its own subset
+        src_cls_ids = [[ids + [-1] * (self.num_notions - len(ids)) for ids in x['src_cls_id']]
+                       for x in aux]
+        src_cls_ids = torch.tensor(src_cls_ids, device=src_imgs.device,
+                                   dtype=torch.int16)  # (B, T-1, num_notions)
+
         multi_notions_src_lbls = src_lbls.unsqueeze(2).repeat(1, 1, self.num_notions, 1, 1)
-        masks_pos = multi_notions_src_lbls.to(torch.int16) == selected_cls_ids.reshape(B, 1, self.num_notions, 1, 1)
+        masks_pos = multi_notions_src_lbls.to(torch.int16) == src_cls_ids.reshape(B, T_1, self.num_notions, 1, 1)
         masks_neg = torch.logical_not(masks_pos) & (multi_notions_src_lbls != 255)
         multi_notions_src_lbls[masks_pos] = 1
         multi_notions_src_lbls[masks_neg] = 0

@@ -180,7 +180,13 @@ def main():
         targets = [n for n in load_samples(target_path) if n in row_of]
         scope_key = {"subset": subset, "footprint": footprint_of(subset), "global": "global"}[args.scope]
 
-        classes = sorted({c for (key, c) in candidates if key == scope_key})
+        # Only classes the target subset is annotated for. A wider pool offers sources for
+        # classes this sheet never annotated - grass for a railway tile, settlement for a
+        # Donauwörth sheet - but those pairs have no ground truth: an unannotated class is not
+        # an absent one, so they can be neither trained on nor scored.
+        with open(os.path.join(subset_dir, "color_map.json")) as f:
+            own_classes = {c for c in json.load(f) if c not in INVALID_CLS}
+        classes = sorted({c for (key, c) in candidates if key == scope_key} & own_classes)
         pairing = {t: {} for t in targets}
         query = vectors[[row_of[t] for t in targets]]
 
