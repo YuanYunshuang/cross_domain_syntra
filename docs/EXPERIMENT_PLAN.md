@@ -128,26 +128,52 @@ tiles, minutes on the 4090).
 | # | Experiment | Tests | Training runs |
 | --- | --- | --- | ---: |
 | **E9** | Pool scope: subset-local vs same-footprint-other-years vs global-all-sheets vs random-global, for targets of seen and unseen years | does retrieval matter once the pool is stylistically heterogeneous | 0 |
-| **E10** | Held-out footprint: train without sheet 3922 entirely, then the full year × year pool/target transfer matrix over 1898-2017 | H3, style drift over 119 years | 1 |
+| **E10** | Held-out subsets along a measured style-gap ladder (0.11 to 0.23), each adapted with a pool of n annotated tiles and no gradient step | H2 and H3: what a new cartographic style costs in annotations | 1 |
 | **E11** | Annotation budget: fixed total budget B ∈ {50, 100, 300, 1000} tiles, selected by per-sheet uniform / random / k-center greedy in DINOv2 space / k-means centroids | H4, and the user's diverse-selection hypothesis | 0 for pool, 2 for training-set selection |
 | **E12** | Coverage diagnostic: distance to the nearest pool exemplar vs per-tile IoU | turns "annotate more" into a measurable criterion; feeds the active-learning loop | 0 |
 
-### E10 in detail - the design that buys the most per GPU-hour
+The style gap used throughout is one minus the cosine similarity between a subset's DINOv2 tile
+embeddings and their nearest neighbours in any other subset. Measured over the 25 subsets it
+ranges from 0.00 to 0.234, and it doubles as the x-axis of E12.
 
-Hold out **the entire 3922 footprint** (1898, 1974, 1982, 1996, 2005, 2017) from training and
-train on the remaining sheets. One run then yields:
+### E10 in detail - a style-gap ladder, not a single hard case
 
-- a complete 6 × 6 matrix of *pool year* × *target year* IoU, on a footprint the model has never
-  seen, spanning 119 years of cartographic style;
-- the budget curve of E5 for every one of those years (pool = n annotated tiles of the target
-  year, n ∈ {0, 1, 5, 10, 50}, no fine-tuning);
-- the comparison against SMOL-MapSeg (one hand-picked legend, k=1) and, where available,
-  MapSAM2 (few-shot fine-tuned) at equal annotation budget.
+An earlier draft held out the entire 3922 footprint, which would have staked the headline on
+1898, the oldest and most distinctive sheet. With ~15k training tiles that is a bet the model is
+unlikely to win, and a failed zero-shot number teaches little.
 
-Holding out one year per footprint instead would need one training run per held-out year for the
-same matrix. The cost is that the model then never sees a 19th-century style at all, which makes
-1898 the hardest case - that is the honest test, and the pool is exactly what is supposed to
-supply the missing style.
+Instead, the held-out subsets are chosen along the **measured** style gap - one minus the cosine
+similarity between a subset's DINOv2 tile embeddings and their nearest neighbours anywhere else
+in the corpus. The gap spans 0.00 to 0.234 across the 25 subsets, so difficulty becomes a
+continuous design variable rather than a guess:
+
+| Held out | Style gap | Nearest other subset | Expectation |
+| --- | ---: | --- | --- |
+| `hameln.3822_2005` | 0.109 | `hameln.3821_2002` | well covered by other modern sheets; zero-shot should hold |
+| `bayern.7330_1959` | 0.140 | `hameln.3921_1973` | mid-century, partly covered |
+| `hameln.3922_1898` | 0.181 | `hameln.3922_1974` | the 19th-century stress case |
+| `bayern.519_1910` | 0.234 | `bayern.490_1910` | the actual extreme of the corpus |
+
+One training run excludes all four. Each held-out subset is then evaluated with a pool of
+n ∈ {0, 1, 5, 10, 50} annotated tiles of that subset, **without any gradient step**.
+
+The primary result is IoU against annotation budget, one curve per gap level, which answers the
+question the paper is really about: *how many annotated tiles does a new cartographic style
+cost?* The expectation that a model trained on limited data will not generalize zero-shot across
+a large style gap is then a measured threshold - the gap beyond which n=0 fails and the budget
+at which it recovers - rather than a failed experiment.
+
+The temporal comparison survives at no extra training cost: with 1898 held out, restricting the
+pool to each other 3922 year in turn (1974, 1982, 1996, 2005, 2017) gives a year-to-year
+transfer row, and the same for the other held-out subsets.
+
+Baselines at equal annotation budget: SMOL-MapSeg with one hand-picked legend (k=1) and, where
+the code is available, MapSAM2 with few-shot fine-tuning.
+
+**Constraint from the data.** `hameln.3921_2017` and `hameln.3921_2023` are the same scan under
+two year labels (see `DATA_ISSUE_hameln_3921_duplicate.md`). They must be treated as one unit in
+every split - holding out one while the other trains is not a hold-out - and one of the two
+should be dropped from the experiments entirely.
 
 ### E11 in detail - budget allocation
 
