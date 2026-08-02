@@ -338,3 +338,64 @@ should be cited in the SMOL-MapSeg paper if the proofs are still open.
 | Retrieval gain turns out to be an ensembling effect | E1 with random-k is exactly this control; if random-k matches top-k, pivot the claim to "multi-exemplar prompting" and report it honestly |
 | Multi-temporal tiles not truly co-registered | drop the consistency metric, keep per-year IoU |
 | Multi-notion (n4) mode underperforms | keep n1 as the main setting and report n4 as a limitation, or fix it first — do not quietly drop it |
+
+---
+
+## 3c. Global pools: negative result, and how retrieval would have to change
+
+**Decision (2026-08-02): the experiments proceed with the subset-scope pool.** Global-pool
+training was tried and did not pay off; the strategies below are parked until the subset-scope
+line of experiments is finished.
+
+### What was measured
+
+A model trained on global-scope pairings (`syntra_maps_s100_global`, 100k iterations, 7 h 18 min,
+mean fusion, topk, k=3, hismap only) evaluated against the subset-trained checkpoint on the same
+2,552 target-class pairs at natural prevalence:
+
+| pool scope at inference | subset-trained (E9) | globally-trained |
+| --- | ---: | ---: |
+| subset, topk k=3 | **85.57** | 80.06 |
+| footprint, topk k=3 | 85.57 | 79.89 |
+| global, topk k=3 | 80.95 | 79.54 |
+| global, random k=3 | — | 77.81 |
+
+Training on global pools gave up ~5.5 mIoU everywhere and gained nothing where it was meant to
+help. Two further symptoms: retrieval's advantage collapsed from +8.1 to +1.7 mIoU at global
+scope, and the model became k-dependent (74.1 at k=1 against 80.1 at k=3, where the
+subset-trained model was flat in k), with random *beating* topk at k=1.
+
+Its full-test-set score of 81.12 mIoU looked encouraging but is not comparable to the numbers
+above, which come from a stratified sample - the mismatch is what made the result look positive
+at first.
+
+**Confound, unresolved.** This model trained on hismap only, while the E9 checkpoint trained on
+hismap plus Siegfried at 384-native. "Globally-trained" therefore also means "trained on less
+data". A subset-pool control on the identical hismap-only mixture (one 7 h run) is required
+before this negative result goes into the paper.
+
+### Why it likely fails, and what would fix it
+
+DINOv2 embeds the whole tile, so retrieval matches terrain and general appearance rather than
+*how the class is drawn*. Two tiles can be near neighbours while rendering woodland with
+different symbology - which is precisely the prompt that should not be retrieved.
+
+1. **Class-masked embeddings.** Pool DINOv2 patch tokens over the annotated class region instead
+   of using the CLS token, so the descriptor means "this is what woodland looks like here".
+   `indexdb.py` already exposes patch tokens; it is an indexing change plus a rebuild of the
+   global index, with no training. The obstacle: at inference the target's class region is
+   unknown, so source and target descriptors would live in different spaces.
+2. **Predict-then-retrieve (two passes).** Use a first pass with any reasonable prompt to get a
+   rough mask, build the target's class-masked descriptor from it, re-retrieve, and run a second
+   pass. Inference only, works on the checkpoints that already exist, and degrades gracefully
+   because the second pass is only used where the first found something. **Try this first**: if
+   better-matched prompts do not move the numbers, the bottleneck is the model's use of the
+   prompt rather than the retrieval, and 1 and 3 will not help either.
+3. **Learned pattern embedding.** A small projection head on frozen DINOv2, trained
+   contrastively with positives drawn from the same class *and the same sheet-year* (identical
+   symbology by construction) and negatives from the same class in other years. The supervision
+   is free metadata, training takes minutes, and the space is symmetric so it applies to whole
+   tiles on both sides.
+
+All three are inference-time changes to a model that already works well with same-sheet prompts,
+which is the useful way to read the negative result above.
