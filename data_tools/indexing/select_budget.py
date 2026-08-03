@@ -270,6 +270,53 @@ def corpus_map(dirs):
     return out
 
 
+def year_of(subset):
+    """The survey year of a sheet, from `<corpus>.<sheet>_<year>`.
+
+    Cartographic style is a property of when a sheet was drawn, not of which footprint it
+    covers: `hameln.3821_1974` and `hameln.3922_1974` are the same drawing conventions over
+    different ground. Subsets with no year in their name - the Siegfried `railway` and
+    `vineyard` sets - stand for themselves.
+    """
+    tail = subset.rsplit("_", 1)[-1]
+    return tail if tail.isdigit() else subset
+
+
+def era_map(subsets, corpus_of=None, max_gap=5):
+    """{subset: era} - survey years less than `max_gap` apart, within one corpus, share a cell.
+
+    A revision a year or two after the last one is the same drawing conventions, so treating
+    1973, 1974 and 1975 as three cells splits a quota three ways over what is stylistically one
+    thing, and hands three times the budget to a decade the archive happens to have surveyed
+    often. Chaining years while each gap is under `max_gap` collapses them into eras.
+
+    The chaining runs *inside* each corpus and the era is qualified by it, because a shared
+    calendar year is not a shared cartography: a Hameln sheet and a Bayern sheet drawn in the
+    same decade follow different conventions and belong in different cells. Subsets with no
+    year - the Siegfried sets - stand for themselves.
+    """
+    out = {}
+    by_corpus = {}
+    for subset in subsets:
+        by_corpus.setdefault((corpus_of or {}).get(subset, subset), []).append(subset)
+    for corpus, members in by_corpus.items():
+        years = sorted({int(year_of(s)) for s in members if year_of(s).isdigit()})
+        label, era = {}, []
+        for year in years:
+            if era and year - era[-1] >= max_gap:
+                span = f"{era[0]}-{era[-1]}" if len(era) > 1 else f"{era[0]}"
+                label.update({y: span for y in era})
+                era = []
+            era.append(year)
+        if era:
+            span = f"{era[0]}-{era[-1]}" if len(era) > 1 else f"{era[0]}"
+            label.update({y: span for y in era})
+        for s in members:
+            year = year_of(s)
+            out[s] = f"{corpus}.{label[int(year)]}" if year.isdigit() else s
+    return out
+
+
 def cells_of(present_of, balance, corpus_of=None):
     """Split the pool into cells of (tile, class) pairs, the unit the budget is spent in.
 
@@ -284,6 +331,7 @@ def cells_of(present_of, balance, corpus_of=None):
     that still leaves a workable number of candidates per cell, and is what makes each class's
     own region of the embedding get covered rather than only the corpus as a whole.
     """
+    eras = era_map(sorted({n.rsplit(".", 1)[0] for n in present_of}), corpus_of)
     cells = {}
     for name, present in present_of.items():
         subset = name.rsplit(".", 1)[0]
@@ -297,6 +345,10 @@ def cells_of(present_of, balance, corpus_of=None):
                 key = (corpus,)
             elif balance == "corpus-class":
                 key = (corpus, cls)
+            elif balance == "year-class":
+                key = (eras[subset], cls)
+            elif balance == "year":
+                key = (eras[subset],)
             else:                               # subset-class
                 key = (subset, cls)
             cells.setdefault(key, []).append((name, cls))
@@ -310,8 +362,8 @@ def guarded_cells(present_of, vectors, row_of, balance="none", corpus_of=None,
                        density_guard, neighbours, verbose)
 
 
-def select(present_of, vectors, row_of, budget, strategy,
-           balance="none", corpus_of=None, density_guard=0, seed=2026, verbose=True):
+def select(present_of, vectors, row_of, budget, strategy, balance="none", corpus_of=None,
+           density_guard=0, min_per_group=1, seed=2026, verbose=True):
     """Spend `budget` annotation units under `strategy`. Returns sorted (tile, class) pairs.
 
     One unit is one class annotated on one tile - one digitising pass - so a tile carrying two
@@ -381,9 +433,45 @@ def select(present_of, vectors, row_of, budget, strategy,
         shown = ", ".join(f"{'/'.join(k)}={quota[k]}" for k in order[:12])
         print(f"{len(cells)} cells: {shown}" + (", ..." if len(cells) > 12 else ""))
 
+    # A floor per (subset, class), spent before the strategy gets the rest. Retrieval is
+    # subset-local, so a combination the selection misses entirely has no exemplar in this run's
+    # own pool: make_pool_pairing then writes no entry for it, and cd_syntra2 builds its sample
+    # list *from the pairing file*, so every test target of that class in that sheet silently
+    # leaves the evaluation. Two runs would be scored on different test sets, and skipping a
+    # hard class would look like doing well at it. One pair per combination is the correctness
+    # floor; two additionally makes each of them trainable, because a target is excluded from
+    # its own source pool and a lone tile can prompt nothing.
     selected = []
+    if min_per_group:
+        groups = {}
+        for pairs in cells.values():
+            for tile, cls in pairs:
+                groups.setdefault((tile.rsplit(".", 1)[0], cls), []).append((tile, cls))
+        # The density guard cuts per (corpus, class) and can empty a (subset, class) subgroup
+        # outright, which would lose the very combination the floor exists to protect. Coverage
+        # wins: for those, and only those, fall back to the unguarded candidates.
+        every = {}
+        for tile, present in present_of.items():
+            for cls in present:
+                every.setdefault((tile.rsplit(".", 1)[0], cls), []).append((tile, cls))
+        for key in sorted(every):
+            selected += choose(sorted(groups.get(key) or every[key]), min_per_group, [])
+        if verbose:
+            print(f"floor: {len(selected)} pairs reserved, {min_per_group} per (subset, class) "
+                  f"over {len(groups)} combinations")
+        if len(selected) > budget:
+            raise SystemExit(f"budget {budget} cannot cover {len(groups)} (subset, class) "
+                             f"combinations at {min_per_group} each; raise it to "
+                             f"{len(selected)} or lower --min-per-subset-class")
+
     for key in order:
-        selected += choose(cells[key], quota[key], [])
+        taken = set(selected)
+        have = sum(1 for p in cells[key] if p in taken)
+        # capped, because a floor pick taken from the unguarded fallback belongs to no guarded
+        # cell and so is invisible to every `have` - without the cap those pairs are paid for
+        # twice and the run overshoots its budget
+        need = min(quota[key] - have, budget - len(selected))
+        selected += choose([p for p in cells[key] if p not in taken], need, [])
 
     # A cell smaller than its quota leaves the budget short. Hand the remainder back to the
     # cells that still have candidates, one pair at a time, rather than to a walk over the
@@ -418,7 +506,8 @@ def main():
     parser.add_argument("--strategy", default="kcenter",
                         choices=["uniform", "random", "kcenter", "fps", "fps-medoid", "kmeans"])
     parser.add_argument("--balance", default="none",
-                        choices=["none", "class", "corpus", "corpus-class", "subset-class"],
+                        choices=["none", "class", "corpus", "year", "corpus-class", "year-class",
+                                 "subset-class"],
                         help="split the budget into equal quotas over these cells and apply "
                              "the strategy within each; 'corpus-class' is what covers every "
                              "class's own region of the embedding rather than only the union")
@@ -431,6 +520,13 @@ def main():
     parser.add_argument("--density-guard", type=float, default=0,
                         help="drop the sparsest N%% of each cell from candidacy first; 10 "
                              "stops farthest-point sampling spending the budget on outliers")
+    parser.add_argument("--min-per-subset-class", type=int, default=1,
+                        help="floor of pairs per (subset, class), spent before the strategy. "
+                             "1 keeps every run's evaluation set identical; 2 also makes every "
+                             "bought pair trainable, at a much larger share of a small budget")
+    parser.add_argument("--val-fraction", type=float, default=0.0,
+                        help="hold this fraction of the budget out as validation, written to "
+                             "<name>_val.json; it is paid for out of the budget, not added to it")
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--name", default=None,
                         help="output name; default budget_<strategy>[_<balance>]_<B>")
@@ -453,13 +549,37 @@ def main():
 
     selected = select(present_of, vectors, row_of, args.budget, args.strategy,
                       balance=args.balance, corpus_of=corpus_map(dirs),
-                      density_guard=args.density_guard, seed=args.seed)
+                      density_guard=args.density_guard,
+                      min_per_group=args.min_per_subset_class, seed=args.seed)
+
+    # The validation split comes out of the budget, not from extra labels: choosing the
+    # iteration count needs a held-out signal, and borrowing an annotated set from outside
+    # would understate the annotation cost, which is the one number this is all about. Split
+    # per class so every class is represented on both sides.
+    val_pairs = []
+    if args.val_fraction:
+        rng = np.random.RandomState(args.seed)
+        by_cls = {}
+        for pair in selected:
+            by_cls.setdefault(pair[1], []).append(pair)
+        for cls, group in sorted(by_cls.items()):
+            take = int(round(args.val_fraction * len(group)))
+            if 0 < take < len(group):
+                idx = rng.choice(len(group), take, replace=False)
+                val_pairs += [group[int(i)] for i in idx]
+        val_pairs = sorted(set(val_pairs))
+        selected = [p for p in selected if p not in set(val_pairs)]
+        print(f"validation split: {len(val_pairs)} of {len(val_pairs) + len(selected)} pairs "
+              f"held out, {len(selected)} left to train on")
 
     # Only the classes actually bought for a tile are written. A class the budget did not pay
     # for is not annotated, so listing it would hand the training set labels that do not exist.
     by_class = {}
     for tile, cls in selected:
         by_class.setdefault(cls, []).append(tile)
+    val_by_class = {}
+    for tile, cls in val_pairs:
+        val_by_class.setdefault(cls, []).append(tile)
 
     tiles = {t for t, _ in selected}
     subsets_hit = {t.rsplit(".", 1)[0] for t in tiles}
@@ -487,11 +607,14 @@ def main():
         # Each subset gets only its own selected tiles. make_pool_pairing keys candidates by
         # the subset that owns the pool file, so a shared file would offer foreign tiles as
         # sources at subset scope and the loader would not have those subsets open at all.
-        own = {c: sorted(n for n in v if n.rsplit(".", 1)[0] == subset)
-               for c, v in by_class.items()}
-        own = {c: v for c, v in own.items() if v}
-        with open(os.path.join(out_dir, f"{name}.json"), "w") as f:
-            json.dump(own, f, indent=2)
+        for suffix, table in (("", by_class), ("_val", val_by_class)):
+            if suffix and not val_pairs:
+                continue
+            own = {c: sorted(n for n in v if n.rsplit(".", 1)[0] == subset)
+                   for c, v in table.items()}
+            own = {c: v for c, v in own.items() if v}
+            with open(os.path.join(out_dir, f"{name}{suffix}.json"), "w") as f:
+                json.dump(own, f, indent=2)
     print(f"\nWrote {name}.json to {len(dirs)} subsets")
 
 

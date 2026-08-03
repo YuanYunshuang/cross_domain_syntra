@@ -29,7 +29,9 @@ from syntra.modeling.losses import get_loss_fn
 from syntra.utils.vis import vis_train
 from syntra.modeling.validator import Validator
 from syntra.modeling import build_segmentation_model
-from syntra.utils.train_utils import adjust_learning_rate_cosine, adjust_learning_rate_exp_decay
+from syntra.utils.train_utils import (adjust_learning_rate_constant,
+                                      adjust_learning_rate_cosine,
+                                      adjust_learning_rate_exp_decay)
 from syntra.utils.sampler import get_sampler
 from syntra.utils.debug_utils import *
 from hydra.core.global_hydra import GlobalHydra
@@ -112,7 +114,12 @@ def parse_args():
     parser.add_argument("--finetune", type=bool, help="If specified, the epoch at the resume checkpoint will be ignored and training will be performed for the specified number of epochs.")
     parser.add_argument("--vis-freq", type=int, help="visualization frequency (in iterations)")
     # parser.add_argument("--train-patch-emb", action="store_true", default=False, help="Train patch embedding parameters")
-    parser.add_argument("--lr-scheduler", type=str, help="learning rate scheduler: cosine, exp or none")
+    parser.add_argument("--lr-scheduler", type=str,
+                        help="learning rate scheduler: cosine, exp, constant or none. "
+                             "'constant' warms up then holds flat, for the iteration-count "
+                             "calibration where a decaying LR would confound the curve")
+    parser.add_argument("--val-interval", type=int,
+                        help="validate every N iterations when validation_data is set")
     parser.add_argument("--from-scratch", type=bool, help="train from scratch")
     parser.add_argument("--disable-runid", type=bool, help="disable run id in output folder name")
     args = parser.parse_args()
@@ -242,15 +249,27 @@ def main():
     # validation dataset
     validator = None
     if args.validation_data is not None:
+        # This used to be built with info_file=args.data_info - the *training* pair file - so
+        # validation_data was only an on/off switch and model_best.pth was selected on training
+        # performance. It also dropped num_src, num_notions, img_size and the subset filters,
+        # so the validation batches did not match the training ones even in shape.
         val_dataset = get_dataset(args.dataset_name,
                                  data_root=args.root_dir,
+                                 num_src=args.num_src,
+                                 num_notions=args.num_notions,
                                  mode="train",
-                                 info_file=args.data_info,
-                                 fg_ratio=args.foreground_ratio)
+                                 info_file=args.validation_data,
+                                 fg_ratio=args.foreground_ratio,
+                                 filtering_keys=args.data_keywords,
+                                 img_size=args.img_size,
+                                 cache_data=args.cache_data,
+                                 uni_transform=uni_transform,      # no augmentation on val
+                                 **kwargs)
+        logger.info(f"# validation samples: {len(val_dataset)} from {args.validation_data}")
         val_dataloader = DataLoader(
             val_dataset,
             batch_size=args.batch_size,
-            shuffle=True,
+            shuffle=False,                    # a fixed order keeps the curve comparable
             num_workers=args.num_workers,
             pin_memory=True,
             collate_fn=val_dataset.collate_fn
@@ -259,10 +278,16 @@ def main():
 
     # %% train
     num_itr_per_epoch = len(train_dataloader)
-    num_epochs = max(args.num_epochs, args.max_iterations // num_itr_per_epoch)
-    max_iterations = max(args.max_iterations, num_epochs * num_itr_per_epoch)
+    # max_iterations is authoritative and num_epochs is derived from it. It used to be the other
+    # way round - num_epochs defaulted to 200 and acted as a floor - which silently lengthened
+    # any run with more than ~500 iterations per epoch: a 6238-sample budget trained 156k
+    # iterations against a 300-sample budget's 100k, so runs meant to be compute-matched were
+    # not, and the exp decay is a function of max_itr so they annealed on different curves too.
+    max_iterations = args.max_iterations
+    num_epochs = -(-max_iterations // num_itr_per_epoch)          # ceil; the loop breaks on itr
     warmup_epochs = round(args.warmup_itrs / num_itr_per_epoch)
-    logger.info(f"# epochs: {num_epochs}")
+    logger.info(f"# iterations: {max_iterations}, # epochs: {num_epochs}, "
+                f"# iterations per epoch: {num_itr_per_epoch}")
     iter_num = 1
     losses = []
     lrs = []
@@ -302,6 +327,9 @@ def main():
                 cur_lr = adjust_learning_rate_exp_decay(optimizer, base_lr=args.lr, itr=iter_num,
                                                         max_itr=max_iterations,
                                                         warmup_itrs=args.warmup_itrs)
+            elif args.lr_scheduler == 'constant':
+                cur_lr = adjust_learning_rate_constant(optimizer, base_lr=args.lr, itr=iter_num,
+                                                       warmup_itrs=args.warmup_itrs)
             # optimizer.zero_grad()
             img_src, lbl_src, img_tgt, lbl_tgt = [d.to(device) for d in data[:4]]
             aux = data[4] if len(data) > 4 else None
@@ -367,11 +395,17 @@ def main():
                 ## save the best model
                 save_best_flag = False
                 if validator is not None:
-                    if epoch % (2000 // num_itr_per_epoch) == 0:
+                    # counted in iterations, not epochs: the old `epoch % (2000 //
+                    # num_itr_per_epoch)` divided by zero above 2000 iterations per epoch, and
+                    # its cadence moved with the dataset size, so two runs validated at
+                    # different points and their curves were not comparable
+                    if iter_num % getattr(args, "val_interval", 2000) < 100:
                         print("Validating...")
                         val_mean_iou, val_res, val_str = validator.validate(model)
-                        logger.info('\n' + val_str)
+                        logger.info(f'\nITR {iter_num} val_mIoU {val_mean_iou:.4f}\n' + val_str)
                         print(val_str)
+                        with open(join(model_save_path, "val_curve.txt"), "a") as f:
+                            f.write(f'{iter_num}, {val_mean_iou:.6f}\n')
                         if val_mean_iou > max_mean_iou:
                             save_best_flag = True
                             max_mean_iou = val_mean_iou
@@ -400,7 +434,15 @@ def main():
                 with open(join(model_save_path, "loss.txt"), "w") as f:
                     for x, y in zip(losses, lrs):
                         f.write(f'{y:.6f}, {x:.6f}\n')
-                
+
+            if iter_num > max_iterations:
+                break
+        if iter_num > max_iterations:
+            # the epoch loop used to run to completion, so the real length was
+            # num_epochs x iterations_per_epoch and max_iterations only shaped the decay
+            logger.info(f"reached {max_iterations} iterations, stopping")
+            break
+
 
 if __name__ == "__main__":
     main()

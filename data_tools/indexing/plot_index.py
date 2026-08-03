@@ -105,7 +105,8 @@ def main():
     parser.add_argument("--strategy", default="kcenter",
                         choices=["uniform", "random", "kcenter", "fps", "fps-medoid", "kmeans"])
     parser.add_argument("--balance", default="corpus-class",
-                        choices=["none", "class", "corpus", "corpus-class", "subset-class"],
+                        choices=["none", "class", "corpus", "year", "corpus-class", "year-class",
+                                 "subset-class"],
                         help="how the budget being drawn was allocated")
     parser.add_argument("--pool", default="train_samples")
     parser.add_argument("-dkw", "--data-keywords", default="hismap,siegfried")

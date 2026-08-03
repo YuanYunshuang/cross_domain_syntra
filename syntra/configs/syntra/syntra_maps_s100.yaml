@@ -42,7 +42,8 @@ TRAIN:
   # hameln.3921_2023 is the same scan as hameln.3921_2017 with a second, more incomplete set
   # of labels; see docs/DATA_ISSUE_hameln_3921_duplicate.md
   exclude_keys: hameln.3921_2023
-  validation_data: null
+  validation_data: null # a sample_pair_* file; when set, model_best.pth tracks its mIoU
+  val_interval: 2000    # validate every N iterations, not epochs
   uni_transform:
     - name: ToTensor
     - name: Resize

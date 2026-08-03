@@ -140,7 +140,8 @@ def main():
     parser.add_argument("--strategies", default=",".join(STRATEGIES),
                         help="comma-separated subset of " + "/".join(STRATEGIES))
     parser.add_argument("--balance", default="none",
-                        choices=["none", "class", "corpus", "corpus-class", "subset-class"],
+                        choices=["none", "class", "corpus", "year", "corpus-class", "year-class",
+                                 "subset-class"],
                         help="draw the variant that splits the budget over these cells")
     parser.add_argument("--pool", default="train_samples")
     parser.add_argument("-dkw", "--data-keywords", default=None)

@@ -33,3 +33,17 @@ def adjust_learning_rate_exp_decay(optimizer, base_lr, itr, max_itr, warmup_itrs
     return lr
 
 
+def adjust_learning_rate_constant(optimizer, base_lr, itr, warmup_itrs):
+    """Warm up, then hold the learning rate flat.
+
+    For the iteration-count calibration: under a decaying schedule every checkpoint sits at a
+    different learning rate, so a validation curve over checkpoints measures the schedule as
+    much as convergence. Held flat, the curve says where the run stops improving, which is the
+    quantity being calibrated. Not for the final runs - those anneal.
+    """
+    lr = base_lr * itr / warmup_itrs if itr < warmup_itrs else base_lr
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+    return lr
+
+

@@ -42,6 +42,27 @@ def footprint_of(subset):
     return subset
 
 
+def load_classes(path):
+    """{tile: [classes it was annotated for]} for a selection json, or None for a plain list.
+
+    A budgeted selection is a set of (tile, class) pairs, not a set of tiles: a tile bought for
+    water was not annotated for forest. Flattening it to tiles and re-deriving the classes from
+    the label ratios - which is what happens without this - hands back exactly the classes the
+    budget declined to buy: on the source side as prompts with no annotation behind them, on the
+    target side as training samples with ground truth nobody paid for. A `*_samples.txt` list
+    carries no class restriction and returns None, which leaves the old behaviour intact.
+    """
+    if not path.endswith(".json"):
+        return None
+    with open(path) as f:
+        data = json.load(f)
+    out = {}
+    for cls, names in data.items():
+        for name in names:
+            out.setdefault(name, []).append(cls)
+    return out
+
+
 def load_samples(path):
     """Sample names from a `*_samples.txt` or a `cls_selection_<n>.json`."""
     if path.endswith(".json"):
@@ -145,7 +166,7 @@ def main():
     print(f"{len(dirs)} subsets, scope={args.scope}, k={args.k}")
 
     # class ratios and the source pool of every subset
-    ratios, sources = {}, {}
+    ratios, sources, source_classes = {}, {}, {}
     for subset_dir, subset in zip(dirs, subsets):
         with open(os.path.join(subset_dir, f"{subset}.json")) as f:
             ratios.update(json.load(f))
@@ -155,18 +176,27 @@ def main():
             print(f"  !! {subset}: no source list {args.source}")
             continue
         sources[subset] = [n for n in load_samples(source_path) if n in row_of]
+        source_classes[subset] = load_classes(source_path)
 
     # candidate tiles per (scope key, class)
-    candidates = {}
+    candidates, unpaid = {}, 0
     for subset, pool in sources.items():
         keys = {"subset": [subset], "footprint": [footprint_of(subset)], "global": ["global"]}[args.scope]
         threshold = fg_threshold(subset, fg_ratio)
+        bought = source_classes.get(subset)
         for name in pool:
+            allowed = None if bought is None else set(bought.get(name, ()))
             for cls, ratio in ratios.get(name, {}).items():
                 if cls in INVALID_CLS or ratio <= threshold:
                     continue
+                if allowed is not None and cls not in allowed:
+                    unpaid += 1              # present in the tile, but not annotated for it
+                    continue
                 for key in keys:
                     candidates.setdefault((key, cls), []).append(name)
+    if unpaid:
+        print(f"class restriction: {unpaid} (tile, class) combinations skipped as sources - "
+              f"the class is in the tile but the budget did not buy it")
     print(f"candidate pools: {len(candidates)} (scope key, class) combinations, "
           f"largest {max((len(v) for v in candidates.values()), default=0)} tiles")
 
@@ -178,6 +208,7 @@ def main():
             print(f"  !! {subset}: no target list {args.target}")
             continue
         targets = [n for n in load_samples(target_path) if n in row_of]
+        target_classes = load_classes(target_path)
         scope_key = {"subset": subset, "footprint": footprint_of(subset), "global": "global"}[args.scope]
 
         # Only classes the target subset is annotated for. A wider pool offers sources for
@@ -195,6 +226,9 @@ def main():
             pool_rows = np.array([row_of[n] for n in pool])
             sims = query @ vectors[pool_rows].T                    # (T, C), cosine
             for i, target in enumerate(targets):
+                # a budgeted target is only a training sample for the classes it was bought for
+                if target_classes is not None and cls not in target_classes.get(target, ()):
+                    continue
                 row = sims[i]
                 if target in pool:                                  # never prompt with the target
                     row = row.copy()
