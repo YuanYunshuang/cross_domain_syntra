@@ -2,9 +2,23 @@
 
 ## 0. Objective
 
-**Segment historical maps to the highest accuracy for the fewest annotation passes.** Everything
+**Given a pool of unannotated map datasets, decide what to annotate so that one model trained on
+it segments all of them as accurately as possible, for the fewest annotation passes.** Everything
 below is judged against that: a change earns its place if it raises accuracy at a fixed
 annotation budget, or holds accuracy at a smaller one.
+
+The deliverable is therefore an **annotation policy**, not a checkpoint. A practitioner arrives
+with a stack of sheets and a fixed number of hours; the answer has to be a rule for choosing the
+next thing to label, defensible before any of it is labelled. That the rule is computed from
+DINOv2 embeddings of unannotated tiles is what makes it usable - it needs the images, not the
+ground truth.
+
+The pool being *heterogeneous* is the whole difficulty. It spans cartographic traditions with
+different styles and different class vocabularies - Hameln, Bayern and Siegfried separate almost
+cleanly in the embedding, and Siegfried shares no class with the other two - so a policy that
+merely picks diverse-looking tiles will spend the budget wherever the pool happens to be densest
+or strangest. Diversity has to be sought *within* each corpus and class and balanced across
+them, which is what section 3d measures.
 
 **The unit is one annotation pass: one class digitised on one tile.** Not one tile. A tile
 carrying forest and water costs two passes, because it is two turns round the sheet for the
@@ -48,7 +62,7 @@ traditions should degrade more gracefully on an unseen style, which is testable 
 E10 ladder with Siegfried (384-native build) in training and comparing per-subset IoU against the
 measured style gap, not pooled mIoU.
 
-Status: draft, 2026-08-01. Scope decided with the author: **historical maps**, centred on
+Status: draft, revised 2026-08-03. Scope decided with the author: **historical maps**, centred on
 **annotation-efficient adaptation**, benchmarked against **SMOL-MapSeg** (accepted) and
 **MapSAM2** (arXiv 2510.27547).
 
@@ -515,9 +529,11 @@ selector rather than re-implementing it, so the figure shows the tiles that woul
 written. In the k-center panel the densest cluster of the corpus is left almost untouched while
 the sparse fringe is saturated, which is the outlier-chasing risk made visible.
 
-**Cost.** 4 strategies x 3 budgets = 12 runs at ~10 h each is too much for the two GPUs. Prune
-to the 6 that answer the question: uniform and kcenter and kmeans at 300 and 1,000, with random
-at 300 as the floor. Evaluation is the full test set of every subset, identical for all runs.
+**Cost.** 4 strategies x 3 budgets = 12 runs at ~10 h each is too much for the two GPUs.
+Superseded by the pruned set in "E13 - what to actually run" below, which is 7 runs: the method
+and the n-shot scheme at 300 and 1,000, a random floor, the density-guard ablation, and the
+n-shot baseline at its own size. Evaluation is the full test set of every subset, identical for
+all runs, and every run trains from scratch - no earlier checkpoint enters E13.
 
 **What the result would say.** If a coverage-selected 300 passes matches a uniform 6,238, the
 paper's headline is that most annotation in this corpus is redundant, and the diagnostic from
@@ -547,8 +563,13 @@ PYTHONPATH=. python data_tools/indexing/select_budget.py \
 selection. `fps-medoid` can be retired: it sits behind `fps` + guard on coverage and behind
 `kmeans` on typicality, so it earns no run of its own.
 
-The six runs that answer the question, within the two-GPU schedule below. Budgets are in
-annotation units, so B=300 buys ~291 tiles and 300 training samples:
+**E13 is self-contained.** Every run is trained from scratch under the same recipe and evaluated
+on the same test set, so nothing here rests on an earlier checkpoint. The 85.89 from the old
+100-shot run is not a baseline for it: that run predates AMP, predates the pair accounting, and
+would be comparing across two changes at once. Where E13 needs the n-shot scheme it trains it.
+
+The runs that answer the question, within the two-GPU schedule below. Budgets are in annotation
+passes, so B=300 buys ~291 tiles and 300 training samples:
 
 | # | selection | budget | what it answers |
 | --- | --- | ---: | --- |
@@ -558,6 +579,25 @@ annotation units, so B=300 buys ~291 tiles and 300 training samples:
 | 4 | uniform / subset-class / guard 0 | 1000 | same, higher budget |
 | 5 | random / none / guard 0 | 300 | the floor |
 | 6 | fps / corpus-class / **guard 0** | 300 | isolates the density guard |
+| 7 | uniform / subset-class / guard 0 | **6238** | the n-shot baseline itself, re-run |
+
+**Run 7 is what the headline claim is measured against** and was missing while the baseline was
+believed to be a quotable number. "A well-chosen 300 matches a uniform 6,238" is a comparison
+between two trained models, and with no earlier checkpoint in play the 6,238 model has to exist.
+It is `cls_selection_100` exactly - the current scheme at its natural size - so run 7 doubles as
+the recipe re-run that section 4 already asks for.
+
+It is also nearly free. `max_iterations` is fixed at 100,000, so wall-clock is set by the
+iteration count and not by how many samples the run selects from: run 7 costs the same ~9.9 h as
+run 1.
+
+**Which exposes a confound worth deciding before launching.** At batch 8, 100,000 iterations
+draw 800,000 samples. Over B=300 that is 2,667 epochs; over B=6,238 it is 128. The small-budget
+runs therefore see each annotation twenty times more often, so "budget" and "epochs over the
+data" move together and a small-budget win could be either. Fixing iterations is the usual
+compute-matched choice and is probably right, but it should be a stated decision rather than an
+accident, and the B=300 runs need their overfitting checked on the test curve rather than
+assumed away.
 
 Run 6 is the one to protect if the schedule slips. Every coverage number says the guard helps,
 but coverage is a proxy: the guard is a bet that outlier tiles are not worth their annotation
