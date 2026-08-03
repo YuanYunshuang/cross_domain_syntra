@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Generate retrieval pairings at a configurable scope: within a sheet, a footprint, or globally.
+"""Generate retrieval pairings at a configurable scope: within a sheet, an era, or wider.
 
 For every target tile and every class, the k nearest annotated tiles are looked up in the
 embedding store built by `build_global_index.py` and written in the `sample_pair_*` format that
@@ -16,7 +16,6 @@ The scope decides which annotated tiles may serve as sources:
                the two matters: with sources restricted to one sheet, a combination the budget
                happened to give a single tile can prompt nothing, since a target is excluded
                from its own pool
-    footprint  all years of the same geographic footprint, e.g. every hameln.3921_*
     corpus     every sheet of one cartographic tradition
     global     every annotated tile in the store, across sheets and years
 
@@ -40,14 +39,6 @@ from data_tools.indexing.build_global_index import subset_dirs
 INVALID_CLS = ("background", "nonlabeled")
 
 
-def footprint_of(subset):
-    """`hameln.3921_2017` -> `hameln.3921`; subsets without a year keep their own name."""
-    if "." in subset and "_" in subset.rsplit(".", 1)[-1]:
-        head, tail = subset.rsplit(".", 1)
-        return f"{head}.{tail.split('_')[0]}"
-    return subset
-
-
 def corpus_map(dirs):
     """{subset: corpus} - hameln / bayern / siegfried.
 
@@ -66,9 +57,9 @@ def corpus_map(dirs):
 def year_of(subset):
     """The survey year of a sheet, from `<corpus>.<sheet>_<year>`.
 
-    Cartographic style is a property of when a sheet was drawn, not of which footprint it
-    covers: `hameln.3821_1974` and `hameln.3922_1974` are the same drawing conventions over
-    different ground. Subsets with no year in their name - the Siegfried `railway` and
+    Cartographic style is a property of when a sheet was drawn, not of which ground it
+    covers: 3821, 3822, 3921 and 3922 surveyed in the same year are the same drawing
+    conventions over different ground. Subsets with no year in their name - the Siegfried `railway` and
     `vineyard` sets - stand for themselves.
     """
     tail = subset.rsplit("_", 1)[-1]
@@ -123,8 +114,6 @@ def group_of(subset, cell, corpus_of=None, eras=None):
         return subset
     if cell == "era":
         return (eras or {}).get(subset, subset)
-    if cell == "footprint":
-        return footprint_of(subset)
     if cell == "corpus":
         return (corpus_of or {}).get(subset, subset)
     return "global"
@@ -208,7 +197,7 @@ def main():
                         help="source sample list per subset, without extension")
     parser.add_argument("--target", default="test_samples", help="target sample list per subset")
     parser.add_argument("--scope", default="sheet",
-                        choices=["sheet", "era", "footprint", "corpus", "global"],
+                        choices=["sheet", "era", "corpus", "global"],
                         help="which sheets share a retrieval pool; pass the same value as "
                              "--cell to select_budget")
     parser.add_argument("-k", type=int, default=8, help="neighbours to record per target and class")

@@ -25,7 +25,7 @@ Every strategy spends exactly B units, since the budget is the thing held fixed;
 distributes them is what it decides.
 
 `--cell` says which map sheets share a retrieval pool, and is the same choice as `--scope` in
-`make_pool_pairing`: one sheet, one corpus-era, one footprint, one corpus, or everything. The
+`make_pool_pairing`: one sheet, one corpus-era, one corpus, or everything. The
 budget is spread over those cells and retrieval draws inside them, so the two must agree - split
 apart they can be given annotations retrieval never looks at, or asked for exemplars the budget
 never bought.
@@ -437,7 +437,7 @@ def main():
     parser.add_argument("--strategy", default="kcenter",
                         choices=["uniform", "random", "kcenter", "fps", "fps-medoid", "kmeans"])
     parser.add_argument("--cell", default="sheet",
-                        choices=["sheet", "era", "footprint", "corpus", "global"],
+                        choices=["sheet", "era", "corpus", "global"],
                         help="which sheets share a retrieval pool. One sheet is one corpus, "
                              "sheet number and survey year; 'era' widens it to the sheets of "
                              "one corpus drawn within five years of each other. Pass the same "

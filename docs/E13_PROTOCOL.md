@@ -31,7 +31,6 @@ not a baseline for any of it.
 | --- | ---: | ---: |
 | `sheet` | 26 | **88** |
 | `era` | 13 | 43 |
-| `footprint` | 11 | 35 |
 | `corpus` | 3 | 9 |
 | `global` | 1 | 6 |
 
@@ -39,6 +38,10 @@ not a baseline for any of it.
 `bayern.1938-1941`, `bayern.1959`, `hameln.1898`, `hameln.1973-1975`, `hameln.1982`,
 `hameln.1996`, `hameln.2002-2005`, `hameln.2012`, `hameln.2017`, `hameln.2023`, plus `railway`
 and `vineyard`, which carry no year and stand alone.
+
+The cell is built from the survey period rather than the sheet number because style follows the
+year: 3821, 3822, 3921 and 3922 drawn in the same year share drawing conventions over different
+ground. Grouping one sheet number across its years would pool 1898 with 2017.
 
 ### The density guard, per budget
 
