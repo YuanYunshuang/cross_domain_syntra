@@ -284,6 +284,212 @@ mean IoU would then be dominated by a class the budget simply skipped. Each stra
 needs a class-aware variant that allocates the budget per class first and applies the strategy
 within it. Report both; the difference is itself a result.
 
+**Resolved as `--balance`, and it is about coverage, not only class counts (2026-08-03).** The
+budget is split into equal quotas over cells - `class`, `corpus`, `corpus-class` or
+`subset-class` - and the strategy runs *inside* each cell. Quotas are filled scarcest cell
+first; a tile is charged once but counts towards every cell it belongs to, so later quotas come
+partly free, and the remainder is spent over the whole pool so every setting lands on exactly B
+tiles. `--balance subset-class --strategy uniform` is the classic n-per-class-and-subset scheme.
+
+The reason this matters is not the head count. **Farthest-point sampling run over the whole pool
+covers the *union* well and each part badly**: a single cell's picks are only wherever that cell
+happens to meet the global cover. Over hismap+siegfried at B=300, plain k-center left Siegfried
+vineyard with 7 tiles of 499 and Bayern forest with 10 of 330, both bunched in one corner of
+their own cloud. Running the same walk inside each (corpus, class) cell - seeded by the tiles
+that cell already owns, so the quota extends its own coverage rather than its neighbours' - is
+what spreads them:
+
+| cell | candidates | plain: n, worst | corpus-class: n, worst |
+| --- | ---: | ---: | ---: |
+| siegfried/railway | 4423 | 89, 0.330 | 41, 0.359 |
+| hameln/grass | 2313 | 61, 0.382 | 56, **0.348** |
+| hameln/forest | 2749 | 37, 0.448 | 45, **0.311** |
+| hameln/settlement | 1399 | 31, 0.388 | 48, **0.296** |
+| bayern/grass | 715 | 81, 0.401 | 74, **0.362** |
+| siegfried/vineyard | 499 | 7, 0.412 | 42, **0.215** |
+| hameln/water | 371 | 27, 0.389 | 50, **0.290** |
+| bayern/forest | 330 | 10, 0.422 | 43, **0.209** |
+| bayern/water | 119 | 25, 0.369 | 46, **0.245** |
+
+Worst cell covering radius 0.448 → 0.362, mean over cells 0.393 → 0.293, at the same 300 tiles.
+Only railway gives ground, and it is the cell that was over-served. The union is slightly worse
+served in exchange - global covering radius 0.301 → 0.350 - which is the trade being made on
+purpose: no cell is allowed to be poorly covered so that the corpus as a whole can look tidy.
+`--balance corpus-class` is therefore the setting E13 should train, with plain k-center kept as
+the control that shows what class- and corpus-blind coverage costs.
+
+**The budget is counted in (tile, class) pairs, not tiles (2026-08-03).** One unit is one class
+digitised on one tile - one annotation pass, and one training sample, since `cd_syntra2.py`
+builds each sample as a binary mask for the class it was drawn for, with every other class's
+pixels as negatives (only label 255 is ignored). A tile carrying forest and water therefore
+costs two units if both are wanted, and is written out only under the classes actually bought.
+
+Counting tiles instead made the second class on an already-chosen tile free, which it is not.
+It also forced an awkward correction: cells overlapped, a cell could find its quota already
+satisfied by tiles bought elsewhere and sample nothing of its own - bayern/grass got 0 picks at
+B=300 - and a quarter of the budget fell through to a global top-up. Under the pair budget every
+pair lands in exactly one cell, so the cells are disjoint, each simply buys its quota, and the
+free-fill credit and its repair both disappear. At B=300 with `corpus-class` every cell now
+takes exactly 33 or 34 pairs.
+
+The cost is visible and intended: 300 pairs buy 291 tiles, and 134 class-instances present in
+those tiles are left unwritten because the budget did not pay for them. Under the old accounting
+those 134 were handed to training free of charge, which flattered every reported budget by
+roughly a third.
+
+**Farthest-point sampling buys the periphery, and that needs a guard (2026-08-03).** The
+selected tiles sit visibly on the rim of every t-SNE cluster, and the measurement is blunt:
+their local density - mean cosine distance to their 20 nearest neighbours - is 1.78x the pool
+median, and **68% of the picks come from the sparsest tenth of the pool** (random 19%, k-means
+16%). This is minimax working as specified, since the tile furthest from everything chosen is
+by construction the most isolated one, but as a training set it spends two thirds of the budget
+on tiles that stand for almost nothing else.
+
+Two answers, both implemented, and they sit at different points on the same trade-off:
+
+| B=300 pairs, balance corpus-class | median density | from sparsest 10% | worst cell | mean cell |
+| --- | ---: | ---: | ---: | ---: |
+| random | 0.1302 | 16% | 0.578 | 0.465 |
+| kmeans | 0.1263 | 22% | 0.502 | 0.405 |
+| fps-medoid | 0.1624 | 40% | 0.390 | 0.314 |
+| fps | 0.2426 | **77%** | 0.383 | 0.316 |
+| **fps + `--density-guard 15`** | 0.1620 | **24%** | **0.303** | **0.242** |
+
+`fps-medoid` places by farthest-point and then moves each pick to the tile nearest the mean of
+what it covers - k-medoids seeded by FPS. It halves the extremity for almost no coverage, but
+the guard does better on both axes at once, so it earns no run of its own.
+
+`--density-guard 15` is the answer: drop the sparsest 15% of each cell from candidacy and run
+FPS as before. It is the only setting that improves coverage *and* typicality together - the
+guard removes the pairs that were consuming the budget, not the ones worth annotating, so the
+walk is no longer dragged outwards.
+
+**The guard ranks density within each cell, not over the corpus.** A global threshold asks
+whether a tile is unusual for the whole corpus, and the answer for a small distinctive cell is
+"all of it": it took bayern/water from 119 candidates to 39 and bayern/grass to 61%, while
+hameln/forest kept 96% - the cells that most needed their own outliers removed were the ones
+stripped of their ordinary tiles instead. Ranking inside the cell asks whether a pair is
+unusual *for its own class and corpus*, and every cell then keeps the same fraction:
+
+| cell | candidates | global guard keeps | per-cell guard keeps |
+| --- | ---: | ---: | ---: |
+| siegfried/railway | 4423 | 4045 (91%) | 3980 (90%) |
+| hameln/forest | 2749 | 2634 (96%) | 2474 (90%) |
+| bayern/grass | 715 | 434 (61%) | 643 (90%) |
+| hameln/water | 371 | 281 (76%) | 334 (90%) |
+| bayern/water | 119 | **39 (33%)** | 107 (90%) |
+
+Because the guard is per cell and the unit is a pair, a tile can stay a candidate for the class
+it is typical of while being dropped for one it is not.
+
+**What the guard is, exactly.** Vectors are L2-normalised, so cosine distance is
+`d(a,b) = 1 - a·b`. For a cell `C` of (tile, class) pairs and each pair `i` in it, placed in the
+embedding by its tile, with `k = min(20, |C|-1)`:
+
+    rho_i  = mean over the k nearest neighbours of i *within C* of d(v_i, v_j)
+    tau_C  = percentile_(100-g)( { rho_i : i in C } )
+    keep     { i in C : rho_i <= tau_C }
+
+It is a quantile cut, not a distance cut, which is why every cell retains exactly `100-g`
+percent of its candidates whatever its density scale. Cells of fewer than 3 pairs are untouched.
+
+**Why g = 15.** Not from the shape of the data: the density distribution has no knee. The ratio
+`rho_q / rho_median` averaged over cells climbs smoothly - 1.18 at p70, 1.30 at p80, 1.49 at
+p90, 1.67 at p95, 1.82 at p97 - and only accelerates past p99. There is no separate outlier
+population to cut at, so no threshold is principled on the distribution alone.
+
+The criterion that does work is a density-neutral reference: random selection under the same
+`corpus-class` balancing puts **18% +- 2** of its picks in the globally-sparsest tenth of the
+candidate pairs. Not 10%, because the balancing itself over-weights small cells that are
+globally sparse. Farthest-point sampling against that reference, at B=300 pairs:
+
+| guard | pairs cut | from sparsest 10% | vs neutral | worst cell | mean cell | removed per % cut |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 | 0% | 77% | 4.3x | 0.383 | 0.316 | - |
+| 3 | 3% | 56% | 3.1x | 0.361 | 0.286 | **6.7** |
+| 5 | 5% | 45% | 2.5x | 0.343 | 0.273 | 6.3 |
+| 10 | 10% | 28% | 1.5x | 0.319 | 0.254 | 4.9 |
+| **15** | 15% | 24% | **1.3x** | 0.303 | 0.242 | 3.5 |
+| 20 | 20% | 20% | 1.1x | 0.294 | 0.228 | 2.8 |
+
+15 is the smallest guard that *neutralises* the density bias rather than merely reducing it.
+
+**The pull is a small-budget problem, and the same guard covers both budgets.** At B=1000 the
+reference is unchanged at 18% +- 1, but unguarded farthest-point starts from 57% rather than
+77%: with 111 picks per cell instead of 33 the walk exhausts the extremes early and spends the
+rest in the body of the distribution.
+
+| guard | B=1000: from sparsest 10% | vs neutral | worst cell | mean cell |
+| ---: | ---: | ---: | ---: | ---: |
+| 0 | 57% | 3.2x | 0.288 | 0.214 |
+| 3 | 43% | 2.4x | 0.266 | 0.199 |
+| 5 | 34% | 1.9x | 0.256 | 0.190 |
+| 10 | 20% | 1.1x | 0.241 | 0.171 |
+| **15** | 17% | **1.0x** | 0.228 | 0.161 |
+| 20 | 15% | 0.9x | 0.217 | 0.152 |
+
+B=1000 alone would be satisfied by g = 10 (1.1x). B=300 would not (1.5x). **g = 15 is the one
+setting that meets the criterion at both**, at 1.3x and 1.0x, so runs 1 and 2 can share a single
+selection rule and the budget curve measures budget rather than budget-and-guard. Fixing the
+guard per budget instead would confound the two.
+
+This also says where the guard earns its place: at small budgets, which is exactly where the
+paper's claim is strongest.
+
+**It was 10 under the old tile budget, and the move is real rather than a change of yardstick.**
+The sparsest-10% threshold is 0.1924 measured over tiles and 0.1932 over pairs, so the same
+selection scores the same either way; unguarded farthest-point went from 68% to 77% because
+every cell now runs a full-length walk of its own into its own extremes instead of having part
+of its quota handed to it by a neighbour under the old free-fill credit.
+
+Efficiency alone - bias removed per percent of pairs cut - would instead pick g = 3, which peaks
+at 6.7 against 3.5 at g = 15, but leaves the selection three times more outlier-heavy than an
+unbiased sampler.
+
+Both arguments assume the neutral profile is the right target, and that is an assumption, not a
+result: a mild preference for atypical tiles might help a segmentation model rather than hurt
+it. Run 6 below is what tests it. The flag defaults to 0, so E13 must pass it deliberately.
+
+**The figures are laid out by t-SNE, because PCA was lying by omission.** Two principal
+components hold ~25% of the variance here, and under that projection the selection looked full
+of holes that were not there: tiles in 2D bins containing no selected tile sat a mean 0.189
+(max 0.300) from their nearest annotated tile - indistinguishable from tiles in bins that did
+contain one (0.191, max 0.301). t-SNE preserves neighbourhoods, so an empty region now means
+the budget really did miss that part of the cell, and it resolves structure PCA smeared
+together: Hameln separates into three style clusters, Bayern into one, Siegfried into a single
+broad mass. The axes carry no scale in exchange, and distances between distant clusters are not
+comparable - counts and covering radii must still come from the 384-d vectors, never the
+picture. `--projection pca` keeps the old behaviour; layouts are cached under
+`results/.projections`, ~40 s to build over 10.8k tiles and ~1 s per figure thereafter.
+
+The plotting scripts need scikit-learn, which the `syntra` env does not have. Run them with the
+`hismap` env (`/home/yuan/anaconda3/envs/hismap/bin/python`), which already carries sklearn
+1.5.0 and matplotlib against numpy 1.24 - installing it into `syntra` risks moving numpy under
+torch 2.5.1+cu118.
+
+**The coverage numbers separate the two geometric strategies, and the mean hides it.** Over the
+same pool at B=300, measuring the cosine distance from every pool tile to its nearest selected
+tile:
+
+| strategy | mean | worst (covering radius) | water tiles |
+| --- | ---: | ---: | ---: |
+| uniform | 0.130 | 0.417 | 35 |
+| random | 0.130 | 0.504 | 24 |
+| kcenter | 0.177 | **0.267** | 72 |
+| kmeans | **0.119** | 0.429 | 31 |
+
+k-center is the *worst* strategy on the mean and by far the best on the covering radius, which
+is the quantity it actually minimises: it pays typicality to leave no corner of the corpus
+unserved, and k-means does the reverse. That is the coverage-versus-typicality trade the plan
+predicted, now measured rather than assumed, and it is why E13 must report both numbers - a
+percentile would hide it, since the fringe is exactly where the difference lives.
+
+`data_tools/indexing/plot_selection.py` draws the selections in the DINOv2 CLS space (PCA of
+the candidate pool, one panel per strategy) with those numbers per panel. It imports the
+selector rather than re-implementing it, so the figure shows the tiles that would actually be
+written. In the k-center panel the densest cluster of the corpus is left almost untouched while
+the sparse fringe is saturated, which is the outlier-chasing risk made visible.
+
 **Cost.** 4 strategies x 3 budgets = 12 runs at ~10 h each is too much for the two GPUs. Prune
 to the 6 that answer the question: uniform and kcenter and kmeans at 300 and 1,000, with random
 at 300 as the floor. Evaluation is the full test set of every subset, identical for all runs.
@@ -291,6 +497,48 @@ at 300 as the floor. Evaluation is the full test set of every subset, identical 
 **What the result would say.** If a coverage-selected 300 matches a uniform 2,900, the paper's
 headline is that most annotation in this corpus is redundant, and the diagnostic from E12 tells a
 practitioner which tiles are worth their time.
+
+### E13 - what to actually run
+
+The selector grew several knobs while the questions above were being settled. This is the
+decision, so it does not have to be reconstructed from the reasoning:
+
+```
+PYTHONPATH=. python data_tools/indexing/select_budget.py \
+  -d /home/yuan/data/syntra --index /home/yuan/data/syntra/global_index.npz \
+  --budget 300 --strategy fps --balance corpus-class --density-guard 15 \
+  -dkw hismap,siegfried -xkw hameln.3921_2023
+```
+
+| flag | why this value |
+| --- | --- |
+| `--strategy fps` | minimises the covering radius, the only coverage quantity that can be measured |
+| `--balance corpus-class` | without it vineyard gets 7 tiles of 499; with it ~40, worst cell 0.448 → 0.362 |
+| `--density-guard 15` | without it 77% of the budget goes to the sparsest tenth of the pool; with it 24% |
+| `--budget 300` | counted in (tile, class) pairs - one class digitised on one tile |
+| `--seed 2026` | leave alone, it is what makes a selection reproducible |
+
+`--projection`, `--perplexity` and `--cache-dir` belong to the plotting scripts and change no
+selection. `fps-medoid` can be retired: it sits behind `fps` + guard on coverage and behind
+`kmeans` on typicality, so it earns no run of its own.
+
+The six runs that answer the question, within the two-GPU schedule below. Budgets are in
+annotation units, so B=300 buys ~291 tiles and 300 training samples:
+
+| # | selection | budget | what it answers |
+| --- | --- | ---: | --- |
+| 1 | fps / corpus-class / guard 15 | 300 | the method |
+| 2 | fps / corpus-class / guard 15 | 1000 | whether it scales with budget |
+| 3 | uniform / subset-class / guard 0 | 300 | the current n-shot scheme at equal budget |
+| 4 | uniform / subset-class / guard 0 | 1000 | same, higher budget |
+| 5 | random / none / guard 0 | 300 | the floor |
+| 6 | fps / corpus-class / **guard 0** | 300 | isolates the density guard |
+
+Run 6 is the one to protect if the schedule slips. Every coverage number says the guard helps,
+but coverage is a proxy: the guard is a bet that outlier tiles are not worth their annotation
+cost, and only training tests it. The retained-pool covering radius improves with the guard
+while the full-pool one degrades - 0.362 → 0.468 including the tiles it discarded - and which
+of those two matters is exactly what run 6 settles.
 
 ## 4. Training recipe and two-GPU schedule
 

@@ -1,21 +1,42 @@
 # -*- coding: utf-8 -*-
 """Spend a fixed annotation budget: which tiles are worth labelling (E11).
 
-Given a total budget of B tiles, choose which ones to annotate. The selection is written in the
+Given a total budget of B annotation units - one unit is one class digitised on one tile -
+choose which (tile, class) pairs to annotate. A tile carrying two classes costs two units if
+both are wanted, because they are two passes and two training samples; it is written out only
+under the classes actually bought. The selection is written in the
 `cls_selection_*.json` format, so it can be used either as a training set or as a retrieval
 pool by passing its name to `make_pool_pairing.py --source`.
 
 Strategies:
 
-    uniform   n tiles per class and subset - the n-shot scheme used so far, which spends the
-              budget evenly regardless of how redundant a sheet is
-    random    B tiles drawn uniformly from the candidate pool
-    kcenter   farthest-point (k-center greedy) selection in DINOv2 space: repeatedly take the
-              tile furthest from everything already chosen, maximising coverage of the corpus
+    uniform   spend the budget evenly over the subsets, one pair at a time - the n-shot scheme
+              used so far, which ignores how redundant a sheet is
+    random    B pairs drawn uniformly from the candidate pool
+    kcenter   farthest-point sampling, a.k.a. k-center greedy (`fps` is accepted as an
+              alias): repeatedly take the tile furthest from everything already chosen, which
+              minimises the covering radius - the distance from the worst-served tile in the
+              pool to its nearest annotated one. Combined with `--balance`, the walk runs
+              inside each cell, so it is every cell's own space that gets covered.
     kmeans    k-means centroids, each replaced by its nearest real tile; trades coverage for
               typicality, and is the guard against k-center chasing outliers
 
-Candidates are restricted to tiles that actually contain an annotated class above the
+Every strategy spends exactly B units, since the budget is the thing held fixed; how a strategy
+distributes them is what it decides.
+
+`--balance` splits the budget into equal quotas over cells - `class`, `corpus`, `corpus-class`
+or `subset-class` - and applies the strategy inside each. It decides *what* gets covered, and
+that is not a detail. Run over the whole pool at once, k-center covers the corpus well, but any
+single class's picks are then only wherever that class happens to meet the global cover, which
+leaves each class's own region patchy and starves a minority class. `--balance corpus-class`
+samples inside each (corpus, class) cell instead, so every cell's latent space is covered on
+its own terms.
+
+Every pair lands in exactly one cell, so the cells are disjoint and each simply buys its quota;
+a cell too small for its share hands the remainder back to the others. `--balance subset-class
+--strategy uniform` is the classic n-per-class-and-subset scheme.
+
+Candidates are restricted to pairs whose class actually occupies the tile above the
 foreground threshold. Without that, coverage-seeking strategies drift to sheet borders, blank
 tiles and scanning artefacts - the emptiest tiles are exactly the ones furthest from everything
 else.
@@ -37,18 +58,70 @@ from data_tools.indexing.make_pool_pairing import fg_threshold, load_samples
 INVALID_CLS = ("background", "nonlabeled")
 
 
-def kcenter_greedy(vectors, budget, seed):
-    """Farthest-point sampling: each step adds the point furthest from the chosen set."""
+def kcenter_greedy(vectors, budget, seed, seeds=None):
+    """Farthest-point sampling: each step adds the point furthest from the chosen set.
+
+    `seeds` are vectors of tiles the cell already owns. Given them, the walk extends their
+    coverage instead of starting a fresh one, so a cell's quota fills the gaps its free tiles
+    left rather than re-covering ground that is already served.
+    """
     rng = np.random.RandomState(seed)
     n = len(vectors)
-    first = int(rng.randint(n))
-    chosen = [first]
-    # cosine distance to the nearest chosen point, updated incrementally
-    nearest = 1.0 - vectors @ vectors[first]
+    if seeds is not None and len(seeds):
+        chosen = []
+        # cosine distance to the nearest already-bought tile
+        nearest = (1.0 - vectors @ np.asarray(seeds).T).min(axis=1)
+    else:
+        first = int(rng.randint(n))
+        chosen = [first]
+        # cosine distance to the nearest chosen point, updated incrementally
+        nearest = 1.0 - vectors @ vectors[first]
     while len(chosen) < min(budget, n):
         pick = int(np.argmax(nearest))
         chosen.append(pick)
         nearest = np.minimum(nearest, 1.0 - vectors @ vectors[pick])
+    return chosen
+
+
+def fps_medoids(vectors, budget, seed, seeds=None, rounds=2):
+    """Farthest-point placement, then every pick moved to the centre of what it represents.
+
+    Plain farthest-point sampling buys the periphery: it takes whichever tile is furthest from
+    everything chosen, which is by construction the most isolated one. Measured over
+    hismap+siegfried at B=300, its picks sit in neighbourhoods 1.8x emptier than the median
+    tile and two thirds of them come from the sparsest tenth of the pool - the budget is spent
+    on tiles that stand for almost nothing else.
+
+    So the spread is kept and the extremity dropped: assign every tile to its nearest pick, and
+    replace each pick with the member closest to that group's mean. The picks stay one per
+    well-separated region, but each is now a typical member of its region rather than its most
+    eccentric one. This is k-medoids seeded by farthest-point rather than at random, which is
+    also why two refinement rounds are enough.
+    """
+    chosen = kcenter_greedy(vectors, budget, seed, seeds)
+    for _ in range(rounds):
+        assign = np.argmax(vectors @ vectors[chosen].T, axis=1)
+        taken, moved = set(), []
+        for j in range(len(chosen)):
+            members = np.where(assign == j)[0]
+            if not len(members):
+                pick = chosen[j]
+            else:
+                mv = vectors[members]
+                centre = mv.mean(axis=0)
+                centre /= np.linalg.norm(centre) + 1e-12
+                # nearest real tile to the group's mean, skipping any already taken
+                for idx in members[np.argsort(-(mv @ centre))]:
+                    if int(idx) not in taken:
+                        pick = int(idx)
+                        break
+                else:
+                    pick = chosen[j]
+            taken.add(int(pick))
+            moved.append(int(pick))
+        if moved == chosen:
+            break
+        chosen = moved
     return chosen
 
 
@@ -93,46 +166,31 @@ def kmeans_medoids(vectors, budget, seed, iters=25):
     return medoids
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("-d", "--root-dir", required=True)
-    parser.add_argument("--index", required=True)
-    parser.add_argument("--budget", type=int, required=True,
-                        help="total tiles to annotate (per class and subset for 'uniform')")
-    parser.add_argument("--strategy", default="kcenter",
-                        choices=["uniform", "random", "kcenter", "kmeans"])
-    parser.add_argument("--pool", default="train_samples",
-                        help="sample list the budget may be spent from")
-    parser.add_argument("-dkw", "--data-keywords", default=None)
-    parser.add_argument("-xkw", "--exclude-keys", default=None)
-    parser.add_argument("--fg-ratio", default="0.05",
-                        help="float, or key=value pairs, e.g. hameln=0.05,siegfried=0.01")
-    parser.add_argument("--seed", type=int, default=2026)
-    parser.add_argument("--name", default=None, help="output name; default budget_<strategy>_<B>")
-    parser.add_argument("--output-root", default=None,
-                        help="write into a parallel tree instead of the dataset itself")
-    parser.add_argument("--dry-run", action="store_true")
-    args = parser.parse_args()
-
-    fg_ratio = ({k.split("=")[0]: float(k.split("=")[1]) for k in args.fg_ratio.split(",")}
-                if "=" in args.fg_ratio else float(args.fg_ratio))
-
-    store = np.load(args.index, allow_pickle=True)
+def load_index(path):
+    """Return (vectors, row_of), the vectors L2-normalised so a dot product is a cosine."""
+    store = np.load(path, allow_pickle=True)
     names = list(store["names"])
     vectors = store["vectors"].astype(np.float32)
     vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
-    row_of = {n: i for i, n in enumerate(names)}
+    return vectors, {n: i for i, n in enumerate(names)}
 
-    dirs = subset_dirs(args.root_dir, args.data_keywords, args.exclude_keys)
-    ratios, classes_of, pool = {}, {}, []
+
+def build_pool(root_dir, row_of, pool="train_samples", fg_ratio=0.05,
+               keywords=None, exclude=None):
+    """The tiles a budget may be spent on: {tile: [classes present above the threshold]}.
+
+    Tiles without an annotated class are dropped, so a coverage-seeking strategy cannot spend
+    the budget on sheet borders and blank scans. Returns (subset dirs, present_of).
+    """
+    dirs = subset_dirs(root_dir, keywords, exclude)
+    ratios, present_of = {}, {}
     for subset_dir in dirs:
         subset = os.path.basename(subset_dir)
         with open(os.path.join(subset_dir, f"{subset}.json")) as f:
             ratios.update(json.load(f))
         with open(os.path.join(subset_dir, "color_map.json")) as f:
-            classes_of[subset] = {c for c in json.load(f) if c not in INVALID_CLS}
-        listing = os.path.join(subset_dir, args.pool)
+            classes = {c for c in json.load(f) if c not in INVALID_CLS}
+        listing = os.path.join(subset_dir, pool)
         listing += ".json" if os.path.isfile(listing + ".json") else ".txt"
         if not os.path.isfile(listing):
             continue
@@ -141,48 +199,281 @@ def main():
             if name not in row_of:
                 continue
             present = [c for c, r in ratios.get(name, {}).items()
-                       if c in classes_of[subset] and r > threshold]
-            if present:                      # never spend budget on an empty tile
-                pool.append((name, present))
+                       if c in classes and r > threshold]
+            if present:
+                present_of[name] = present
+    return dirs, present_of
 
-    print(f"candidate pool: {len(pool)} annotated tiles over {len(dirs)} subsets")
-    rng = np.random.RandomState(args.seed)
 
-    if args.strategy == "uniform":
-        by_group = {}
-        for name, present in pool:
-            subset = name.rsplit(".", 1)[0]
-            for cls in present:
-                by_group.setdefault((subset, cls), []).append(name)
-        picked = set()
-        for group, members in sorted(by_group.items()):
-            take = min(args.budget, len(members))
-            picked.update(rng.choice(members, take, replace=False).tolist())
-        selected = sorted(picked)
-    else:
-        pool_names = [n for n, _ in pool]
-        sub = vectors[[row_of[n] for n in pool_names]]
-        if args.strategy == "random":
-            idx = rng.choice(len(pool_names), min(args.budget, len(pool_names)), replace=False)
-        elif args.strategy == "kcenter":
-            idx = kcenter_greedy(sub, args.budget, args.seed)
+def local_density(group, neighbours=20):
+    """Mean cosine distance from each vector to its `neighbours` nearest others in `group`.
+
+    High means the tile sits in empty space relative to the company it is being judged against.
+    """
+    k = min(neighbours, max(1, len(group) - 1))
+    density = np.empty(len(group), dtype=np.float32)
+    for start in range(0, len(group), 1000):             # blocked; a 10k x 10k matrix is 470 MB
+        d = 1.0 - group[start:start + 1000] @ group.T
+        near = np.partition(d, k, axis=1)[:, :k + 1]
+        density[start:start + 1000] = np.sort(near, axis=1)[:, 1:k + 1].mean(axis=1)
+    return density
+
+
+def guard_cells(cells, vectors, row_of, percent, neighbours=20, verbose=True):
+    """Drop the sparsest `percent` of each cell's candidates, judged inside that cell.
+
+    Farthest-point sampling spends its budget wherever the pool is thinnest, and the thinnest
+    parts of a map corpus are its accidents: sheet borders, fold lines, scanning artefacts, the
+    lone tile in a style nothing else shares. Over hismap+siegfried at B=300 that is not a
+    minor pull - two thirds of the picks come from the sparsest tenth of the pool, in
+    neighbourhoods 1.8x emptier than the median tile. Requiring an annotated class removes the
+    blank tiles; it does not remove the odd ones.
+
+    Density is ranked *within each cell*, not over the corpus. A global threshold asks whether
+    a tile is unusual for the corpus, and then a cell that is small and distinctive - Bayern
+    water, 119 tiles in their own corner of the embedding - is uniformly unusual and loses most
+    of its candidates, while a large diffuse cell loses none. Ranking inside the cell asks the
+    question that was meant: is this tile unusual *for its own class and corpus*. Every cell
+    then keeps the same fraction of its candidates, and a tile may stay a candidate for the
+    class it is typical of while being dropped for one it is not.
+    """
+    if not percent:
+        return cells
+    out, dropped = {}, 0
+    for key, pairs in cells.items():
+        if len(pairs) < 3:                               # nothing meaningful to rank
+            out[key] = pairs
+            continue
+        density = local_density(vectors[[row_of[t] for t, _ in pairs]], neighbours)
+        cut = np.percentile(density, 100 - percent)
+        out[key] = [p for i, p in enumerate(pairs) if density[i] <= cut]
+        dropped += len(pairs) - len(out[key])
+    if verbose:
+        total = sum(len(v) for v in cells.values())
+        print(f"density guard: dropped the sparsest {percent:g}% of every cell, "
+              f"{dropped} of {total} cell memberships")
+    return out
+
+
+def corpus_map(dirs):
+    """{subset: corpus} - hameln / bayern / siegfried.
+
+    The hismap sheets are named `<corpus>.<sheet>_<year>`, so the prefix is the corpus. The
+    Siegfried subsets are named for their class instead - `railway`, `vineyard` - and only the
+    parent directory says what they are.
+    """
+    out = {}
+    for d in dirs:
+        subset = os.path.basename(d)
+        out[subset] = (subset.split(".")[0] if "." in subset
+                       else os.path.basename(os.path.dirname(d)))
+    return out
+
+
+def cells_of(present_of, balance, corpus_of=None):
+    """Split the pool into cells of (tile, class) pairs, the unit the budget is spent in.
+
+    A pair is one class annotated on one tile - one digitising pass - and that is what costs
+    money. Counting tiles instead would make the second class on an already-chosen tile free,
+    which it is not: the training samples it produces are separate samples with their own
+    labels. So a tile carrying forest and water offers two pairs and costs two units, and it is
+    listed in the output only under the classes actually bought for it.
+
+    Every pair lands in exactly one cell, so cells are disjoint and a cell simply buys its
+    quota - there is no credit to carry between them. `corpus-class` is the finest grouping
+    that still leaves a workable number of candidates per cell, and is what makes each class's
+    own region of the embedding get covered rather than only the corpus as a whole.
+    """
+    cells = {}
+    for name, present in present_of.items():
+        subset = name.rsplit(".", 1)[0]
+        corpus = (corpus_of or {}).get(subset, subset)
+        for cls in present:
+            if balance == "none":
+                key = ("all",)
+            elif balance == "class":
+                key = (cls,)
+            elif balance == "corpus":
+                key = (corpus,)
+            elif balance == "corpus-class":
+                key = (corpus, cls)
+            else:                               # subset-class
+                key = (subset, cls)
+            cells.setdefault(key, []).append((name, cls))
+    return {k: sorted(v) for k, v in cells.items()}
+
+
+def guarded_cells(present_of, vectors, row_of, balance="none", corpus_of=None,
+                  density_guard=0, neighbours=20, verbose=True):
+    """The cells a budget is spent over, with each cell's sparsest tail removed."""
+    return guard_cells(cells_of(present_of, balance, corpus_of), vectors, row_of,
+                       density_guard, neighbours, verbose)
+
+
+def select(present_of, vectors, row_of, budget, strategy,
+           balance="none", corpus_of=None, density_guard=0, seed=2026, verbose=True):
+    """Spend `budget` annotation units under `strategy`. Returns sorted (tile, class) pairs.
+
+    One unit is one class annotated on one tile - one digitising pass - so a tile carrying two
+    classes costs two units if both are bought, and is returned twice. Every strategy spends
+    exactly min(budget, available pairs), because the budget is the thing held fixed and a
+    strategy that spent less would not be comparable to one that spent it all.
+
+    `balance` chooses what the budget is split evenly over before the strategy is applied
+    within each part: nothing, class, corpus, corpus and class, or subset and class. It matters
+    more than it looks. Run over the whole pool at once, k-center covers the *corpus* well, but
+    a single class's picks are then only wherever that class happens to meet the global cover,
+    which leaves each class's own region patchy. Splitting first and sampling inside each cell
+    is what makes the selection cover every cell's latent space rather than the union's.
+    """
+    cells = guarded_cells(present_of, vectors, row_of, balance, corpus_of,
+                          density_guard, verbose=verbose)
+    available = sum(len(pairs) for pairs in cells.values())     # cells are disjoint in pairs
+    budget = min(budget, available)
+    rng = np.random.RandomState(seed)
+    # `fps` is the same algorithm under the name it is usually given in the sampling literature
+    strategy = "kcenter" if strategy == "fps" else strategy
+
+    def choose(pairs, k, bought):
+        """Pick k of `pairs` under the chosen strategy, extending the coverage of `bought`.
+
+        A pair is placed in the embedding by its tile, so the geometry is over tiles while the
+        thing being bought is a tile-and-class.
+        """
+        k = min(k, len(pairs))
+        if k <= 0:
+            return []
+        if strategy == "random":
+            return [pairs[int(i)] for i in rng.choice(len(pairs), k, replace=False)]
+        if strategy == "uniform":
+            # one pair at a time, round-robin over the subsets, skipping exhausted ones
+            groups = {}
+            for p in pairs:
+                groups.setdefault(p[0].rsplit(".", 1)[0], []).append(p)
+            keys, out, taken, i = sorted(groups), [], set(), 0
+            while len(out) < k:
+                g = keys[i % len(keys)]
+                i += 1
+                groups[g] = left = [m for m in groups[g] if m not in taken]
+                if left:
+                    pick = left[int(rng.randint(len(left)))]
+                    out.append(pick)
+                    taken.add(pick)
+            return out
+        sub = vectors[[row_of[t] for t, _ in pairs]]
+        seed_vecs = vectors[[row_of[t] for t, _ in bought]] if bought else None
+        if strategy == "kcenter":
+            idx = kcenter_greedy(sub, k, seed, seed_vecs)
+        elif strategy == "fps-medoid":
+            idx = fps_medoids(sub, k, seed, seed_vecs)
         else:
-            idx = kmeans_medoids(sub, args.budget, args.seed)
-        selected = sorted(pool_names[int(i)] for i in idx)
+            idx = kmeans_medoids(sub, k, seed)
+        return [pairs[int(i)] for i in idx]
 
-    present_of = dict(pool)
+    # Equal quotas per cell, smallest cell first so a cell that cannot fill its share hands the
+    # shortfall on while the others still have room. Cells are disjoint, so a cell simply buys
+    # its quota outright - nothing it buys can satisfy another cell's.
+    order = sorted(cells, key=lambda k: (len(cells[k]), k))
+    quota = {k: budget // len(cells) for k in cells}
+    for i in range(budget % len(cells)):
+        quota[order[i]] += 1
+    if verbose and balance != "none":
+        shown = ", ".join(f"{'/'.join(k)}={quota[k]}" for k in order[:12])
+        print(f"{len(cells)} cells: {shown}" + (", ..." if len(cells) > 12 else ""))
+
+    selected = []
+    for key in order:
+        selected += choose(cells[key], quota[key], [])
+
+    # A cell smaller than its quota leaves the budget short. Hand the remainder back to the
+    # cells that still have candidates, one pair at a time, rather than to a walk over the
+    # whole pool - that would undo the balancing it was meant to keep.
+    while len(selected) < budget:
+        taken = set(selected)
+        spent = len(selected)
+        for key in order:
+            if len(selected) >= budget:
+                break
+            mine = [p for p in cells[key] if p in taken]
+            fresh = [p for p in cells[key] if p not in taken]
+            got = choose(fresh, 1, mine)
+            selected += got
+            taken.update(got)
+        if len(selected) == spent:              # every cell exhausted
+            break
+
+    selected = sorted(set(selected))
+    assert len(selected) == budget, f"spent {len(selected)} of {budget}"
+    return selected
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("-d", "--root-dir", required=True)
+    parser.add_argument("--index", required=True)
+    parser.add_argument("--budget", type=int, required=True,
+                        help="annotation units to spend, one unit = one class on one tile; "
+                             "every strategy spends exactly this many")
+    parser.add_argument("--strategy", default="kcenter",
+                        choices=["uniform", "random", "kcenter", "fps", "fps-medoid", "kmeans"])
+    parser.add_argument("--balance", default="none",
+                        choices=["none", "class", "corpus", "corpus-class", "subset-class"],
+                        help="split the budget into equal quotas over these cells and apply "
+                             "the strategy within each; 'corpus-class' is what covers every "
+                             "class's own region of the embedding rather than only the union")
+    parser.add_argument("--pool", default="train_samples",
+                        help="sample list the budget may be spent from")
+    parser.add_argument("-dkw", "--data-keywords", default=None)
+    parser.add_argument("-xkw", "--exclude-keys", default=None)
+    parser.add_argument("--fg-ratio", default="0.05",
+                        help="float, or key=value pairs, e.g. hameln=0.05,siegfried=0.01")
+    parser.add_argument("--density-guard", type=float, default=0,
+                        help="drop the sparsest N%% of each cell from candidacy first; 10 "
+                             "stops farthest-point sampling spending the budget on outliers")
+    parser.add_argument("--seed", type=int, default=2026)
+    parser.add_argument("--name", default=None,
+                        help="output name; default budget_<strategy>[_<balance>]_<B>")
+    parser.add_argument("--output-root", default=None,
+                        help="write into a parallel tree instead of the dataset itself")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+
+    fg_ratio = ({k.split("=")[0]: float(k.split("=")[1]) for k in args.fg_ratio.split(",")}
+                if "=" in args.fg_ratio else float(args.fg_ratio))
+
+    vectors, row_of = load_index(args.index)
+    dirs, present_of = build_pool(args.root_dir, row_of, args.pool, fg_ratio,
+                                  args.data_keywords, args.exclude_keys)
+
+    all_classes = sorted({c for present in present_of.values() for c in present})
+    candidates = sum(len(p) for p in present_of.values())
+    print(f"candidate pool: {candidates} (tile, class) pairs over {len(present_of)} annotated "
+          f"tiles in {len(dirs)} subsets")
+
+    selected = select(present_of, vectors, row_of, args.budget, args.strategy,
+                      balance=args.balance, corpus_of=corpus_map(dirs),
+                      density_guard=args.density_guard, seed=args.seed)
+
+    # Only the classes actually bought for a tile are written. A class the budget did not pay
+    # for is not annotated, so listing it would hand the training set labels that do not exist.
     by_class = {}
-    for name in selected:
-        for cls in present_of[name]:
-            by_class.setdefault(cls, []).append(name)
+    for tile, cls in selected:
+        by_class.setdefault(cls, []).append(tile)
 
-    subsets_hit = {n.rsplit(".", 1)[0] for n in selected}
-    print(f"strategy={args.strategy} budget={args.budget}: {len(selected)} tiles, "
+    tiles = {t for t, _ in selected}
+    subsets_hit = {t.rsplit(".", 1)[0] for t in tiles}
+    print(f"strategy={args.strategy}"
+          f"{'' if args.balance == 'none' else ' balanced by ' + args.balance} "
+          f"budget={len(selected)}: {len(selected)} pairs over {len(tiles)} tiles, "
           f"{len(subsets_hit)}/{len(dirs)} subsets covered")
-    for cls, members in sorted(by_class.items()):
-        print(f"    {cls:<14} {len(members):>5} tiles")
+    for cls in all_classes:
+        print(f"    {cls:<14} {len(by_class.get(cls, [])):>5} pairs")
 
-    name = args.name or f"budget_{args.strategy}_{args.budget}"
+    name = args.name or (f"budget_{args.strategy}"
+                         f"{'' if not args.density_guard else f'_g{args.density_guard:g}'}"
+                         f"{'' if args.balance == 'none' else '_' + args.balance.replace('-', '')}"
+                         f"_{args.budget}")
     if args.dry_run:
         print("\n(dry run, nothing written)")
         return
@@ -196,7 +487,8 @@ def main():
         # Each subset gets only its own selected tiles. make_pool_pairing keys candidates by
         # the subset that owns the pool file, so a shared file would offer foreign tiles as
         # sources at subset scope and the loader would not have those subsets open at all.
-        own = {c: [n for n in v if n.rsplit(".", 1)[0] == subset] for c, v in by_class.items()}
+        own = {c: sorted(n for n in v if n.rsplit(".", 1)[0] == subset)
+               for c, v in by_class.items()}
         own = {c: v for c, v in own.items() if v}
         with open(os.path.join(out_dir, f"{name}.json"), "w") as f:
             json.dump(own, f, indent=2)
