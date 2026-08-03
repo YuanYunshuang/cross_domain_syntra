@@ -150,29 +150,28 @@ Budget fixed at 1000, sampling at the E13.1 winner, guard 10.
 | run | `--cell-gap` | pools | floor | trainable pairs | pools coherent? |
 | --- | ---: | ---: | ---: | ---: | --- |
 | E13.3-gap0 | 0 | 26 | 88 | 998 | trivially — one sheet each |
-| E13.3-gap0.05 | 0.05 | 12 | 35 | 1,000 | yes, conservatively |
-| E13.3-gap0.072 | 0.072 | 9 | 30 | 1,000 | yes — the largest gap that is |
-| **E13.3-gap0.08** | 0.08 | 7 | 23 | 1,000 | **no — deliberate failure case** |
+| E13.3-gap0.03 | 0.03 | 13 | 38 | 1,000 | yes |
+| E13.3-gap0.05 | 0.05 | 12 | 35 | 1,000 | yes |
+| E13.3-gap0.07 | 0.07 | 10 | 32 | 1,000 | yes — nothing incoherent has merged yet |
+| **E13.3-gap0.09** | 0.09 | 6 | 19 | 1,000 | **no — deliberate failure case** |
 
-The rungs are not evenly spaced, because the failure is not gradual. Merges are sound up to
-0.071 and the first bad one lands at **0.073**: `3922_1982 + 3922_2005` chains the 1970s–90s
-Hameln group to the 2000s group through a single sheet, so ten sheets spanning two conventions —
-red-and-black line work on white, and green-and-pink area fills — end up in one pool while the
-2012–2023 sheets, which resemble the 2000s far more, stay outside it.
+E13.3-gap0 is E13.2-1000 and is not run twice, so this is four new runs.
 
-**0.08 is included on purpose, as the failure case.** It is the cheapest way to find out what an
-incoherent pool actually costs: if mixing conventions inside a retrieval pool matters, the drop
-from 0.072 to 0.08 shows it, and if it does not, that is worth knowing too, because it would say
-the pool boundary is looser than the visual evidence suggests. Without it the sweep only ever
-tests grouping that already looks right, and could not distinguish "wider pools help" from
-"wider pools help until they stop being one style". `results/pools_gap0.072.png` and
-`results/pools_gap0.08.png` are the visual record of the difference.
+The ladder is not evenly spaced, because the grouping does not fail gradually. Every merge up to
+0.071 is sound — the Bayern stipple sheets, the two hachure plates, the 1959 blue pair, railway
+with vineyard — and the break is a single link at **0.073**, where `3922_1982 + 3922_2005` chains
+the 1970s–90s Hameln group to the 2000s group through one sheet. By 0.086 `3921_1973 + 3922_1898`
+pulls in the 1898 sheet as well.
 
-E13.3-gap0 is E13.2-1000; it is not run twice. **Read-out:** whether widening the pool helps or
-hurts, between the two points §3c of the old plan already has — sheet-scope 82.38 against
-global-scope 81.12 on an identical mixture. Note the confound to report rather than hide: a wider
-cell also means a lower floor and more exemplars per target, so this measures the cell as a
-package, not the scope in isolation.
+**0.09 is included on purpose as the failure case.** Its largest pool holds eleven sheets across
+three conventions at once: fine black line work from 1898, red-and-black contour on white from
+the 1970s, and green-and-pink area fills from the 2000s. It is the cheapest way to find out what
+an incoherent pool actually costs. If mixing conventions inside a retrieval pool matters, the
+drop from 0.07 to 0.09 shows it; if it does not, that is worth knowing too, because it would mean
+the pool boundary is looser than the visual evidence suggests. Without it the sweep only tests
+groupings that already look right, and could not tell "wider pools help" from "wider pools help
+until they stop being one style". `results/pools_gap0.07.png` and `results/pools_gap0.09.png` are
+the visual record.
 
 ---
 
