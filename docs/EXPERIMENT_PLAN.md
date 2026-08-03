@@ -594,10 +594,65 @@ run 1.
 **Which exposes a confound worth deciding before launching.** At batch 8, 100,000 iterations
 draw 800,000 samples. Over B=300 that is 2,667 epochs; over B=6,238 it is 128. The small-budget
 runs therefore see each annotation twenty times more often, so "budget" and "epochs over the
-data" move together and a small-budget win could be either. Fixing iterations is the usual
-compute-matched choice and is probably right, but it should be a stated decision rather than an
-accident, and the B=300 runs need their overfitting checked on the test curve rather than
-assumed away.
+data" move together and a small-budget win could be either. Section 3e settles it.
+
+## 3e. E13 - choosing the iteration count per run
+
+**It cannot be done by early stopping, because the schedule depends on the answer.**
+`adjust_learning_rate_exp_decay` sets `lr = base_lr * (1 - (itr - warmup) / max_itr) ** 0.9`, so
+the whole decay is a function of `max_iterations`. A run stopped at iteration k is not the run
+that would have been trained for k: it stops with the learning rate still at a fraction of base
+rather than annealed to nothing, and its weights are mid-schedule. The iteration count has to be
+chosen *before* each run, which makes it a hyperparameter to calibrate once rather than a
+stopping criterion to apply per run.
+
+**Two defects have to be fixed first, or the calibration measures the wrong thing.**
+
+1. *The validator validates on the training data.* In `train_one_gpu.py` the validation dataset
+   is built with `info_file=args.data_info` - the training data_info - so `validation_data` acts
+   only as an on/off switch and `model_best.pth` is selected on training performance. It must
+   take `args.validation_data`. Until then, "best model" means "best fit to what it trained on".
+2. *`num_epochs` silently overrides `max_iterations`.* The loop computes
+   `num_epochs = max(200, max_iterations // iters_per_epoch)` and then
+   `max_iterations = max(100000, num_epochs * iters_per_epoch)`, so the 200-epoch floor binds
+   whenever a run exceeds ~500 iterations per epoch. Run 7 at 6,238 passes is ~780 iterations
+   per epoch and would train **156,000** iterations against run 1's 100,000. The compute
+   matching this section has been arguing about does not currently hold, and the discrepancy
+   falls exactly on the baseline run.
+
+**Calibration protocol.**
+
+*Phase 1, two pilot runs at the extremes of the ladder* - B=300 and B=6,238, the two that
+bracket every other run. Each trains with the learning rate held constant after warmup rather
+than decayed, and validates every 2,000 iterations. Constant LR is the point: under the poly
+decay every checkpoint sits at a different learning rate, so the curve would measure the
+schedule rather than convergence. Run B=300 to 100,000 iterations and B=6,238 to 150,000, which
+covers the range the floor bug would otherwise have imposed anyway. Cost is two runs of ~10 h
+and ~15 h, one per GPU, so about a day of wall-clock.
+
+*The validation split costs annotation and is taken from the budget.* Ten percent of each run's
+selected pairs are held out, so a B=300 run trains on 270 and the reported budget stays 300.
+Borrowing an external labelled set would understate the annotation cost, which is the one number
+the paper is about. At B=300 that leaves 30 validation pairs, which is noisy - hence a rule
+fitted once across budgets rather than an early-stopping decision taken per run.
+
+*Phase 2, fit `iterations(B)` and freeze it.* Read from each pilot curve the smallest iteration
+count within 0.5 mIoU of that curve's peak - smallest, not argmax, so the choice is not chasing
+validation noise - and round to a multiple of 5,000. Two points support only a two-parameter
+family; take the simplest of `iterations = const`, `iterations = epochs x B / 8`, or
+`iterations = c x B^alpha` that passes through both, and state which was chosen and why. The
+rule is then fixed for all seven runs and not revisited.
+
+*Phase 3, run the ladder* with `max_iterations` from the rule, `num_epochs` set so the floor
+cannot bind, and the poly decay restored so each run anneals over its own length.
+
+**The likely outcome, stated in advance so the result is a test.** DoRA rank 16 on a frozen
+SAM backbone trains few parameters, so B=300 may not overfit at 2,667 epochs at all. If both
+pilot curves are flat past their knee, `iterations = 100,000` for every run is defensible, the
+confound is benign, and the finding is simply that the epoch disparity does not matter - which
+is worth one sentence in the paper and costs nothing further. The pilots are cheap insurance
+against the alternative, where the B=300 runs are quietly overfit and the whole budget curve
+tilts.
 
 Run 6 is the one to protect if the schedule slips. Every coverage number says the guard helps,
 but coverage is a proxy: the guard is a bet that outlier tiles are not worth their annotation
