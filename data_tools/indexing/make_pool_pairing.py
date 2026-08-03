@@ -114,9 +114,58 @@ def group_of(subset, cell, corpus_of=None, eras=None):
         return subset
     if cell == "era":
         return (eras or {}).get(subset, subset)
+    if cell == "style":
+        return (eras or {}).get(subset, subset)   # caller passes the style map in `eras`
     if cell == "corpus":
         return (corpus_of or {}).get(subset, subset)
     return "global"
+
+
+
+def style_map(tiles_by_subset, vectors, row_of, corpus_of=None, threshold=0.05):
+    """{subset: style group} - sheets whose mean embedding is close enough to prompt each other.
+
+    Metadata does not settle this, because the two archives were produced differently. Hameln is
+    a topographic series re-drawn each edition, so sheets surveyed in the same year are nearly
+    identical (mean centroid distance 0.008) while one sheet across its years is not (0.119).
+    The Bayern Positionsblatter are one engraved plate revised for decades, so it runs the other
+    way: the same sheet across years sits at 0.030 and the same year across sheets at 0.110.
+    A rule built on the survey year is right for one corpus and wrong for the other.
+
+    So the grouping is measured rather than declared: single-link over the sheet centroids at
+    `threshold` cosine, inside each corpus. Corpora are never merged - a shared appearance across
+    traditions is not a shared cartography, and single-link chains across them if allowed to.
+    """
+    groups, out = {}, {}
+    for subset, names in tiles_by_subset.items():
+        block = vectors[[row_of[n] for n in names]]
+        centre = block.mean(axis=0)
+        groups.setdefault((corpus_of or {}).get(subset, subset), []).append(
+            (subset, centre / (np.linalg.norm(centre) + 1e-12)))
+    for corpus, members in groups.items():
+        names = [m[0] for m in members]
+        cent = np.stack([m[1] for m in members])
+        dist = 1.0 - cent @ cent.T
+        parent = list(range(len(names)))
+
+        def find(i):
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]
+                i = parent[i]
+            return i
+
+        for i in range(len(names)):
+            for j in range(i + 1, len(names)):
+                if dist[i, j] <= threshold:
+                    parent[find(i)] = find(j)
+        label = {}
+        for i, subset in enumerate(names):
+            label.setdefault(find(i), []).append(subset)
+        for root, members_ in label.items():
+            tag = f"{corpus}.s{min(names.index(m) for m in members_)}"
+            for m in members_:
+                out[m] = tag
+    return out
 
 
 def load_classes(path):
@@ -197,7 +246,7 @@ def main():
                         help="source sample list per subset, without extension")
     parser.add_argument("--target", default="test_samples", help="target sample list per subset")
     parser.add_argument("--scope", default="sheet",
-                        choices=["sheet", "era", "corpus", "global"],
+                        choices=["sheet", "era", "style", "corpus", "global"],
                         help="which sheets share a retrieval pool; pass the same value as "
                              "--cell to select_budget")
     parser.add_argument("-k", type=int, default=8, help="neighbours to record per target and class")

@@ -54,6 +54,7 @@ import numpy as np
 
 from data_tools.indexing.build_global_index import subset_dirs
 from data_tools.indexing.make_pool_pairing import (corpus_map, era_map, group_of,
+                                                   style_map,
                                                    fg_threshold, load_samples,
                                                    year_of)
 
@@ -257,7 +258,21 @@ def guard_cells(cells, vectors, row_of, percent, neighbours=20, verbose=True):
     return out
 
 
-def cells_of(present_of, cell="sheet", balance="cell-class", corpus_of=None):
+def _cell_map(present_of, cell, corpus_of, vectors=None, row_of=None, threshold=0.05):
+    """The subset -> group lookup a cell definition needs, or {} for the ones that need none."""
+    subsets = sorted({n.rsplit(".", 1)[0] for n in present_of})
+    if cell == "era":
+        return era_map(subsets, corpus_of)
+    if cell == "style":
+        by = {}
+        for n in present_of:
+            by.setdefault(n.rsplit(".", 1)[0], []).append(n)
+        return style_map(by, vectors, row_of, corpus_of, threshold)
+    return {}
+
+
+def cells_of(present_of, cell="sheet", balance="cell-class", corpus_of=None,
+             vectors=None, row_of=None):
     """Split the pool into groups of (tile, class) pairs, the unit the budget is spent in.
 
     A pair is one class annotated on one tile - one digitising pass - and that is what costs
@@ -270,7 +285,7 @@ def cells_of(present_of, cell="sheet", balance="cell-class", corpus_of=None):
     over them. Every pair lands in exactly one group, so the groups are disjoint and each
     simply buys its quota, with no credit to carry between them.
     """
-    eras = era_map(sorted({n.rsplit(".", 1)[0] for n in present_of}), corpus_of)
+    eras = _cell_map(present_of, cell, corpus_of, vectors, row_of)
     cells = {}
     for name, present in present_of.items():
         group = group_of(name.rsplit(".", 1)[0], cell, corpus_of, eras)
@@ -283,7 +298,8 @@ def cells_of(present_of, cell="sheet", balance="cell-class", corpus_of=None):
 def guarded_cells(present_of, vectors, row_of, cell="sheet", balance="cell-class",
                   corpus_of=None, density_guard=0, neighbours=20, verbose=True):
     """The cells a budget is spent over, with each cell's sparsest tail removed."""
-    return guard_cells(cells_of(present_of, cell, balance, corpus_of), vectors, row_of,
+    return guard_cells(cells_of(present_of, cell, balance, corpus_of, vectors, row_of),
+                       vectors, row_of,
                        density_guard, neighbours, verbose)
 
 
@@ -372,7 +388,7 @@ def select(present_of, vectors, row_of, budget, strategy, cell="sheet", balance=
         # decides which combinations need an exemplar of their own. Balancing by era and then
         # retrieving per sheet needs a floor per sheet; matching the two needs only a floor
         # per era, which over this corpus is 43 combinations rather than 88.
-        eras = era_map(sorted({n.rsplit(".", 1)[0] for n in present_of}), corpus_of)
+        eras = _cell_map(present_of, cell, corpus_of, vectors, row_of)
         scope_of = lambda sub: group_of(sub, cell, corpus_of, eras)
         groups = {}
         for pairs in cells.values():
@@ -437,7 +453,7 @@ def main():
     parser.add_argument("--strategy", default="kcenter",
                         choices=["uniform", "random", "kcenter", "fps", "fps-medoid", "kmeans"])
     parser.add_argument("--cell", default="sheet",
-                        choices=["sheet", "era", "corpus", "global"],
+                        choices=["sheet", "era", "style", "corpus", "global"],
                         help="which sheets share a retrieval pool. One sheet is one corpus, "
                              "sheet number and survey year; 'era' widens it to the sheets of "
                              "one corpus drawn within five years of each other. Pass the same "

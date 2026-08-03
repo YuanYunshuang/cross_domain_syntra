@@ -30,6 +30,7 @@ not a baseline for any of it.
 | cell | groups | (cell, class) combinations = floor cost |
 | --- | ---: | ---: |
 | `sheet` | 26 | **88** |
+| `style` | 12 | 35 |
 | `era` | 13 | 43 |
 | `corpus` | 3 | 9 |
 | `global` | 1 | 6 |
@@ -39,9 +40,22 @@ not a baseline for any of it.
 `hameln.1996`, `hameln.2002-2005`, `hameln.2012`, `hameln.2017`, `hameln.2023`, plus `railway`
 and `vineyard`, which carry no year and stand alone.
 
-The cell is built from the survey period rather than the sheet number because style follows the
-year: 3821, 3822, 3921 and 3922 drawn in the same year share drawing conventions over different
-ground. Grouping one sheet number across its years would pool 1898 with 2017.
+`style` measures the grouping instead of declaring it — single-link over sheet centroids at 0.05
+cosine, within a corpus — because the two archives behave oppositely. In Hameln, sheets of the
+same year are 0.008 apart and one sheet across years 0.119, so period drives style. In Bayern it
+inverts: 0.030 for the same sheet across years, 0.110 for the same year across sheets, because a
+Positionsblatt is one plate revised rather than re-drawn. The recovered groups are:
+
+    hameln.s0   3821_1974 3822_1975 3921_1973 3922_1974 3922_1982 3922_1996
+    hameln.s1   3821_2002 3822_2005 3921_2002 3922_2005
+    hameln.s2   3821_2012 3821_2023 3822_2023 3921_2017 3922_2017
+    hameln.s10  3922_1898
+    bayern.s0   489_1910 489_1939          bayern.s2   490_1910 490_1938
+    bayern.s4   518_1941   s5 519_1910   s6 7230_1959   s7 7330_1959
+    siegfried   railway, vineyard
+
+`7230_1959` and `7330_1959` fall just outside the threshold at 0.055 and stay separate; the
+threshold is exposed if that boundary should move.
 
 ### The density guard, per budget
 
@@ -130,6 +144,7 @@ Budget fixed at 1000, sampling at the E13.1 winner, guard 10.
 | run | cell / scope | groups | floor | trainable pairs |
 | --- | --- | ---: | ---: | ---: |
 | E13.3-sheet | `sheet` | 88 | 88 | 998 |
+| E13.3-style | `style` | 35 | 35 | 1,000 |
 | E13.3-era | `era` | 43 | 43 | 1,000 |
 | E13.3-corpus | `corpus` | 9 | 9 | 1,000 |
 

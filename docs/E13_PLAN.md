@@ -45,7 +45,7 @@ trainable pairs**; the 6,238 quoted earlier included the `hameln.3921_2023` dupl
 
 | # | factor | levels | where |
 | --- | --- | --- | --- |
-| 1 | **cell** — which sheets share a retrieval pool | sheet, era, corpus, global | `--cell` / `--scope` |
+| 1 | **cell** — which sheets share a retrieval pool | sheet, style, era, corpus, global | `--cell` / `--scope` |
 | 2 | **sampling** — how the budget is spent inside a cell | uniform, random, fps, fps+guard, kmeans | `--strategy`, `--density-guard` |
 | 3 | **budget** — how many passes | 300, 1000, 3000, 6160 | `--budget` |
 | 4 | **pairing** — how a source is chosen for a target | top-k by similarity (RAG), random from the cell | `src_selection` |
@@ -57,11 +57,18 @@ validated setting; `era` groups the sheets of one corpus drawn within five years
 collapsing 16 survey years into 11, because a shared calendar year across corpora is not a
 shared cartography.
 
-**Style follows the year, not the ground.** Sheets 3821, 3822, 3921 and 3922 surveyed in the
-same year carry the same drawing conventions over different terrain, which is why the cell is
-built from survey period and not from sheet number. Grouping a sheet number across its years —
-1898 with 2017 on the same ground — would put a century of conventions in one pool and is not
-among the levels.
+**No metadata rule fits both corpora, so the default cell is measured.** Hameln is a topographic
+series re-drawn each edition: sheets 3821, 3822, 3921 and 3922 surveyed in the same year sit at
+a mean centroid distance of **0.008**, while one sheet across its years sits at **0.119** — style
+follows the period. The Bayern Positionsblätter are one engraved plate revised for decades and
+run the other way: the same sheet across years is **0.030** and the same year across sheets is
+**0.110**. `bayern.489_1910` and `bayern.489_1939` are visually the same plate 29 years apart,
+while `bayern.519_1910` shares neither look nor engraving with `bayern.489_1910` despite the year.
+
+`--cell style` therefore groups sheets by single-link over their mean embeddings at 0.05 cosine,
+*within* a corpus, and recovers both behaviours from the data: Hameln splits into 1973–1996,
+2002–2005, 2012–2023 and 1898 alone; Bayern pairs 489_1910 with 489_1939 and 490_1910 with
+490_1938. `era` is kept as the metadata-only comparison, and is the wrong rule for Bayern.
 
 Widening the cell is not free in either direction. It lowers the coverage floor — 88 (cell,
 class) combinations at sheet, 43 at era, 9 at corpus — and raises the number of exemplars a
