@@ -9,14 +9,15 @@ the dataset already reads:
 
 The scope decides which annotated tiles may serve as sources:
 
-    subset     only tiles of the same map sheet and year - what all runs so far used, and a
-               setting in which the style is already homogeneous
+    sheet      only tiles of the same map sheet - one corpus, sheet number and survey year;
+               what all runs so far used, and a setting in which the style is homogeneous
     era        all sheets of the same corpus drawn within a few years of each other, which is
                the grouping a budget balanced by (corpus, era, class) is spent over. Matching
                the two matters: with sources restricted to one sheet, a combination the budget
                happened to give a single tile can prompt nothing, since a target is excluded
                from its own pool
     footprint  all years of the same geographic footprint, e.g. every hameln.3921_*
+    corpus     every sheet of one cartographic tradition
     global     every annotated tile in the store, across sheets and years
 
 No dataset change is needed for cross-subset sources: the loader resolves each source name to
@@ -109,6 +110,26 @@ def era_map(subsets, corpus_of=None, max_gap=5):
     return out
 
 
+def group_of(subset, cell, corpus_of=None, eras=None):
+    """The cell a map sheet belongs to - the set of sheets a source may be retrieved from.
+
+    A subset is one map sheet: one corpus, one sheet number, one survey year. The cell widens
+    that to the sheets whose annotations may prompt each other, and it is a single choice, not
+    two: the budget is spread over the cells and retrieval draws inside them. Splitting the two
+    lets them disagree, and then a cell can be given annotations that retrieval will not look
+    at, or asked for exemplars the budget never bought.
+    """
+    if cell == "sheet":
+        return subset
+    if cell == "era":
+        return (eras or {}).get(subset, subset)
+    if cell == "footprint":
+        return footprint_of(subset)
+    if cell == "corpus":
+        return (corpus_of or {}).get(subset, subset)
+    return "global"
+
+
 def load_classes(path):
     """{tile: [classes it was annotated for]} for a selection json, or None for a plain list.
 
@@ -186,8 +207,10 @@ def main():
     parser.add_argument("--source", default="train_samples",
                         help="source sample list per subset, without extension")
     parser.add_argument("--target", default="test_samples", help="target sample list per subset")
-    parser.add_argument("--scope", default="global",
-                        choices=["subset", "era", "footprint", "global"])
+    parser.add_argument("--scope", default="sheet",
+                        choices=["sheet", "era", "footprint", "corpus", "global"],
+                        help="which sheets share a retrieval pool; pass the same value as "
+                             "--cell to select_budget")
     parser.add_argument("-k", type=int, default=8, help="neighbours to record per target and class")
     parser.add_argument("-dkw", "--data-keywords", default=None)
     parser.add_argument("-xkw", "--exclude-keys", default=None)
@@ -233,7 +256,8 @@ def main():
     subsets = [os.path.basename(d) for d in dirs]
     print(f"{len(dirs)} subsets, scope={args.scope}, k={args.k}")
 
-    eras = era_map(subsets, corpus_map(dirs))
+    corpora = corpus_map(dirs)
+    eras = era_map(subsets, corpora)
     # class ratios and the source pool of every subset
     ratios, sources, source_classes = {}, {}, {}
     for subset_dir, subset in zip(dirs, subsets):
@@ -250,8 +274,7 @@ def main():
     # candidate tiles per (scope key, class)
     candidates, unpaid = {}, 0
     for subset, pool in sources.items():
-        keys = {"subset": [subset], "era": [eras[subset]],
-                "footprint": [footprint_of(subset)], "global": ["global"]}[args.scope]
+        keys = [group_of(subset, args.scope, corpora, eras)]
         threshold = fg_threshold(subset, fg_ratio)
         bought = source_classes.get(subset)
         for name in pool:
@@ -279,8 +302,7 @@ def main():
             continue
         targets = [n for n in load_samples(target_path) if n in row_of]
         target_classes = load_classes(target_path)
-        scope_key = {"subset": subset, "era": eras[subset],
-                     "footprint": footprint_of(subset), "global": "global"}[args.scope]
+        scope_key = group_of(subset, args.scope, corpora, eras)
 
         # Only classes the target subset is annotated for. A wider pool offers sources for
         # classes this sheet never annotated - grass for a railway tile, settlement for a

@@ -24,17 +24,17 @@ Strategies:
 Every strategy spends exactly B units, since the budget is the thing held fixed; how a strategy
 distributes them is what it decides.
 
-`--balance` splits the budget into equal quotas over cells - `class`, `corpus`, `corpus-class`
-or `subset-class` - and applies the strategy inside each. It decides *what* gets covered, and
-that is not a detail. Run over the whole pool at once, k-center covers the corpus well, but any
-single class's picks are then only wherever that class happens to meet the global cover, which
-leaves each class's own region patchy and starves a minority class. `--balance corpus-class`
-samples inside each (corpus, class) cell instead, so every cell's latent space is covered on
-its own terms.
+`--cell` says which map sheets share a retrieval pool, and is the same choice as `--scope` in
+`make_pool_pairing`: one sheet, one corpus-era, one footprint, one corpus, or everything. The
+budget is spread over those cells and retrieval draws inside them, so the two must agree - split
+apart they can be given annotations retrieval never looks at, or asked for exemplars the budget
+never bought.
 
-Every pair lands in exactly one cell, so the cells are disjoint and each simply buys its quota;
-a cell too small for its share hands the remainder back to the others. `--balance subset-class
---strategy uniform` is the classic n-per-class-and-subset scheme.
+`--balance` divides the budget over the cells: a quota per (cell, class), per cell, or not at
+all. It decides *what* gets covered, and that is not a detail. Run over the whole pool at once,
+k-center covers the corpus well, but any single class's picks are then only wherever that class
+happens to meet the global cover, which leaves each class's own region patchy and starves a
+minority class. `--cell sheet --strategy uniform` is the classic n-per-class-and-sheet scheme.
 
 Candidates are restricted to pairs whose class actually occupies the tile above the
 foreground threshold. Without that, coverage-seeking strategies drift to sheet borders, blank
@@ -53,7 +53,7 @@ import os
 import numpy as np
 
 from data_tools.indexing.build_global_index import subset_dirs
-from data_tools.indexing.make_pool_pairing import (corpus_map, era_map,
+from data_tools.indexing.make_pool_pairing import (corpus_map, era_map, group_of,
                                                    fg_threshold, load_samples,
                                                    year_of)
 
@@ -257,8 +257,8 @@ def guard_cells(cells, vectors, row_of, percent, neighbours=20, verbose=True):
     return out
 
 
-def cells_of(present_of, balance, corpus_of=None):
-    """Split the pool into cells of (tile, class) pairs, the unit the budget is spent in.
+def cells_of(present_of, cell="sheet", balance="cell-class", corpus_of=None):
+    """Split the pool into groups of (tile, class) pairs, the unit the budget is spent in.
 
     A pair is one class annotated on one tile - one digitising pass - and that is what costs
     money. Counting tiles instead would make the second class on an already-chosen tile free,
@@ -266,44 +266,29 @@ def cells_of(present_of, balance, corpus_of=None):
     labels. So a tile carrying forest and water offers two pairs and costs two units, and it is
     listed in the output only under the classes actually bought for it.
 
-    Every pair lands in exactly one cell, so cells are disjoint and a cell simply buys its
-    quota - there is no credit to carry between them. `corpus-class` is the finest grouping
-    that still leaves a workable number of candidates per cell, and is what makes each class's
-    own region of the embedding get covered rather than only the corpus as a whole.
+    `cell` says which sheets share a retrieval pool; `balance` says how the budget is divided
+    over them. Every pair lands in exactly one group, so the groups are disjoint and each
+    simply buys its quota, with no credit to carry between them.
     """
     eras = era_map(sorted({n.rsplit(".", 1)[0] for n in present_of}), corpus_of)
     cells = {}
     for name, present in present_of.items():
-        subset = name.rsplit(".", 1)[0]
-        corpus = (corpus_of or {}).get(subset, subset)
+        group = group_of(name.rsplit(".", 1)[0], cell, corpus_of, eras)
         for cls in present:
-            if balance == "none":
-                key = ("all",)
-            elif balance == "class":
-                key = (cls,)
-            elif balance == "corpus":
-                key = (corpus,)
-            elif balance == "corpus-class":
-                key = (corpus, cls)
-            elif balance == "year-class":
-                key = (eras[subset], cls)
-            elif balance == "year":
-                key = (eras[subset],)
-            else:                               # subset-class
-                key = (subset, cls)
+            key = {"cell-class": (group, cls), "cell": (group,), "none": ("all",)}[balance]
             cells.setdefault(key, []).append((name, cls))
     return {k: sorted(v) for k, v in cells.items()}
 
 
-def guarded_cells(present_of, vectors, row_of, balance="none", corpus_of=None,
-                  density_guard=0, neighbours=20, verbose=True):
+def guarded_cells(present_of, vectors, row_of, cell="sheet", balance="cell-class",
+                  corpus_of=None, density_guard=0, neighbours=20, verbose=True):
     """The cells a budget is spent over, with each cell's sparsest tail removed."""
-    return guard_cells(cells_of(present_of, balance, corpus_of), vectors, row_of,
+    return guard_cells(cells_of(present_of, cell, balance, corpus_of), vectors, row_of,
                        density_guard, neighbours, verbose)
 
 
-def select(present_of, vectors, row_of, budget, strategy, balance="none", corpus_of=None,
-           density_guard=0, min_per_group=1, floor_scope="subset", seed=2026, verbose=True):
+def select(present_of, vectors, row_of, budget, strategy, cell="sheet", balance="cell-class",
+           corpus_of=None, density_guard=0, min_per_group=1, seed=2026, verbose=True):
     """Spend `budget` annotation units under `strategy`. Returns sorted (tile, class) pairs.
 
     One unit is one class annotated on one tile - one digitising pass - so a tile carrying two
@@ -318,7 +303,7 @@ def select(present_of, vectors, row_of, budget, strategy, balance="none", corpus
     which leaves each class's own region patchy. Splitting first and sampling inside each cell
     is what makes the selection cover every cell's latent space rather than the union's.
     """
-    cells = guarded_cells(present_of, vectors, row_of, balance, corpus_of,
+    cells = guarded_cells(present_of, vectors, row_of, cell, balance, corpus_of,
                           density_guard, verbose=verbose)
     available = sum(len(pairs) for pairs in cells.values())     # cells are disjoint in pairs
     budget = min(budget, available)
@@ -388,7 +373,7 @@ def select(present_of, vectors, row_of, budget, strategy, balance="none", corpus
         # retrieving per sheet needs a floor per sheet; matching the two needs only a floor
         # per era, which over this corpus is 43 combinations rather than 88.
         eras = era_map(sorted({n.rsplit(".", 1)[0] for n in present_of}), corpus_of)
-        scope_of = (lambda sub: sub) if floor_scope == "subset" else (lambda sub: eras[sub])
+        scope_of = lambda sub: group_of(sub, cell, corpus_of, eras)
         groups = {}
         for pairs in cells.values():
             for tile, cls in pairs:
@@ -404,11 +389,11 @@ def select(present_of, vectors, row_of, budget, strategy, balance="none", corpus
             selected += choose(sorted(groups.get(key) or every[key]), min_per_group, [])
         if verbose:
             print(f"floor: {len(selected)} pairs reserved, {min_per_group} per "
-                  f"({floor_scope}, class) over {len(every)} combinations")
+                  f"({cell}, class) over {len(every)} combinations")
         if len(selected) > budget:
-            raise SystemExit(f"budget {budget} cannot cover {len(every)} ({floor_scope}, class) "
+            raise SystemExit(f"budget {budget} cannot cover {len(every)} ({cell}, class) "
                              f"combinations at {min_per_group} each; raise it to "
-                             f"{len(selected)} or lower --min-per-subset-class")
+                             f"{len(selected)} or lower --min-per-cell-class")
 
     for key in order:
         taken = set(selected)
@@ -451,12 +436,16 @@ def main():
                              "every strategy spends exactly this many")
     parser.add_argument("--strategy", default="kcenter",
                         choices=["uniform", "random", "kcenter", "fps", "fps-medoid", "kmeans"])
-    parser.add_argument("--balance", default="none",
-                        choices=["none", "class", "corpus", "year", "corpus-class", "year-class",
-                                 "subset-class"],
-                        help="split the budget into equal quotas over these cells and apply "
-                             "the strategy within each; 'corpus-class' is what covers every "
-                             "class's own region of the embedding rather than only the union")
+    parser.add_argument("--cell", default="sheet",
+                        choices=["sheet", "era", "footprint", "corpus", "global"],
+                        help="which sheets share a retrieval pool. One sheet is one corpus, "
+                             "sheet number and survey year; 'era' widens it to the sheets of "
+                             "one corpus drawn within five years of each other. Pass the same "
+                             "value as --scope to make_pool_pairing")
+    parser.add_argument("--balance", default="cell-class",
+                        choices=["cell-class", "cell", "none"],
+                        help="how the budget is divided over the cells: a quota per (cell, "
+                             "class), per cell, or not at all")
     parser.add_argument("--pool", default="train_samples",
                         help="sample list the budget may be spent from")
     parser.add_argument("-dkw", "--data-keywords", default=None)
@@ -466,12 +455,8 @@ def main():
     parser.add_argument("--density-guard", type=float, default=0,
                         help="drop the sparsest N%% of each cell from candidacy first; 10 "
                              "stops farthest-point sampling spending the budget on outliers")
-    parser.add_argument("--floor-scope", default="subset", choices=["subset", "era"],
-                        help="the grouping the floor guarantees; must match the --scope used "
-                             "for make_pool_pairing, or a covered combination still has no "
-                             "exemplar where retrieval looks for one")
-    parser.add_argument("--min-per-subset-class", type=int, default=1,
-                        help="floor of pairs per (subset, class), spent before the strategy. "
+    parser.add_argument("--min-per-cell-class", type=int, default=1,
+                        help="floor of pairs per (cell, class), spent before the strategy. "
                              "1 keeps every run's evaluation set identical; 2 also makes every "
                              "bought pair trainable, at a much larger share of a small budget")
     parser.add_argument("--val-fraction", type=float, default=0.0,
@@ -498,10 +483,9 @@ def main():
           f"tiles in {len(dirs)} subsets")
 
     selected = select(present_of, vectors, row_of, args.budget, args.strategy,
-                      balance=args.balance, corpus_of=corpus_map(dirs),
+                      cell=args.cell, balance=args.balance, corpus_of=corpus_map(dirs),
                       density_guard=args.density_guard,
-                      min_per_group=args.min_per_subset_class,
-                      floor_scope=args.floor_scope, seed=args.seed)
+                      min_per_group=args.min_per_cell_class, seed=args.seed)
 
     # The validation split comes out of the budget, not from extra labels: choosing the
     # iteration count needs a held-out signal, and borrowing an annotated set from outside
@@ -535,7 +519,7 @@ def main():
     tiles = {t for t, _ in selected}
     subsets_hit = {t.rsplit(".", 1)[0] for t in tiles}
     print(f"strategy={args.strategy}"
-          f"{'' if args.balance == 'none' else ' balanced by ' + args.balance} "
+          f" cell={args.cell} balance={args.balance} "
           f"budget={len(selected)}: {len(selected)} pairs over {len(tiles)} tiles, "
           f"{len(subsets_hit)}/{len(dirs)} subsets covered")
     for cls in all_classes:
@@ -543,7 +527,7 @@ def main():
 
     name = args.name or (f"budget_{args.strategy}"
                          f"{'' if not args.density_guard else f'_g{args.density_guard:g}'}"
-                         f"{'' if args.balance == 'none' else '_' + args.balance.replace('-', '')}"
+                         f"_{args.cell}{'' if args.balance == 'cell-class' else '_' + args.balance}"
                          f"_{args.budget}")
     if args.dry_run:
         print("\n(dry run, nothing written)")
