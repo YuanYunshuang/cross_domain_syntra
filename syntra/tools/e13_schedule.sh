@@ -29,7 +29,7 @@ export PYTHONPATH=.
 # name | strategy | cell | guard | budget
 # Experiment 1 first: the same number of training pairs as the n-shot scheme, chosen differently.
 RUNS=(
-  "e13x1_fps_b6154   fps      sheet  15  6154"
+  "e13x1_fps_b6154   fps      sheet   0  6154"
   "e13x1_unif_b6154  uniform  sheet   0  6154"
 )
 # Experiments 2-4 follow, anchored on whichever arm of experiment 1 wins; see docs/E13_PLAN.md.

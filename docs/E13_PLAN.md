@@ -77,11 +77,32 @@ conventions:
 | arm | cell | sampling | passes | training pairs |
 | --- | --- | --- | ---: | ---: |
 | baseline | sheet | uniform (`cls_selection_100`) | 6,238 | 6,154 |
-| proposed | sheet | fps + density guard | 6,154 | 6,154 |
+| proposed | sheet | fps, no density guard | 6,154 | 6,154 |
 
 Held at `cell=sheet` so this is a clean one-factor change against the validated configuration.
 If the proposed arm wins here, the sampling strategy earns its place before any other factor
 moves; if it does not, nothing downstream is worth running.
+
+**No density guard, because at this budget there is nothing to guard against.** Farthest-point
+sampling buys the periphery only when it can afford to be choosy. Re-measured at `cell=sheet`
+against a density-neutral reference — random selection under the same cell and balance:
+
+| guard | B=300 | B=1000 | B=6154 |
+| ---: | ---: | ---: | ---: |
+| 0 | 2.0x | 2.4x | **1.3x** |
+| 5 | 1.3x | 1.5x | 0.8x |
+| 10 | 1.1x | 1.1x | 0.5x |
+| 15 | 1.0x | 0.9x | 0.4x |
+
+6,154 of 12,918 candidate pairs is 48% of the pool: the walk has to take nearly half of
+everything, so it cannot concentrate on outliers, and unguarded it already sits at the neutral
+reference. Setting g=15 there would discard a further 15% of the candidates for no gain and push
+the selection to 0.4x, under-representing sparse regions rather than over-representing them.
+
+The guard is a small-budget instrument, and its level belongs to the budget rather than to the
+method: g=5 at B=300, g=10 at B=1000, none at B=6154, all at `cell=sheet`. The earlier g=15 was
+calibrated at `cell=corpus` under a 300-pass budget and does not transfer. E13.2 has to state
+which it uses at each rung, or the budget ladder measures the guard as much as the budget.
 
 ## Experiments 2–4 — one factor at a time
 
@@ -118,9 +139,11 @@ runs**, ~10 h each. On the 4090 alone that is about four days; the 3090 halves i
 
 ## Open
 
-- **The density guard level.** g=15 was calibrated at `cell=corpus` under the pair budget. The
-  guard cuts within cells, so its effect changes with the cell definition and it should be
-  re-checked at `cell=sheet` before experiment 1 rather than carried over.
+- **The guard on the budget ladder.** No single guard level is neutral across E13.2's rungs,
+  because the outlier pull itself falls as the budget takes more of the pool. Either vary it per
+  rung and state that the ladder holds "neutral density" fixed rather than the guard, or fix it
+  at one value and report where the selection sits against the reference at each rung. Deciding
+  after seeing the curve would be choosing on the outcome.
 - **Cross-class negatives.** The rule above says a pass buys nothing about other classes. If the
   annotation protocol is really "label this tile completely", the unit is the tile, negatives are
   free, and both the budget and this plan change. Decide it before annotating anything for real.
