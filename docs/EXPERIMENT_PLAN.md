@@ -2,9 +2,17 @@
 
 ## 0. Objective
 
-**Segment historical maps to the highest accuracy for the fewest annotated tiles.** Everything
+**Segment historical maps to the highest accuracy for the fewest annotation passes.** Everything
 below is judged against that: a change earns its place if it raises accuracy at a fixed
 annotation budget, or holds accuracy at a smaller one.
+
+**The unit is one annotation pass: one class digitised on one tile.** Not one tile. A tile
+carrying forest and water costs two passes, because it is two turns round the sheet for the
+annotator and two training samples for the model - `cd_syntra2.py` builds each sample as a
+binary mask for the class it was drawn for, with every other class's pixels as negatives.
+Counting tiles instead makes the second class on a tile free, which quietly inflates any budget:
+on the E13 selection at B=300 it would hand the training set 134 class-instances nobody paid
+for, about a third again on top of the stated budget.
 
 Retrieval is *one mechanism* for that, not the goal. It matters here because it lets a single
 annotated tile serve many targets - at k=1 choosing the exemplar by similarity is worth +0.6 to
@@ -15,12 +23,19 @@ buys 1.26 mIoU less than subset-pool training on the identical mixture (82.38 vs
 
 **Two budgets, kept separate.** They trade off differently and must not be conflated:
 
-1. *Training budget* - tiles needed to train the model once. Current evidence: SYNTRA at
+1. *Training budget* - passes needed to train the model once. Current evidence: SYNTRA at
    100-shot reaches 85.89 mIoU where SMOL-Uni on the full training set reaches 82.6, so fewer
    labels already beat more.
-2. *Adaptation budget* - tiles needed to bring an existing model to a new sheet or year. Current
-   evidence: the unseen 1960 sheet reaches ~60 mIoU from a pool of 10-100 annotated tiles with
-   no gradient step.
+2. *Adaptation budget* - passes needed to bring an existing model to a new sheet or year.
+   Current evidence: the unseen 1960 sheet reaches ~60 mIoU from a pool of 10-100 annotated
+   tiles with no gradient step.
+
+**Numbers quoted in tiles have not all been re-counted.** The unit changed on 2026-08-03, and
+only the E13 selection figures are stated in passes. Where an older result says "n-shot" or "a
+pool of n tiles" it still means tiles, and converting it is not a multiplication - it depends on
+how many classes those particular tiles carry. `cls_selection_100`, the n-shot baseline, is
+**6,238 passes over 4,887 tiles** across the 25 hismap subsets, so the ratio there is 1.28. Any
+figure that puts a budget on the x-axis has to fix one unit and say which.
 
 **Priorities that follow.** E10 (budget curve per style gap) and E11 (which tiles to annotate, at
 a fixed budget) become the main experiments rather than ablations; E12 turns "annotate more" into
@@ -257,17 +272,27 @@ understates false positives and, as the E1 sweep showed, can hide the retrieval 
 
 ## 3d. E13 - training-sample selection under a fixed budget
 
-**The question.** Given a total budget of N annotated tiles, which N should be labelled so that
-one model trained on them performs best across *all* test samples of *all* subsets? No sheet is
-held out; every subset is available to select from and every subset is evaluated.
+**The question.** Given a total budget of N annotation passes - N classes digitised, each on
+some tile - which N should be labelled so that one model trained on them performs best across
+*all* test samples of *all* subsets? No sheet is held out; every subset is available to select
+from and every subset is evaluated.
 
 This is the objective of section 0 stated directly, and it is the training budget rather than the
 adaptation budget. The retrieval pool is held fixed at subset scope throughout, so selection is
 the only variable.
 
-**Budgets.** The current n-shot baseline, cls_selection_100, is uniform per class and subset and
-comes to roughly 2,900 tiles. Budgets of 300 / 1,000 / 3,000 therefore bracket it and make the
-comparison legible: does a well-chosen 300 match a uniform 2,900?
+**Budgets. The "roughly 2,900 tiles" written here was wrong, whatever unit it meant.** Counted
+from the files, `cls_selection_100` is uniform per class and subset and comes to **6,238 passes
+over 4,887 tiles** across the 25 hismap subsets (Hameln 5,170 over 4,055; Bayern 1,068 over 832;
+Siegfried adds 200 more of each). No scope of the corpus produces 2,900 of anything, so the
+figure was an estimate that was never checked, and 300 / 1,000 / 3,000 does not bracket the
+baseline - 3,000 is under half of it.
+
+That does not by itself condemn the ladder: the interesting claim is that a well-chosen few
+hundred passes matches a uniform 6,238, and 300 / 1,000 / 3,000 spans the region where that
+either holds or fails. But it has to be stated as "does a well-chosen 300 match a uniform
+6,238", a 21x reduction rather than the 10x implied before, and any figure with the baseline on
+it must plot it at 6,238. Whether to add a fourth budget nearer the baseline is open.
 
 **Strategies**, all implemented in `data_tools/indexing/select_budget.py`:
 
@@ -494,9 +519,9 @@ the sparse fringe is saturated, which is the outlier-chasing risk made visible.
 to the 6 that answer the question: uniform and kcenter and kmeans at 300 and 1,000, with random
 at 300 as the floor. Evaluation is the full test set of every subset, identical for all runs.
 
-**What the result would say.** If a coverage-selected 300 matches a uniform 2,900, the paper's
-headline is that most annotation in this corpus is redundant, and the diagnostic from E12 tells a
-practitioner which tiles are worth their time.
+**What the result would say.** If a coverage-selected 300 passes matches a uniform 6,238, the
+paper's headline is that most annotation in this corpus is redundant, and the diagnostic from
+E12 tells a practitioner which tiles are worth their time.
 
 ### E13 - what to actually run
 
