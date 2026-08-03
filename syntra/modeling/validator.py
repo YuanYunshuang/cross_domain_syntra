@@ -1,80 +1,61 @@
-import copy
-import torch
 import numpy as np
+import torch
 
 from ..tools.eval import Evaluator
 
 
 class Validator:
+    """Score a model on a held-out pairing file, the way `test.py` scores it.
+
+    This used to call the model as `model(img_src, lbl_src, img_tgt)` straight off the
+    dataloader, without the `prepare_inputs` step the efficient dataset needs, which reached the
+    prompt encoder with a mask of the wrong rank and raised on the first validation. It also
+    looped over a hard-coded `{dataset: [label ids]}` table without using the label for
+    anything - so each dataset was evaluated three or four times over - and returned `ious[9]`,
+    an index that happens to be the mean only while the corpus has exactly nine dataset-label
+    combinations.
+
+    The loop below is the one in `test.py`: same call, same squeeze, same per-class accounting
+    through the evaluator's `meta`, so a validation number and a test number mean the same thing.
+    """
+
     def __init__(self, dataloader, device):
         self.dataloader = dataloader
-        self.dataset = self.dataloader.dataset
+        self.dataset = dataloader.dataset
         self.device = device
-        self.data_list = copy.deepcopy(self.dataset.file_list)
-        self.dataset_list = {'hameln': [1, 2, 3, 4],
-                             'bayern': [1, 2, 4],
-                             'siegfried.railway': [1],
-                             'siegfried.vineyard': [2]}
-        self.data_dict = {x: [] for x in self.dataset_list.keys()}
-
-        for ds in self.dataset_list.keys():
-            for d in self.data_list:
-                if ds in d:
-                    self.data_dict[ds].append(d)
 
     def validate(self, model):
-        results = {}
-        for dataset, cur_samples in self.data_dict.items():
-            self.dataset.file_list = cur_samples
-            results[dataset] = {}
-            for label in self.dataset_list[dataset]:
-                evaluator = Evaluator()
-                with (torch.no_grad()):
-                    for step, data in enumerate(self.dataloader):
-                        img_src, lbl_src, img_tgt, lbl_tgt = [d.to(self.device) for d in data[:4]]
-                        mapsam_pred = model(img_src, lbl_src, img_tgt)
-                        lbl_pred = mapsam_pred.sigmoid()
-                        evaluator.add_sample(lbl_pred.squeeze(1), lbl_tgt)
+        evaluator = Evaluator()
+        model.eval()
+        with torch.no_grad():
+            for data in self.dataloader:
+                img_src, lbl_src, img_tgt, lbl_tgt = [d.to(self.device) for d in data[:4]]
+                meta = data[4] if len(data) > 4 else None
+                if hasattr(self.dataset, "prepare_inputs"):
+                    img_src, lbl_src, img_tgt, lbl_tgt, meta = self.dataset.prepare_inputs(
+                        img_src, lbl_src, img_tgt, lbl_tgt, meta)
+                pred = model(img_src, lbl_src, img_tgt).sigmoid()
+                evaluator.add_sample(pred.squeeze(2), lbl_tgt, meta=meta)
+        model.train()
 
-                avg_eval = evaluator.eval()
-                results[dataset][label] = avg_eval
+        per_class = evaluator.eval()
+        names = sorted(per_class)
+        ious = [float(per_class[n][0]) for n in names]
+        mean_iou = float(np.mean(ious)) if ious else 0.0
+        rows = [
+            ("IoU", ious),
+            ("Prec", [float(per_class[n][1]) for n in names]),
+            ("Rec", [float(per_class[n][2]) for n in names]),
+        ]
+        return mean_iou, per_class, self.draw_txt_table(names + ["mean"], rows, mean_iou)
 
-        ious = []
-        precisions = []
-        recalls = []
-        for dataset, result in results.items():
-            for label, res in result.items():
-                ious.append(res[0].item())
-                precisions.append(res[1].item())
-                recalls.append(res[2].item())
-        ious.append(np.mean(ious))
-        precisions.append(np.mean(precisions))
-        recalls.append(np.mean(recalls))
-
-        results = [ious, precisions, recalls]
-        results_str = self.draw_txt_table(
-            ['H1', 'H2', 'H3', 'H4', 'D1', 'D2', 'D4', 'RW', 'VY', 'mean'],
-            results,
-        )
-        return ious[9], results, results_str
-
-    def draw_txt_table(self, header, results, col_width=10):
-        num_columns = 11
-
-        rows = [header]
-        for res in results:
-            rows.append([f"{x * 100:.2f}" for x in res])
-
-        for i, k in enumerate(['Data', 'IoU', 'Prec', 'Rec']):
-            rows[i] = [k] + rows[i]
-
-        # Create horizontal border
-        horizontal_border = '+' + '+'.join(['-' * col_width] * num_columns) + '+'
-
-        # Build the table
-        table = horizontal_border + '\n'
-        for row in rows:
-            row_line = '|'.join(cell.center(col_width) for cell in row)
-            table += f"|{row_line}|\n"
-            table += horizontal_border + '\n'
+    def draw_txt_table(self, header, rows, mean_iou, col_width=12):
+        lines = [["Data"] + list(header)]
+        for name, values in rows:
+            summary = np.mean(values) if values else 0.0
+            lines.append([name] + [f"{v * 100:.2f}" for v in values] + [f"{summary * 100:.2f}"])
+        border = "+" + "+".join(["-" * col_width] * len(lines[0])) + "+"
+        table = border + "\n"
+        for row in lines:
+            table += "|" + "|".join(str(c).center(col_width) for c in row) + "|\n" + border + "\n"
         return table

@@ -181,11 +181,22 @@ def load_index(path):
 
 
 def build_pool(root_dir, row_of, pool="train_samples", fg_ratio=0.05,
-               keywords=None, exclude=None):
-    """The tiles a budget may be spent on: {tile: [classes present above the threshold]}.
+               keywords=None, exclude=None, absent=False):
+    """The pairs a budget may be spent on: {tile: [classes]}.
 
-    Tiles without an annotated class are dropped, so a coverage-seeking strategy cannot spend
-    the budget on sheet borders and blank scans. Returns (subset dirs, present_of).
+    With `absent=False`, the classes a tile carries above the foreground threshold - the pairs
+    worth digitising. Tiles with none are dropped, so a coverage-seeking strategy cannot spend
+    the budget on sheet borders and blank scans.
+
+    With `absent=True`, the complement: classes the sheet is annotated for that this tile does
+    *not* carry. Checking a tile for water and finding none is still an annotation pass, and it
+    is the only way to buy a negative training sample. Under the pair budget nothing else
+    produces one - a tile bought for forest says nothing about water - so a selection of
+    positives alone trains a model that has never seen the class absent, then meets natural
+    prevalence at test time. The original 100-shot recipe had 10,912 of its 17,753 samples
+    negative, all of them free because the release is exhaustively labelled.
+
+    Returns (subset dirs, {tile: [classes]}).
     """
     dirs = subset_dirs(root_dir, keywords, exclude)
     ratios, present_of = {}, {}
@@ -203,8 +214,13 @@ def build_pool(root_dir, row_of, pool="train_samples", fg_ratio=0.05,
         for name in load_samples(listing):
             if name not in row_of:
                 continue
-            present = [c for c, r in ratios.get(name, {}).items()
-                       if c in classes and r > threshold]
+            if absent:
+                carried = {c for c, r in ratios.get(name, {}).items()
+                           if c in classes and r > threshold}
+                present = sorted(classes - carried)
+            else:
+                present = [c for c, r in ratios.get(name, {}).items()
+                           if c in classes and r > threshold]
             if present:
                 present_of[name] = present
     return dirs, present_of
@@ -467,6 +483,12 @@ def main():
     parser.add_argument("--density-guard", type=float, default=0,
                         help="drop the sparsest N%% of each cell from candidacy first; 10 "
                              "stops farthest-point sampling spending the budget on outliers")
+    parser.add_argument("--negative-fraction", type=float, default=0.0,
+                        help="share of the budget spent checking a tile for a class and finding "
+                             "it absent. Those passes cost annotator time and are the only way "
+                             "to buy a negative training sample; without them the model never "
+                             "sees the class absent. The original recipe was 61%% negative, all "
+                             "of it free from the exhaustively labelled release")
     parser.add_argument("--min-per-cell-class", type=int, default=1,
                         help="floor of pairs per (cell, class), spent before the strategy. "
                              "1 keeps every run's evaluation set identical; 2 also makes every "
@@ -488,16 +510,30 @@ def main():
     vectors, row_of = load_index(args.index)
     dirs, present_of = build_pool(args.root_dir, row_of, args.pool, fg_ratio,
                                   args.data_keywords, args.exclude_keys)
+    corpora = corpus_map(dirs)
+    n_negative = int(round(args.negative_fraction * args.budget))
+    n_positive = args.budget - n_negative
 
     all_classes = sorted({c for present in present_of.values() for c in present})
     candidates = sum(len(p) for p in present_of.values())
     print(f"candidate pool: {candidates} (tile, class) pairs over {len(present_of)} annotated "
           f"tiles in {len(dirs)} subsets")
 
-    selected = select(present_of, vectors, row_of, args.budget, args.strategy,
-                      gap=args.cell_gap, balance=args.balance, corpus_of=corpus_map(dirs),
+    selected = select(present_of, vectors, row_of, n_positive, args.strategy,
+                      gap=args.cell_gap, balance=args.balance, corpus_of=corpora,
                       density_guard=args.density_guard,
                       min_per_group=args.min_per_cell_class, seed=args.seed)
+    if n_negative:
+        # Negatives are chosen the same way, in the same cells, but need no coverage floor:
+        # a negative is never a source, so no combination depends on one existing.
+        _, absent_of = build_pool(args.root_dir, row_of, args.pool, fg_ratio,
+                                  args.data_keywords, args.exclude_keys, absent=True)
+        print(f"negative pool: {sum(len(v) for v in absent_of.values())} (tile, class) pairs "
+              f"where the class is absent")
+        selected += select(absent_of, vectors, row_of, n_negative, args.strategy,
+                           gap=args.cell_gap, balance=args.balance, corpus_of=corpora,
+                           density_guard=args.density_guard, min_per_group=0, seed=args.seed)
+        print(f"bought {n_positive} positive and {n_negative} negative passes")
 
     # The validation split comes out of the budget, not from extra labels: choosing the
     # iteration count needs a held-out signal, and borrowing an annotated set from outside

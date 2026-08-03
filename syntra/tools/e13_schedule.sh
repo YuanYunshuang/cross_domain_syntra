@@ -19,27 +19,44 @@ POOL_ROOT=/home/yuan/data/syntra_e13          # selections and pairings live her
 CFG=syntra/syntra_maps_s100                   # base config; everything else is overridden below
 KW="hismap,siegfried"
 XKW=hameln.3921_2023
+FG=hameln=0.05,bayern=0.05,siegfried=0.01
 SEL_PY=/home/yuan/anaconda3/envs/hismap/bin/python    # data tools: needs sklearn/matplotlib
 TRAIN_PY=/home/yuan/anaconda3/envs/syntra/bin/python  # training: needs torch
 export PYTHONPATH=.
 
+# Experiment 1: the same number of positive training samples as the n-shot scheme, an equal
+# number of negatives, and a different way of choosing them. Gap 0 is sheet-wise, the validated
+# setting, so the selection is the only thing that differs.
+#
+# The n-shot arm is that scheme written out as the passes it consumes - 4,859 tiles, every class
+# of their sheet - with its negatives sampled down to match its positives: 6,801 + 6,697. The
+# proposed arm buys the same 13,498 passes at the same split. The original's 61.5% negative skew
+# was an accident of exhaustive labelling, not a design choice.
+BUDGET=13498
+NEGFRAC=0.49615
+NSHOT=e13x1_nshot
 # name | strategy | cell-gap | guard | budget
-# Experiment 1 first: the same number of training pairs as the n-shot scheme, chosen differently.
-# Gap 0 is sheet-wise, the validated setting, so the selection is the only thing that differs.
-RUNS=(
-  "e13x1_fps_b6160   fps      0  0  6160"
-  "e13x1_unif_b6160  uniform  0  0  6160"
-)
+RUNS=("e13x1_fps  fps  0  0  $BUDGET")
 # Experiments 2-4 follow, anchored on whichever arm of experiment 1 wins; see docs/E13_PLAN.md.
-PILOTS=("e13x1_fps_b6160")                    # calibration uses the run it will be applied to
+PILOTS=("e13x1_fps")                    # calibration uses the run it will be applied to
 
 prepare() {
+  # the n-shot arm: its tiles times every class of their sheet, negatives matched to positives
+  $SEL_PY data_tools/indexing/expand_selection.py -d "$DATA" --source cls_selection_100 \
+    --name "$NSHOT" --output-root "$POOL_ROOT" --fg-ratio "$FG" --val-fraction 0.1 \
+    -dkw "$KW" -xkw "$XKW"
+  for tgt in "$NSHOT" "${NSHOT}_val" "test_samples"; do
+    $SEL_PY data_tools/indexing/make_pool_pairing.py -d "$POOL_ROOT" --index "$INDEX" \
+      --source "$NSHOT" --target "$tgt" --cell-gap 0 -k 8 -dkw "$KW" -xkw "$XKW" --suffix gap0
+  done
+
   for spec in "${RUNS[@]}"; do
     read -r name strat gap guard budget <<< "$spec"
     echo "=== $name: $strat / cell-gap $gap / guard $guard / B=$budget ==="
     $SEL_PY data_tools/indexing/select_budget.py -d "$DATA" --index "$INDEX" \
       --budget "$budget" --strategy "$strat" --density-guard "$guard" \
       --cell-gap "$gap" --min-per-cell-class 1 --val-fraction 0.1 \
+      --negative-fraction "$NEGFRAC" \
       --name "$name" --output-root "$POOL_ROOT" -dkw "$KW" -xkw "$XKW"
     # Sources are the run's own annotations: what you did not pay to label you cannot prompt
     # with either. The pairing gap matches the selection gap - they are one decision.
@@ -89,7 +106,7 @@ pilot() {
 
 # Phase 3: set from the pilots before running `ladder`. 100000 is the pre-calibration default
 # and is deliberately left obviously provisional.
-declare -A ITERS=( [e13x1_fps_b6160]=100000 [e13x1_unif_b6160]=100000 )
+declare -A ITERS=( [e13x1_fps]=100000 [e13x1_nshot]=100000 )
 
 ladder() {
   for spec in "${RUNS[@]}"; do
