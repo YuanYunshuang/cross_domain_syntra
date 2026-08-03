@@ -53,7 +53,9 @@ import os
 import numpy as np
 
 from data_tools.indexing.build_global_index import subset_dirs
-from data_tools.indexing.make_pool_pairing import fg_threshold, load_samples
+from data_tools.indexing.make_pool_pairing import (corpus_map, era_map,
+                                                   fg_threshold, load_samples,
+                                                   year_of)
 
 INVALID_CLS = ("background", "nonlabeled")
 
@@ -255,68 +257,6 @@ def guard_cells(cells, vectors, row_of, percent, neighbours=20, verbose=True):
     return out
 
 
-def corpus_map(dirs):
-    """{subset: corpus} - hameln / bayern / siegfried.
-
-    The hismap sheets are named `<corpus>.<sheet>_<year>`, so the prefix is the corpus. The
-    Siegfried subsets are named for their class instead - `railway`, `vineyard` - and only the
-    parent directory says what they are.
-    """
-    out = {}
-    for d in dirs:
-        subset = os.path.basename(d)
-        out[subset] = (subset.split(".")[0] if "." in subset
-                       else os.path.basename(os.path.dirname(d)))
-    return out
-
-
-def year_of(subset):
-    """The survey year of a sheet, from `<corpus>.<sheet>_<year>`.
-
-    Cartographic style is a property of when a sheet was drawn, not of which footprint it
-    covers: `hameln.3821_1974` and `hameln.3922_1974` are the same drawing conventions over
-    different ground. Subsets with no year in their name - the Siegfried `railway` and
-    `vineyard` sets - stand for themselves.
-    """
-    tail = subset.rsplit("_", 1)[-1]
-    return tail if tail.isdigit() else subset
-
-
-def era_map(subsets, corpus_of=None, max_gap=5):
-    """{subset: era} - survey years less than `max_gap` apart, within one corpus, share a cell.
-
-    A revision a year or two after the last one is the same drawing conventions, so treating
-    1973, 1974 and 1975 as three cells splits a quota three ways over what is stylistically one
-    thing, and hands three times the budget to a decade the archive happens to have surveyed
-    often. Chaining years while each gap is under `max_gap` collapses them into eras.
-
-    The chaining runs *inside* each corpus and the era is qualified by it, because a shared
-    calendar year is not a shared cartography: a Hameln sheet and a Bayern sheet drawn in the
-    same decade follow different conventions and belong in different cells. Subsets with no
-    year - the Siegfried sets - stand for themselves.
-    """
-    out = {}
-    by_corpus = {}
-    for subset in subsets:
-        by_corpus.setdefault((corpus_of or {}).get(subset, subset), []).append(subset)
-    for corpus, members in by_corpus.items():
-        years = sorted({int(year_of(s)) for s in members if year_of(s).isdigit()})
-        label, era = {}, []
-        for year in years:
-            if era and year - era[-1] >= max_gap:
-                span = f"{era[0]}-{era[-1]}" if len(era) > 1 else f"{era[0]}"
-                label.update({y: span for y in era})
-                era = []
-            era.append(year)
-        if era:
-            span = f"{era[0]}-{era[-1]}" if len(era) > 1 else f"{era[0]}"
-            label.update({y: span for y in era})
-        for s in members:
-            year = year_of(s)
-            out[s] = f"{corpus}.{label[int(year)]}" if year.isdigit() else s
-    return out
-
-
 def cells_of(present_of, balance, corpus_of=None):
     """Split the pool into cells of (tile, class) pairs, the unit the budget is spent in.
 
@@ -363,7 +303,7 @@ def guarded_cells(present_of, vectors, row_of, balance="none", corpus_of=None,
 
 
 def select(present_of, vectors, row_of, budget, strategy, balance="none", corpus_of=None,
-           density_guard=0, min_per_group=1, seed=2026, verbose=True):
+           density_guard=0, min_per_group=1, floor_scope="subset", seed=2026, verbose=True):
     """Spend `budget` annotation units under `strategy`. Returns sorted (tile, class) pairs.
 
     One unit is one class annotated on one tile - one digitising pass - so a tile carrying two
@@ -443,24 +383,30 @@ def select(present_of, vectors, row_of, budget, strategy, balance="none", corpus
     # its own source pool and a lone tile can prompt nothing.
     selected = []
     if min_per_group:
+        # The floor groups by whatever the retrieval scope will be, because that is what
+        # decides which combinations need an exemplar of their own. Balancing by era and then
+        # retrieving per sheet needs a floor per sheet; matching the two needs only a floor
+        # per era, which over this corpus is 43 combinations rather than 88.
+        eras = era_map(sorted({n.rsplit(".", 1)[0] for n in present_of}), corpus_of)
+        scope_of = (lambda sub: sub) if floor_scope == "subset" else (lambda sub: eras[sub])
         groups = {}
         for pairs in cells.values():
             for tile, cls in pairs:
-                groups.setdefault((tile.rsplit(".", 1)[0], cls), []).append((tile, cls))
+                groups.setdefault((scope_of(tile.rsplit(".", 1)[0]), cls), []).append((tile, cls))
         # The density guard cuts per (corpus, class) and can empty a (subset, class) subgroup
         # outright, which would lose the very combination the floor exists to protect. Coverage
         # wins: for those, and only those, fall back to the unguarded candidates.
         every = {}
         for tile, present in present_of.items():
             for cls in present:
-                every.setdefault((tile.rsplit(".", 1)[0], cls), []).append((tile, cls))
+                every.setdefault((scope_of(tile.rsplit(".", 1)[0]), cls), []).append((tile, cls))
         for key in sorted(every):
             selected += choose(sorted(groups.get(key) or every[key]), min_per_group, [])
         if verbose:
-            print(f"floor: {len(selected)} pairs reserved, {min_per_group} per (subset, class) "
-                  f"over {len(groups)} combinations")
+            print(f"floor: {len(selected)} pairs reserved, {min_per_group} per "
+                  f"({floor_scope}, class) over {len(every)} combinations")
         if len(selected) > budget:
-            raise SystemExit(f"budget {budget} cannot cover {len(groups)} (subset, class) "
+            raise SystemExit(f"budget {budget} cannot cover {len(every)} ({floor_scope}, class) "
                              f"combinations at {min_per_group} each; raise it to "
                              f"{len(selected)} or lower --min-per-subset-class")
 
@@ -520,6 +466,10 @@ def main():
     parser.add_argument("--density-guard", type=float, default=0,
                         help="drop the sparsest N%% of each cell from candidacy first; 10 "
                              "stops farthest-point sampling spending the budget on outliers")
+    parser.add_argument("--floor-scope", default="subset", choices=["subset", "era"],
+                        help="the grouping the floor guarantees; must match the --scope used "
+                             "for make_pool_pairing, or a covered combination still has no "
+                             "exemplar where retrieval looks for one")
     parser.add_argument("--min-per-subset-class", type=int, default=1,
                         help="floor of pairs per (subset, class), spent before the strategy. "
                              "1 keeps every run's evaluation set identical; 2 also makes every "
@@ -550,7 +500,8 @@ def main():
     selected = select(present_of, vectors, row_of, args.budget, args.strategy,
                       balance=args.balance, corpus_of=corpus_map(dirs),
                       density_guard=args.density_guard,
-                      min_per_group=args.min_per_subset_class, seed=args.seed)
+                      min_per_group=args.min_per_subset_class,
+                      floor_scope=args.floor_scope, seed=args.seed)
 
     # The validation split comes out of the budget, not from extra labels: choosing the
     # iteration count needs a held-out signal, and borrowing an annotated set from outside

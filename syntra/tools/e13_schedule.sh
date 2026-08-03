@@ -17,6 +17,8 @@ DATA=/home/yuan/data/syntra
 INDEX=$DATA/global_index.npz
 POOL_ROOT=/home/yuan/data/syntra_e13          # selections and pairings live here, not in $DATA
 CFG=syntra/syntra_maps_s100                   # base config; everything else is overridden below
+SCOPE=era                                     # retrieval scope; matches the (corpus, era, class)
+                                              # cells, and is identical for every run
 KW="hismap,siegfried"
 XKW=hameln.3921_2023
 SEL_PY=/home/yuan/anaconda3/envs/hismap/bin/python    # data tools: needs sklearn/matplotlib
@@ -41,18 +43,18 @@ prepare() {
     echo "=== $name: $strat / $bal / guard $guard / B=$budget ==="
     $SEL_PY data_tools/indexing/select_budget.py -d "$DATA" --index "$INDEX" \
       --budget "$budget" --strategy "$strat" --balance "$bal" --density-guard "$guard" \
-      --min-per-subset-class 1 --val-fraction 0.1 \
+      --min-per-subset-class 1 --floor-scope "$SCOPE" --val-fraction 0.1 \
       --name "$name" --output-root "$POOL_ROOT" -dkw "$KW" -xkw "$XKW"
     # Sources are the run's own annotations: what you did not pay to label you cannot prompt
     # with either. Scope stays subset-local, so selection is the only variable across runs.
     for tgt in "$name" "${name}_val"; do
       $SEL_PY data_tools/indexing/make_pool_pairing.py -d "$POOL_ROOT" --index "$INDEX" \
-        --source "$name" --target "$tgt" --scope subset -k 8 -dkw "$KW" --suffix subset
+        --source "$name" --target "$tgt" --scope "$SCOPE" -k 8 -dkw "$KW" --suffix "$SCOPE"
     done
     # test targets come from the dataset's own test lists, so they must be visible to the tool
     $SEL_PY data_tools/indexing/make_pool_pairing.py -d "$DATA" --index "$INDEX" \
-      --source "$name" --target test_samples --scope subset -k 8 -dkw "$KW" -xkw "$XKW" \
-      --output-root "$POOL_ROOT" --suffix subset || true
+      --source "$name" --target test_samples --scope "$SCOPE" -k 8 -dkw "$KW" -xkw "$XKW" \
+      --output-root "$POOL_ROOT" --suffix "$SCOPE" || true
   done
 }
 
@@ -79,8 +81,8 @@ pilot() {
   for name in "${PILOTS[@]}"; do
     local itr=100000
     [ "$name" = "e13_unif_b6238" ] && itr=150000
-    train "${name}_pilot" "sample_pair_${name}_${name}_subset" \
-          "sample_pair_${name}_${name}_val_subset" "$itr" constant
+    train "${name}_pilot" "sample_pair_${name}_${name}_${SCOPE}" \
+          "sample_pair_${name}_${name}_val_${SCOPE}" "$itr" constant
   done
   echo
   echo "Now read logs/<task>/val_curve.txt: take the smallest iteration count within 0.5 mIoU"
@@ -99,9 +101,9 @@ declare -A ITERS=(
 ladder() {
   for spec in "${RUNS[@]}"; do
     read -r name _ _ _ _ <<< "$spec"
-    train "$name" "sample_pair_${name}_${name}_subset" \
-          "sample_pair_${name}_${name}_val_subset" "${ITERS[$name]}" exp
-    run_test "$name" "sample_pair_${name}_test_samples_subset"
+    train "$name" "sample_pair_${name}_${name}_${SCOPE}" \
+          "sample_pair_${name}_${name}_val_${SCOPE}" "${ITERS[$name]}" exp
+    run_test "$name" "sample_pair_${name}_test_samples_${SCOPE}"
   done
   $SEL_PY syntra/tools/collect_results.py logs -o results/e13_runs.csv || true
 }

@@ -11,6 +11,11 @@ The scope decides which annotated tiles may serve as sources:
 
     subset     only tiles of the same map sheet and year - what all runs so far used, and a
                setting in which the style is already homogeneous
+    era        all sheets of the same corpus drawn within a few years of each other, which is
+               the grouping a budget balanced by (corpus, era, class) is spent over. Matching
+               the two matters: with sources restricted to one sheet, a combination the budget
+               happened to give a single tile can prompt nothing, since a target is excluded
+               from its own pool
     footprint  all years of the same geographic footprint, e.g. every hameln.3921_*
     global     every annotated tile in the store, across sheets and years
 
@@ -40,6 +45,68 @@ def footprint_of(subset):
         head, tail = subset.rsplit(".", 1)
         return f"{head}.{tail.split('_')[0]}"
     return subset
+
+
+def corpus_map(dirs):
+    """{subset: corpus} - hameln / bayern / siegfried.
+
+    The hismap sheets are named `<corpus>.<sheet>_<year>`, so the prefix is the corpus. The
+    Siegfried subsets are named for their class instead - `railway`, `vineyard` - and only the
+    parent directory says what they are.
+    """
+    out = {}
+    for d in dirs:
+        subset = os.path.basename(d)
+        out[subset] = (subset.split(".")[0] if "." in subset
+                       else os.path.basename(os.path.dirname(d)))
+    return out
+
+
+def year_of(subset):
+    """The survey year of a sheet, from `<corpus>.<sheet>_<year>`.
+
+    Cartographic style is a property of when a sheet was drawn, not of which footprint it
+    covers: `hameln.3821_1974` and `hameln.3922_1974` are the same drawing conventions over
+    different ground. Subsets with no year in their name - the Siegfried `railway` and
+    `vineyard` sets - stand for themselves.
+    """
+    tail = subset.rsplit("_", 1)[-1]
+    return tail if tail.isdigit() else subset
+
+
+def era_map(subsets, corpus_of=None, max_gap=5):
+    """{subset: era} - survey years less than `max_gap` apart, within one corpus, share a cell.
+
+    A revision a year or two after the last one is the same drawing conventions, so treating
+    1973, 1974 and 1975 as three cells splits a quota three ways over what is stylistically one
+    thing, and hands three times the budget to a decade the archive happens to have surveyed
+    often. Chaining years while each gap is under `max_gap` collapses them into eras.
+
+    The chaining runs *inside* each corpus and the era is qualified by it, because a shared
+    calendar year is not a shared cartography: a Hameln sheet and a Bayern sheet drawn in the
+    same decade follow different conventions and belong in different cells. Subsets with no
+    year - the Siegfried sets - stand for themselves.
+    """
+    out = {}
+    by_corpus = {}
+    for subset in subsets:
+        by_corpus.setdefault((corpus_of or {}).get(subset, subset), []).append(subset)
+    for corpus, members in by_corpus.items():
+        years = sorted({int(year_of(s)) for s in members if year_of(s).isdigit()})
+        label, era = {}, []
+        for year in years:
+            if era and year - era[-1] >= max_gap:
+                span = f"{era[0]}-{era[-1]}" if len(era) > 1 else f"{era[0]}"
+                label.update({y: span for y in era})
+                era = []
+            era.append(year)
+        if era:
+            span = f"{era[0]}-{era[-1]}" if len(era) > 1 else f"{era[0]}"
+            label.update({y: span for y in era})
+        for s in members:
+            year = year_of(s)
+            out[s] = f"{corpus}.{label[int(year)]}" if year.isdigit() else s
+    return out
 
 
 def load_classes(path):
@@ -119,7 +186,8 @@ def main():
     parser.add_argument("--source", default="train_samples",
                         help="source sample list per subset, without extension")
     parser.add_argument("--target", default="test_samples", help="target sample list per subset")
-    parser.add_argument("--scope", default="global", choices=["subset", "footprint", "global"])
+    parser.add_argument("--scope", default="global",
+                        choices=["subset", "era", "footprint", "global"])
     parser.add_argument("-k", type=int, default=8, help="neighbours to record per target and class")
     parser.add_argument("-dkw", "--data-keywords", default=None)
     parser.add_argument("-xkw", "--exclude-keys", default=None)
@@ -165,6 +233,7 @@ def main():
     subsets = [os.path.basename(d) for d in dirs]
     print(f"{len(dirs)} subsets, scope={args.scope}, k={args.k}")
 
+    eras = era_map(subsets, corpus_map(dirs))
     # class ratios and the source pool of every subset
     ratios, sources, source_classes = {}, {}, {}
     for subset_dir, subset in zip(dirs, subsets):
@@ -181,7 +250,8 @@ def main():
     # candidate tiles per (scope key, class)
     candidates, unpaid = {}, 0
     for subset, pool in sources.items():
-        keys = {"subset": [subset], "footprint": [footprint_of(subset)], "global": ["global"]}[args.scope]
+        keys = {"subset": [subset], "era": [eras[subset]],
+                "footprint": [footprint_of(subset)], "global": ["global"]}[args.scope]
         threshold = fg_threshold(subset, fg_ratio)
         bought = source_classes.get(subset)
         for name in pool:
@@ -209,7 +279,8 @@ def main():
             continue
         targets = [n for n in load_samples(target_path) if n in row_of]
         target_classes = load_classes(target_path)
-        scope_key = {"subset": subset, "footprint": footprint_of(subset), "global": "global"}[args.scope]
+        scope_key = {"subset": subset, "era": eras[subset],
+                     "footprint": footprint_of(subset), "global": "global"}[args.scope]
 
         # Only classes the target subset is annotated for. A wider pool offers sources for
         # classes this sheet never annotated - grass for a railway tile, settlement for a
