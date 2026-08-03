@@ -38,13 +38,16 @@ So the pairing tool is class-restricted: a selection's tiles serve as sources an
 for the classes bought on them. Under that rule `cls_selection_100` yields **6,154** training
 samples, and the whole corpus could not reach 17,755 positives even if every pair were bought.
 
+Counted over the 26 sheets actually in scope the baseline is **6,160 passes yielding 6,158
+trainable pairs**; the 6,238 quoted earlier included the `hameln.3921_2023` duplicate.
+
 ## The four factors
 
 | # | factor | levels | where |
 | --- | --- | --- | --- |
 | 1 | **cell** — which sheets share a retrieval pool | sheet, era, footprint, corpus, global | `--cell` / `--scope` |
 | 2 | **sampling** — how the budget is spent inside a cell | uniform, random, fps, fps+guard, kmeans | `--strategy`, `--density-guard` |
-| 3 | **budget** — how many passes | 300, 1000, 3000, 6154 | `--budget` |
+| 3 | **budget** — how many passes | 300, 1000, 3000, 6160 | `--budget` |
 | 4 | **pairing** — how a source is chosen for a target | top-k by similarity (RAG), random from the cell | `src_selection` |
 
 **The cell is one choice, not two.** It sets both the group the budget is balanced over and the
@@ -76,8 +79,8 @@ conventions:
 
 | arm | cell | sampling | passes | training pairs |
 | --- | --- | --- | ---: | ---: |
-| baseline | sheet | uniform (`cls_selection_100`) | 6,238 | 6,154 |
-| proposed | sheet | fps, no density guard | 6,154 | 6,154 |
+| baseline | sheet | uniform (`cls_selection_100`) | 6,160 | 6,158 |
+| proposed | sheet | fps, no density guard | 6,160 | 6,158 |
 
 Held at `cell=sheet` so this is a clean one-factor change against the validated configuration.
 If the proposed arm wins here, the sampling strategy earns its place before any other factor
@@ -87,20 +90,21 @@ moves; if it does not, nothing downstream is worth running.
 sampling buys the periphery only when it can afford to be choosy. Re-measured at `cell=sheet`
 against a density-neutral reference — random selection under the same cell and balance:
 
-| guard | B=300 | B=1000 | B=6154 |
+| guard | B=300 | B=1000 | B=6160 |
 | ---: | ---: | ---: | ---: |
 | 0 | 2.0x | 2.4x | **1.3x** |
 | 5 | 1.3x | 1.5x | 0.8x |
 | 10 | 1.1x | 1.1x | 0.5x |
 | 15 | 1.0x | 0.9x | 0.4x |
 
-6,154 of 12,918 candidate pairs is 48% of the pool: the walk has to take nearly half of
+6,160 of 12,918 candidate pairs is 48% of the pool: the walk has to take nearly half of
 everything, so it cannot concentrate on outliers, and unguarded it already sits at the neutral
 reference. Setting g=15 there would discard a further 15% of the candidates for no gain and push
 the selection to 0.4x, under-representing sparse regions rather than over-representing them.
 
 The guard is a small-budget instrument, and its level belongs to the budget rather than to the
-method: g=5 at B=300, g=10 at B=1000, none at B=6154, all at `cell=sheet`. The earlier g=15 was
+method: g=10 at B=300, g=10 at B=1000, g=5 at B=3000, none at B=6160, all at `cell=sheet`.
+The per-rung levels are tabulated in `E13_PROTOCOL.md`. The earlier g=15 was
 calibrated at `cell=corpus` under a 300-pass budget and does not transfer. E13.2 has to state
 which it uses at each rung, or the budget ladder measures the guard as much as the budget.
 
@@ -108,8 +112,8 @@ which it uses at each rung, or the budget ladder measures the guard as much as t
 
 Anchored on whichever arm of experiment 1 wins, at `budget=1000` unless stated:
 
-- **E13.2, budget.** 300 / 1000 / 3000 / 6154 at the winning sampling and `cell=sheet`. The
-  headline curve: does a well-chosen 300 approach a uniform 6,154?
+- **E13.2, budget.** 300 / 1000 / 3000 / 6160 at the winning sampling and `cell=sheet`. The
+  headline curve: does a well-chosen 300 approach a uniform 6,160?
 - **E13.3, cell.** sheet / era / corpus at budget 1000. Measures what the retrieval scope is
   worth, in between the two points §3c already has.
 - **E13.4, pairing.** top-k against random-from-cell at budget 1000. Retrieval on or off, at

@@ -29,11 +29,11 @@ export PYTHONPATH=.
 # name | strategy | cell | guard | budget
 # Experiment 1 first: the same number of training pairs as the n-shot scheme, chosen differently.
 RUNS=(
-  "e13x1_fps_b6154   fps      sheet   0  6154"
-  "e13x1_unif_b6154  uniform  sheet   0  6154"
+  "e13x1_fps_b6160   fps      sheet   0  6160"
+  "e13x1_unif_b6160  uniform  sheet   0  6160"
 )
 # Experiments 2-4 follow, anchored on whichever arm of experiment 1 wins; see docs/E13_PLAN.md.
-PILOTS=("e13x1_fps_b6154")                    # calibration uses the run it will be applied to
+PILOTS=("e13x1_fps_b6160")                    # calibration uses the run it will be applied to
 
 prepare() {
   for spec in "${RUNS[@]}"; do
@@ -89,7 +89,7 @@ pilot() {
 
 # Phase 3: set from the pilots before running `ladder`. 100000 is the pre-calibration default
 # and is deliberately left obviously provisional.
-declare -A ITERS=( [e13x1_fps_b6154]=100000 [e13x1_unif_b6154]=100000 )
+declare -A ITERS=( [e13x1_fps_b6160]=100000 [e13x1_unif_b6160]=100000 )
 
 ladder() {
   for spec in "${RUNS[@]}"; do
