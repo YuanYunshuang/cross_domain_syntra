@@ -1,5 +1,38 @@
 # SYNTRA — experiment design and manuscript plan
 
+## 0. Objective
+
+**Segment historical maps to the highest accuracy for the fewest annotated tiles.** Everything
+below is judged against that: a change earns its place if it raises accuracy at a fixed
+annotation budget, or holds accuracy at a smaller one.
+
+Retrieval is *one mechanism* for that, not the goal. It matters here because it lets a single
+annotated tile serve many targets - at k=1 choosing the exemplar by similarity is worth +0.6 to
++8.1 mIoU depending on how heterogeneous the pool is (E9) - i.e. the same label works harder.
+Where retrieval stops paying, it should be dropped rather than defended: global-pool *training*
+buys 1.26 mIoU less than subset-pool training on the identical mixture (82.38 vs 81.12, section
+3c), so it is not part of the answer.
+
+**Two budgets, kept separate.** They trade off differently and must not be conflated:
+
+1. *Training budget* - tiles needed to train the model once. Current evidence: SYNTRA at
+   100-shot reaches 85.89 mIoU where SMOL-Uni on the full training set reaches 82.6, so fewer
+   labels already beat more.
+2. *Adaptation budget* - tiles needed to bring an existing model to a new sheet or year. Current
+   evidence: the unseen 1960 sheet reaches ~60 mIoU from a pool of 10-100 annotated tiles with
+   no gradient step.
+
+**Priorities that follow.** E10 (budget curve per style gap) and E11 (which tiles to annotate, at
+a fixed budget) become the main experiments rather than ablations; E12 turns "annotate more" into
+a rule for *which tile to annotate next*, closing the loop with the active-learning GUI already in
+the repository. The comparison against MapSAM2 becomes an equal-budget curve - they fine-tune per
+sheet, we add tiles to a pool - rather than a comparison of headline IoU.
+
+Training breadth is the other lever on the same goal: a model that has seen more cartographic
+traditions should degrade more gracefully on an unseen style, which is testable by rerunning the
+E10 ladder with Siegfried (384-native build) in training and comparing per-subset IoU against the
+measured style gap, not pooled mIoU.
+
 Status: draft, 2026-08-01. Scope decided with the author: **historical maps**, centred on
 **annotation-efficient adaptation**, benchmarked against **SMOL-MapSeg** (accepted) and
 **MapSAM2** (arXiv 2510.27547).
