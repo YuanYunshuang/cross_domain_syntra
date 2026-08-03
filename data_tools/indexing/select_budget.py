@@ -483,6 +483,10 @@ def main():
     parser.add_argument("--density-guard", type=float, default=0,
                         help="drop the sparsest N%% of each cell from candidacy first; 10 "
                              "stops farthest-point sampling spending the budget on outliers")
+    parser.add_argument("--negative-strategy", default="random",
+                        choices=["uniform", "random", "kcenter", "fps", "fps-medoid", "kmeans"],
+                        help="how the negative share is chosen. Random by default so that it is "
+                             "held fixed while the positive strategy varies")
     parser.add_argument("--negative-fraction", type=float, default=0.0,
                         help="share of the budget spent checking a tile for a class and finding "
                              "it absent. Those passes cost annotator time and are the only way "
@@ -524,13 +528,16 @@ def main():
                       density_guard=args.density_guard,
                       min_per_group=args.min_per_cell_class, seed=args.seed)
     if n_negative:
-        # Negatives are chosen the same way, in the same cells, but need no coverage floor:
-        # a negative is never a source, so no combination depends on one existing.
+        # Negatives are drawn in the same cells but by their own strategy, and need no coverage
+        # floor: a negative is never a source, so no combination depends on one existing.
+        # Random by default, so that a comparison between two positive-selection strategies is
+        # not also a comparison between two ways of choosing negatives - with both halves
+        # varying, a difference in the result would not say which half produced it.
         _, absent_of = build_pool(args.root_dir, row_of, args.pool, fg_ratio,
                                   args.data_keywords, args.exclude_keys, absent=True)
         print(f"negative pool: {sum(len(v) for v in absent_of.values())} (tile, class) pairs "
               f"where the class is absent")
-        selected += select(absent_of, vectors, row_of, n_negative, args.strategy,
+        selected += select(absent_of, vectors, row_of, n_negative, args.negative_strategy,
                            gap=args.cell_gap, balance=args.balance, corpus_of=corpora,
                            density_guard=args.density_guard, min_per_group=0, seed=args.seed)
         print(f"bought {n_positive} positive and {n_negative} negative passes")

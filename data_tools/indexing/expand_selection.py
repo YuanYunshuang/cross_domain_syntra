@@ -37,6 +37,9 @@ def main():
     parser.add_argument("-dkw", "--data-keywords", default=None)
     parser.add_argument("-xkw", "--exclude-keys", default=None)
     parser.add_argument("--fg-ratio", default="0.05")
+    parser.add_argument("--negative-ratio", type=float, default=1.0,
+                        help="negatives kept per positive. 0 writes the positive half alone, "
+                             "for when the negatives are shared with another arm")
     parser.add_argument("--val-fraction", type=float, default=0.0,
                         help="hold this share out as validation, as select_budget does, so the "
                              "two arms train on the same number of passes")
@@ -66,8 +69,8 @@ def main():
             for cls in classes:
                 target = positives if ratios.get(tile, {}).get(cls, 0.0) > threshold else negatives
                 target.append((tile, cls))
-        # as many negatives as positives, drawn evenly so no class is left without either
-        keep = rng.choice(len(negatives), min(len(positives), len(negatives)), replace=False)
+        want = int(round(args.negative_ratio * len(positives)))
+        keep = rng.choice(len(negatives), min(want, len(negatives)), replace=False)
         chosen = positives + [negatives[int(i)] for i in sorted(keep)]
 
         # the same stratified holdout select_budget applies, so neither arm trains on more

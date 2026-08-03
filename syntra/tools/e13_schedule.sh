@@ -32,19 +32,31 @@ export PYTHONPATH=.
 # of their sheet - with its negatives sampled down to match its positives: 6,801 + 6,697. The
 # proposed arm buys the same 13,498 passes at the same split. The original's 61.5% negative skew
 # was an accident of exhaustive labelling, not a design choice.
-BUDGET=13498
-NEGFRAC=0.49615
+NPOS=6801        # the n-shot scheme's positive count; the proposed arm is given the same
+NNEG=6697        # one negative draw, shared verbatim by both arms
 NSHOT=e13x1_nshot
-# name | strategy | cell-gap | guard | budget
-RUNS=("e13x1_fps  fps  0  0  $BUDGET")
+# name | strategy | cell-gap | guard | budget   (positives only; negatives are merged in)
+RUNS=("e13x1_fps  fps  0  0  $NPOS")
 # Experiments 2-4 follow, anchored on whichever arm of experiment 1 wins; see docs/E13_PLAN.md.
 PILOTS=("e13x1_fps")                    # calibration uses the run it will be applied to
 
 prepare() {
-  # the n-shot arm: its tiles times every class of their sheet, negatives matched to positives
+  # One negative draw, at random, shared verbatim by both arms so the positives are the only
+  # thing that differs between them.
+  $SEL_PY data_tools/indexing/select_budget.py -d "$DATA" --index "$INDEX" \
+    --budget "$NNEG" --strategy random --negative-fraction 1.0 --negative-strategy random \
+    --cell-gap 0 --min-per-cell-class 0 --val-fraction 0.1 --fg-ratio "$FG" \
+    --name e13x1_neg --output-root "$POOL_ROOT" -dkw "$KW" -xkw "$XKW"
+
+  # the n-shot arm's positive half: its tiles times the classes they carry
   $SEL_PY data_tools/indexing/expand_selection.py -d "$DATA" --source cls_selection_100 \
-    --name "$NSHOT" --output-root "$POOL_ROOT" --fg-ratio "$FG" --val-fraction 0.1 \
-    -dkw "$KW" -xkw "$XKW"
+    --name "${NSHOT}_pos" --output-root "$POOL_ROOT" --fg-ratio "$FG" --negative-ratio 0 \
+    --val-fraction 0.1 -dkw "$KW" -xkw "$XKW"
+  for part in "" "_val"; do
+    $SEL_PY data_tools/indexing/merge_selections.py -d "$POOL_ROOT" \
+      --inputs "${NSHOT}_pos${part},e13x1_neg${part}" --name "${NSHOT}${part}" \
+      -dkw "$KW" -xkw "$XKW"
+  done
   for tgt in "$NSHOT" "${NSHOT}_val" "test_samples"; do
     $SEL_PY data_tools/indexing/make_pool_pairing.py -d "$POOL_ROOT" --index "$INDEX" \
       --source "$NSHOT" --target "$tgt" --cell-gap 0 -k 8 -dkw "$KW" -xkw "$XKW" --suffix gap0
@@ -55,9 +67,13 @@ prepare() {
     echo "=== $name: $strat / cell-gap $gap / guard $guard / B=$budget ==="
     $SEL_PY data_tools/indexing/select_budget.py -d "$DATA" --index "$INDEX" \
       --budget "$budget" --strategy "$strat" --density-guard "$guard" \
-      --cell-gap "$gap" --min-per-cell-class 1 --val-fraction 0.1 \
-      --negative-fraction "$NEGFRAC" \
-      --name "$name" --output-root "$POOL_ROOT" -dkw "$KW" -xkw "$XKW"
+      --cell-gap "$gap" --min-per-cell-class 1 --val-fraction 0.1 --fg-ratio "$FG" \
+      --name "${name}_pos" --output-root "$POOL_ROOT" -dkw "$KW" -xkw "$XKW"
+    for part in "" "_val"; do
+      $SEL_PY data_tools/indexing/merge_selections.py -d "$POOL_ROOT" \
+        --inputs "${name}_pos${part},e13x1_neg${part}" --name "${name}${part}" \
+        -dkw "$KW" -xkw "$XKW"
+    done
     # Sources are the run's own annotations: what you did not pay to label you cannot prompt
     # with either. The pairing gap matches the selection gap - they are one decision.
     for tgt in "$name" "${name}_val"; do
