@@ -27,21 +27,24 @@ not a baseline for any of it.
 
 ### The cells, and how many groups each definition makes
 
-| cell | groups | (cell, class) combinations = floor cost |
-| --- | ---: | ---: |
-| `sheet` | 26 | **88** |
-| `style` | 12 | 35 |
-| `era` | 13 | 43 |
-| `corpus` | 3 | 9 |
-| `global` | 1 | 6 |
+The cell is set by `--cell-gap`: sheets whose mean embeddings lie within that cosine distance
+share a pool, transitively. 0 is sheet-wise.
+
+| `--cell-gap` | pools | (cell, class) combinations = floor cost |
+| ---: | ---: | ---: |
+| **0** | **26** | **88** |
+| 0.01 | 18 | 60 |
+| 0.03 | 13 | 38 |
+| 0.05 | 12 | 35 |
+| 0.10 | 5 | 15 |
+| 0.114 | 1 | 6 |
 
 `era` chains survey years less than five apart within one corpus: `bayern.1910`,
 `bayern.1938-1941`, `bayern.1959`, `hameln.1898`, `hameln.1973-1975`, `hameln.1982`,
 `hameln.1996`, `hameln.2002-2005`, `hameln.2012`, `hameln.2017`, `hameln.2023`, plus `railway`
 and `vineyard`, which carry no year and stand alone.
 
-`style` measures the grouping instead of declaring it — single-link over sheet centroids at 0.05
-cosine, within a corpus — because the two archives behave oppositely. In Hameln, sheets of the
+The grouping is measured rather than declared, because the two archives behave oppositely. In Hameln, sheets of the
 same year are 0.008 apart and one sheet across years 0.119, so period drives style. In Bayern it
 inverts: 0.030 for the same sheet across years, 0.110 for the same year across sheets, because a
 Positionsblatt is one plate revised rather than re-drawn. The recovered groups are:
@@ -54,8 +57,11 @@ Positionsblatt is one plate revised rather than re-drawn. The recovered groups a
     bayern.s4   518_1941   s5 519_1910   s6 7230_1959   s7 7330_1959
     siegfried   railway, vineyard
 
-`7230_1959` and `7330_1959` fall just outside the threshold at 0.055 and stay separate; the
-threshold is exposed if that boundary should move.
+Emptiness was ruled out as the driver: one embedding direction predicts a tile's ink fraction at
+r=0.933, but projecting it out leaves the merge order identical for sixteen steps. Corpora are
+kept apart by default, which is a caution rather than a measured necessity — the first
+cross-corpus merge, `bayern.7330_1959` with the Hameln 1970s at 0.031, looks wrong to the eye
+but survives that test, so whether to allow it is for the sweep to answer.
 
 ### The density guard, per budget
 
@@ -141,14 +147,14 @@ flat.
 
 Budget fixed at 1000, sampling at the E13.1 winner, guard 10.
 
-| run | cell / scope | groups | floor | trainable pairs |
-| --- | --- | ---: | ---: | ---: |
-| E13.3-sheet | `sheet` | 88 | 88 | 998 |
-| E13.3-style | `style` | 35 | 35 | 1,000 |
-| E13.3-era | `era` | 43 | 43 | 1,000 |
-| E13.3-corpus | `corpus` | 9 | 9 | 1,000 |
+| run | `--cell-gap` | pools | floor | trainable pairs |
+| --- | ---: | ---: | ---: | ---: |
+| E13.3-gap0 | 0 | 26 | 88 | 998 |
+| E13.3-gap0.03 | 0.03 | 13 | 38 | 1,000 |
+| E13.3-gap0.05 | 0.05 | 12 | 35 | 1,000 |
+| E13.3-gap0.10 | 0.10 | 5 | 15 | 1,000 |
 
-E13.3-sheet is E13.2-1000; it is not run twice. **Read-out:** whether widening the pool helps or
+E13.3-gap0 is E13.2-1000; it is not run twice. **Read-out:** whether widening the pool helps or
 hurts, between the two points §3c of the old plan already has — sheet-scope 82.38 against
 global-scope 81.12 on an identical mixture. Note the confound to report rather than hide: a wider
 cell also means a lower floor and more exemplars per target, so this measures the cell as a

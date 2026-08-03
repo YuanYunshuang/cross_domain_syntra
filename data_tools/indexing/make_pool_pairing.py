@@ -9,15 +9,10 @@ the dataset already reads:
 
 The scope decides which annotated tiles may serve as sources:
 
-    sheet      only tiles of the same map sheet - one corpus, sheet number and survey year;
-               what all runs so far used, and a setting in which the style is homogeneous
-    era        all sheets of the same corpus drawn within a few years of each other, which is
-               the grouping a budget balanced by (corpus, era, class) is spent over. Matching
-               the two matters: with sources restricted to one sheet, a combination the budget
-               happened to give a single tile can prompt nothing, since a target is excluded
-               from its own pool
-    corpus     every sheet of one cartographic tradition
-    global     every annotated tile in the store, across sheets and years
+The cell is set by one number. Sheets whose mean DINOv2 embeddings lie within `--cell-gap`
+cosine share a pool, transitively: 0 leaves every sheet on its own - the validated setting -
+and this corpus collapses into a single pool by 0.114. Metadata rules are not offered, because
+the archives disagree about what predicts style; see `style_map`.
 
 No dataset change is needed for cross-subset sources: the loader resolves each source name to
 its own subset folder.
@@ -101,48 +96,43 @@ def era_map(subsets, corpus_of=None, max_gap=5):
     return out
 
 
-def group_of(subset, cell, corpus_of=None, eras=None):
-    """The cell a map sheet belongs to - the set of sheets a source may be retrieved from.
-
-    A subset is one map sheet: one corpus, one sheet number, one survey year. The cell widens
-    that to the sheets whose annotations may prompt each other, and it is a single choice, not
-    two: the budget is spread over the cells and retrieval draws inside them. Splitting the two
-    lets them disagree, and then a cell can be given annotations that retrieval will not look
-    at, or asked for exemplars the budget never bought.
-    """
-    if cell == "sheet":
-        return subset
-    if cell == "era":
-        return (eras or {}).get(subset, subset)
-    if cell == "style":
-        return (eras or {}).get(subset, subset)   # caller passes the style map in `eras`
-    if cell == "corpus":
-        return (corpus_of or {}).get(subset, subset)
-    return "global"
+def group_of(subset, cells):
+    """The cell a sheet belongs to; sheets not in `cells` stand alone."""
+    return cells.get(subset, subset)
 
 
+def style_map(tiles_by_subset, vectors, row_of, corpus_of=None, gap=0.0, merge_corpora=False):
+    """{subset: cell} - sheets whose mean embeddings lie within `gap` share a retrieval pool.
 
-def style_map(tiles_by_subset, vectors, row_of, corpus_of=None, threshold=0.05):
-    """{subset: style group} - sheets whose mean embedding is close enough to prompt each other.
+    One mechanism with one knob, rather than a menu of metadata rules. Each sheet is summarised
+    by the mean of its tiles' DINOv2 vectors, renormalised; two sheets join when that distance
+    is at most `gap`, transitively. **gap=0 merges nothing and gives the sheet-wise grouping**,
+    which is the validated setting; raising it widens the pools continuously, and everything in
+    this corpus collapses into one cell by 0.114.
 
-    Metadata does not settle this, because the two archives were produced differently. Hameln is
-    a topographic series re-drawn each edition, so sheets surveyed in the same year are nearly
-    identical (mean centroid distance 0.008) while one sheet across its years is not (0.119).
-    The Bayern Positionsblatter are one engraved plate revised for decades, so it runs the other
-    way: the same sheet across years sits at 0.030 and the same year across sheets at 0.110.
-    A rule built on the survey year is right for one corpus and wrong for the other.
+    Metadata cannot do this job because the archives disagree. Hameln is re-drawn each edition,
+    so its same-year sheets sit at 0.008 and one sheet across its years at 0.119 - style follows
+    the period. A Bayern Positionsblatt is one plate revised for decades and inverts it: 0.030
+    for the same sheet across years against 0.110 for the same year across sheets. Measuring the
+    grouping recovers both without a rule per archive.
 
-    So the grouping is measured rather than declared: single-link over the sheet centroids at
-    `threshold` cosine, inside each corpus. Corpora are never merged - a shared appearance across
-    traditions is not a shared cartography, and single-link chains across them if allowed to.
+    Corpora stay separate unless `merge_corpora`, and that is a stated caution rather than a
+    measured necessity. The first cross-corpus merge is bayern.7330_1959 joining the Hameln
+    1970s at 0.031, which looks wrong to the eye - a pale blue-line sheet against red-brown
+    contour work - and those are also the three sparsest sheets in the corpus, so the obvious
+    suspicion is that the summary is tracking emptiness. It is not. A single embedding direction
+    predicts a tile's ink fraction at r=0.933, but projecting that direction out leaves the
+    merge order identical for at least sixteen steps, gaps unchanged to three decimals. Density
+    co-varies with the grouping without driving it, and whether that merge should be allowed is
+    an empirical question for the gap sweep, not something the artefact argument settles.
     """
     groups, out = {}, {}
     for subset, names in tiles_by_subset.items():
         block = vectors[[row_of[n] for n in names]]
         centre = block.mean(axis=0)
-        groups.setdefault((corpus_of or {}).get(subset, subset), []).append(
-            (subset, centre / (np.linalg.norm(centre) + 1e-12)))
-    for corpus, members in groups.items():
+        key = "all" if merge_corpora else (corpus_of or {}).get(subset, subset)
+        groups.setdefault(key, []).append((subset, centre / (np.linalg.norm(centre) + 1e-12)))
+    for key, members in groups.items():
         names = [m[0] for m in members]
         cent = np.stack([m[1] for m in members])
         dist = 1.0 - cent @ cent.T
@@ -154,15 +144,16 @@ def style_map(tiles_by_subset, vectors, row_of, corpus_of=None, threshold=0.05):
                 i = parent[i]
             return i
 
-        for i in range(len(names)):
-            for j in range(i + 1, len(names)):
-                if dist[i, j] <= threshold:
-                    parent[find(i)] = find(j)
+        if gap > 0:
+            for i in range(len(names)):
+                for j in range(i + 1, len(names)):
+                    if dist[i, j] <= gap:
+                        parent[find(i)] = find(j)
         label = {}
         for i, subset in enumerate(names):
             label.setdefault(find(i), []).append(subset)
-        for root, members_ in label.items():
-            tag = f"{corpus}.s{min(names.index(m) for m in members_)}"
+        for members_ in label.values():
+            tag = sorted(members_)[0] if len(members_) == 1 else f"{key}.g{sorted(members_)[0]}"
             for m in members_:
                 out[m] = tag
     return out
@@ -245,10 +236,14 @@ def main():
     parser.add_argument("--source", default="train_samples",
                         help="source sample list per subset, without extension")
     parser.add_argument("--target", default="test_samples", help="target sample list per subset")
-    parser.add_argument("--scope", default="sheet",
-                        choices=["sheet", "era", "style", "corpus", "global"],
-                        help="which sheets share a retrieval pool; pass the same value as "
-                             "--cell to select_budget")
+    parser.add_argument("--cell-gap", type=float, default=0.0,
+                        help="sheets whose mean embeddings lie within this cosine gap share a "
+                             "retrieval pool. 0 is sheet-wise, the validated setting; the whole "
+                             "corpus collapses to one pool by 0.114. Pass the same value as "
+                             "--cell-gap to select_budget")
+    parser.add_argument("--merge-corpora", action="store_true",
+                        help="allow cells to span corpora; off by default because the first "
+                             "cross-corpus merge is driven by near-empty tiles, not by style")
     parser.add_argument("-k", type=int, default=8, help="neighbours to record per target and class")
     parser.add_argument("-dkw", "--data-keywords", default=None)
     parser.add_argument("-xkw", "--exclude-keys", default=None)
@@ -295,7 +290,6 @@ def main():
     print(f"{len(dirs)} subsets, scope={args.scope}, k={args.k}")
 
     corpora = corpus_map(dirs)
-    eras = era_map(subsets, corpora)
     # class ratios and the source pool of every subset
     ratios, sources, source_classes = {}, {}, {}
     for subset_dir, subset in zip(dirs, subsets):
@@ -309,10 +303,14 @@ def main():
         sources[subset] = [n for n in load_samples(source_path) if n in row_of]
         source_classes[subset] = load_classes(source_path)
 
+    cells = style_map({k: v for k, v in sources.items() if v}, vectors, row_of,
+                      corpora, args.cell_gap, args.merge_corpora)
+    print(f"cell gap {args.cell_gap}: {len(set(cells.values()))} pools over {len(cells)} sheets")
+
     # candidate tiles per (scope key, class)
     candidates, unpaid = {}, 0
     for subset, pool in sources.items():
-        keys = [group_of(subset, args.scope, corpora, eras)]
+        keys = [group_of(subset, cells)]
         threshold = fg_threshold(subset, fg_ratio)
         bought = source_classes.get(subset)
         for name in pool:
@@ -331,7 +329,7 @@ def main():
     print(f"candidate pools: {len(candidates)} (scope key, class) combinations, "
           f"largest {max((len(v) for v in candidates.values()), default=0)} tiles")
 
-    suffix = args.suffix or args.scope
+    suffix = args.suffix or f"gap{args.cell_gap:g}"
     for subset_dir, subset in zip(dirs, subsets):
         target_path = os.path.join(subset_dir, args.target)
         target_path += ".json" if os.path.isfile(target_path + ".json") else ".txt"
@@ -340,7 +338,7 @@ def main():
             continue
         targets = [n for n in load_samples(target_path) if n in row_of]
         target_classes = load_classes(target_path)
-        scope_key = group_of(subset, args.scope, corpora, eras)
+        scope_key = group_of(subset, cells)
 
         # Only classes the target subset is annotated for. A wider pool offers sources for
         # classes this sheet never annotated - grass for a railway tile, settlement for a

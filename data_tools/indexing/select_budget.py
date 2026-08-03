@@ -24,17 +24,19 @@ Strategies:
 Every strategy spends exactly B units, since the budget is the thing held fixed; how a strategy
 distributes them is what it decides.
 
-`--cell` says which map sheets share a retrieval pool, and is the same choice as `--scope` in
-`make_pool_pairing`: one sheet, one corpus-era, one corpus, or everything. The
-budget is spread over those cells and retrieval draws inside them, so the two must agree - split
-apart they can be given annotations retrieval never looks at, or asked for exemplars the budget
-never bought.
+`--cell-gap` says which map sheets share a retrieval pool, and takes the same value in
+`make_pool_pairing`. Each sheet is summarised by the mean of its tiles' embeddings; two sheets
+join when that distance is at most the gap, transitively. **0 leaves every sheet on its own**,
+which is the validated setting, and this corpus collapses into one pool by 0.114. The budget is
+spread over those cells and retrieval draws inside them, so the two must agree - split apart
+they can be given annotations retrieval never looks at, or asked for exemplars the budget never
+bought.
 
 `--balance` divides the budget over the cells: a quota per (cell, class), per cell, or not at
 all. It decides *what* gets covered, and that is not a detail. Run over the whole pool at once,
 k-center covers the corpus well, but any single class's picks are then only wherever that class
 happens to meet the global cover, which leaves each class's own region patchy and starves a
-minority class. `--cell sheet --strategy uniform` is the classic n-per-class-and-sheet scheme.
+minority class. `--cell-gap 0 --strategy uniform` is the classic n-per-class-and-sheet scheme.
 
 Candidates are restricted to pairs whose class actually occupies the tile above the
 foreground threshold. Without that, coverage-seeking strategies drift to sheet borders, blank
@@ -258,21 +260,16 @@ def guard_cells(cells, vectors, row_of, percent, neighbours=20, verbose=True):
     return out
 
 
-def _cell_map(present_of, cell, corpus_of, vectors=None, row_of=None, threshold=0.05):
-    """The subset -> group lookup a cell definition needs, or {} for the ones that need none."""
-    subsets = sorted({n.rsplit(".", 1)[0] for n in present_of})
-    if cell == "era":
-        return era_map(subsets, corpus_of)
-    if cell == "style":
-        by = {}
-        for n in present_of:
-            by.setdefault(n.rsplit(".", 1)[0], []).append(n)
-        return style_map(by, vectors, row_of, corpus_of, threshold)
-    return {}
+def _cell_map(present_of, gap, corpus_of, vectors, row_of, merge_corpora=False):
+    """subset -> cell, by union over sheet mean embeddings. gap=0 leaves every sheet alone."""
+    by = {}
+    for n in present_of:
+        by.setdefault(n.rsplit(".", 1)[0], []).append(n)
+    return style_map(by, vectors, row_of, corpus_of, gap, merge_corpora)
 
 
-def cells_of(present_of, cell="sheet", balance="cell-class", corpus_of=None,
-             vectors=None, row_of=None):
+def cells_of(present_of, gap=0.0, balance="cell-class", corpus_of=None,
+             vectors=None, row_of=None, merge_corpora=False):
     """Split the pool into groups of (tile, class) pairs, the unit the budget is spent in.
 
     A pair is one class annotated on one tile - one digitising pass - and that is what costs
@@ -281,29 +278,29 @@ def cells_of(present_of, cell="sheet", balance="cell-class", corpus_of=None,
     labels. So a tile carrying forest and water offers two pairs and costs two units, and it is
     listed in the output only under the classes actually bought for it.
 
-    `cell` says which sheets share a retrieval pool; `balance` says how the budget is divided
+    `gap` says which sheets share a retrieval pool; `balance` says how the budget is divided
     over them. Every pair lands in exactly one group, so the groups are disjoint and each
     simply buys its quota, with no credit to carry between them.
     """
-    eras = _cell_map(present_of, cell, corpus_of, vectors, row_of)
+    cells_by_sheet = _cell_map(present_of, gap, corpus_of, vectors, row_of, merge_corpora)
     cells = {}
     for name, present in present_of.items():
-        group = group_of(name.rsplit(".", 1)[0], cell, corpus_of, eras)
+        group = group_of(name.rsplit(".", 1)[0], cells_by_sheet)
         for cls in present:
             key = {"cell-class": (group, cls), "cell": (group,), "none": ("all",)}[balance]
             cells.setdefault(key, []).append((name, cls))
     return {k: sorted(v) for k, v in cells.items()}
 
 
-def guarded_cells(present_of, vectors, row_of, cell="sheet", balance="cell-class",
+def guarded_cells(present_of, vectors, row_of, gap=0.0, balance="cell-class",
                   corpus_of=None, density_guard=0, neighbours=20, verbose=True):
     """The cells a budget is spent over, with each cell's sparsest tail removed."""
-    return guard_cells(cells_of(present_of, cell, balance, corpus_of, vectors, row_of),
+    return guard_cells(cells_of(present_of, gap, balance, corpus_of, vectors, row_of),
                        vectors, row_of,
                        density_guard, neighbours, verbose)
 
 
-def select(present_of, vectors, row_of, budget, strategy, cell="sheet", balance="cell-class",
+def select(present_of, vectors, row_of, budget, strategy, gap=0.0, balance="cell-class",
            corpus_of=None, density_guard=0, min_per_group=1, seed=2026, verbose=True):
     """Spend `budget` annotation units under `strategy`. Returns sorted (tile, class) pairs.
 
@@ -319,7 +316,7 @@ def select(present_of, vectors, row_of, budget, strategy, cell="sheet", balance=
     which leaves each class's own region patchy. Splitting first and sampling inside each cell
     is what makes the selection cover every cell's latent space rather than the union's.
     """
-    cells = guarded_cells(present_of, vectors, row_of, cell, balance, corpus_of,
+    cells = guarded_cells(present_of, vectors, row_of, gap, balance, corpus_of,
                           density_guard, verbose=verbose)
     available = sum(len(pairs) for pairs in cells.values())     # cells are disjoint in pairs
     budget = min(budget, available)
@@ -388,8 +385,8 @@ def select(present_of, vectors, row_of, budget, strategy, cell="sheet", balance=
         # decides which combinations need an exemplar of their own. Balancing by era and then
         # retrieving per sheet needs a floor per sheet; matching the two needs only a floor
         # per era, which over this corpus is 43 combinations rather than 88.
-        eras = _cell_map(present_of, cell, corpus_of, vectors, row_of)
-        scope_of = lambda sub: group_of(sub, cell, corpus_of, eras)
+        cells_by_sheet = _cell_map(present_of, gap, corpus_of, vectors, row_of)
+        scope_of = lambda sub: group_of(sub, cells_by_sheet)
         groups = {}
         for pairs in cells.values():
             for tile, cls in pairs:
@@ -405,9 +402,9 @@ def select(present_of, vectors, row_of, budget, strategy, cell="sheet", balance=
             selected += choose(sorted(groups.get(key) or every[key]), min_per_group, [])
         if verbose:
             print(f"floor: {len(selected)} pairs reserved, {min_per_group} per "
-                  f"({cell}, class) over {len(every)} combinations")
+                  f"(cell, class) over {len(every)} combinations")
         if len(selected) > budget:
-            raise SystemExit(f"budget {budget} cannot cover {len(every)} ({cell}, class) "
+            raise SystemExit(f"budget {budget} cannot cover {len(every)} (cell, class) "
                              f"combinations at {min_per_group} each; raise it to "
                              f"{len(selected)} or lower --min-per-cell-class")
 
@@ -452,12 +449,11 @@ def main():
                              "every strategy spends exactly this many")
     parser.add_argument("--strategy", default="kcenter",
                         choices=["uniform", "random", "kcenter", "fps", "fps-medoid", "kmeans"])
-    parser.add_argument("--cell", default="sheet",
-                        choices=["sheet", "era", "style", "corpus", "global"],
-                        help="which sheets share a retrieval pool. One sheet is one corpus, "
-                             "sheet number and survey year; 'era' widens it to the sheets of "
-                             "one corpus drawn within five years of each other. Pass the same "
-                             "value as --scope to make_pool_pairing")
+    parser.add_argument("--cell-gap", type=float, default=0.0,
+                        help="sheets whose mean embeddings lie within this cosine gap share a "
+                             "retrieval pool. 0 is sheet-wise, the validated setting; this "
+                             "corpus collapses to one pool by 0.114. Pass the same value to "
+                             "make_pool_pairing")
     parser.add_argument("--balance", default="cell-class",
                         choices=["cell-class", "cell", "none"],
                         help="how the budget is divided over the cells: a quota per (cell, "
@@ -499,7 +495,7 @@ def main():
           f"tiles in {len(dirs)} subsets")
 
     selected = select(present_of, vectors, row_of, args.budget, args.strategy,
-                      cell=args.cell, balance=args.balance, corpus_of=corpus_map(dirs),
+                      gap=args.cell_gap, balance=args.balance, corpus_of=corpus_map(dirs),
                       density_guard=args.density_guard,
                       min_per_group=args.min_per_cell_class, seed=args.seed)
 
@@ -535,7 +531,7 @@ def main():
     tiles = {t for t, _ in selected}
     subsets_hit = {t.rsplit(".", 1)[0] for t in tiles}
     print(f"strategy={args.strategy}"
-          f" cell={args.cell} balance={args.balance} "
+          f" cell-gap={args.cell_gap:g} balance={args.balance} "
           f"budget={len(selected)}: {len(selected)} pairs over {len(tiles)} tiles, "
           f"{len(subsets_hit)}/{len(dirs)} subsets covered")
     for cls in all_classes:
@@ -543,7 +539,7 @@ def main():
 
     name = args.name or (f"budget_{args.strategy}"
                          f"{'' if not args.density_guard else f'_g{args.density_guard:g}'}"
-                         f"_{args.cell}{'' if args.balance == 'cell-class' else '_' + args.balance}"
+                         f"_gap{args.cell_gap:g}"
                          f"_{args.budget}")
     if args.dry_run:
         print("\n(dry run, nothing written)")

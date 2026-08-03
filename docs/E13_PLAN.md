@@ -65,10 +65,19 @@ run the other way: the same sheet across years is **0.030** and the same year ac
 **0.110**. `bayern.489_1910` and `bayern.489_1939` are visually the same plate 29 years apart,
 while `bayern.519_1910` shares neither look nor engraving with `bayern.489_1910` despite the year.
 
-`--cell style` therefore groups sheets by single-link over their mean embeddings at 0.05 cosine,
-*within* a corpus, and recovers both behaviours from the data: Hameln splits into 1973–1996,
-2002–2005, 2012–2023 and 1898 alone; Bayern pairs 489_1910 with 489_1939 and 490_1910 with
-490_1938. `era` is kept as the metadata-only comparison, and is the wrong rule for Bayern.
+**So the cell is one number, not a menu.** `--cell-gap` unions sheets whose mean embeddings lie
+within that cosine distance, transitively. **0 leaves every sheet alone — the validated
+setting** — and this corpus collapses into a single pool by 0.114, so the factor is a continuous
+sweep rather than a choice between named rules. At 0.05 it recovers both archive behaviours
+without a rule per archive: Hameln splits into 1973–1996, 2002–2005, 2012–2023 and 1898 alone,
+Bayern pairs 489_1910 with 489_1939 and 490_1910 with 490_1938.
+
+**Emptiness was checked and is not driving it.** Sheet centroids could in principle be tracking
+how much ink a sheet carries rather than how it draws: a single embedding direction predicts a
+tile's ink fraction at r=0.933, and the merging pairs do have similar ink (mean difference 0.063
+against 0.172 for non-merging pairs). But projecting that direction out leaves the merge order
+identical for sixteen steps with gaps unchanged to three decimals. Density co-varies with the
+grouping without causing it.
 
 Widening the cell is not free in either direction. It lowers the coverage floor — 88 (cell,
 class) combinations at sheet, 43 at era, 9 at corpus — and raises the number of exemplars a
