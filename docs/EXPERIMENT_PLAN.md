@@ -169,7 +169,20 @@ The style gap used throughout is one minus the cosine similarity between a subse
 embeddings and their nearest neighbours in any other subset. Measured over the 25 subsets it
 ranges from 0.00 to 0.234, and it doubles as the x-axis of E12.
 
-### E10 in detail - a style-gap ladder, not a single hard case
+### E10 retired (2026-08-03)
+
+The style-gap ladder held four subsets out of training and then asked the model to adapt to them
+from a pool. It was run: adaptation tracks the style gap almost perfectly (gap 0.109 -> 86.9
+mIoU, 0.140 -> 69.9, 0.181 -> 36.0, 0.234 -> 43.4) but the budget curve is **flat** - n=1 and
+n=50 pool tiles are within a point of each other on every sheet, and bayern.7330_1959 degrades
+as the pool grows (69.9 -> 62.6).
+
+The design is the reason it is uninformative rather than the method: holding out four subsets
+removed exactly the styles the model was then asked to generalize to, so the numbers measure a
+deliberately impoverished training distribution. It is replaced by E13 below, which asks the
+question the objective actually poses.
+
+### Superseded: the ladder design
 
 An earlier draft held out the entire 3922 footprint, which would have staked the headline on
 1898, the oldest and most distinctive sheet. With ~15k training tiles that is a bet the model is
@@ -241,6 +254,43 @@ centroids next to it, which trade coverage for typicality.
 All of the above is evaluated at **natural prevalence** - every class keeps its true
 positive/negative tile ratio, as a sliding window over a whole sheet meets it. Balanced sampling
 understates false positives and, as the E1 sweep showed, can hide the retrieval effect entirely.
+
+## 3d. E13 - training-sample selection under a fixed budget
+
+**The question.** Given a total budget of N annotated tiles, which N should be labelled so that
+one model trained on them performs best across *all* test samples of *all* subsets? No sheet is
+held out; every subset is available to select from and every subset is evaluated.
+
+This is the objective of section 0 stated directly, and it is the training budget rather than the
+adaptation budget. The retrieval pool is held fixed at subset scope throughout, so selection is
+the only variable.
+
+**Budgets.** The current n-shot baseline, cls_selection_100, is uniform per class and subset and
+comes to roughly 2,900 tiles. Budgets of 300 / 1,000 / 3,000 therefore bracket it and make the
+comparison legible: does a well-chosen 300 match a uniform 2,900?
+
+**Strategies**, all implemented in `data_tools/indexing/select_budget.py`:
+
+| strategy | idea | risk |
+| --- | --- | --- |
+| uniform | n per class and subset - the current scheme | spends the budget evenly however redundant a sheet is |
+| random | uniform over all annotated tiles | over-samples the sheets with most tiles |
+| kcenter | farthest-point in DINOv2 space, maximal coverage | chases outliers; already guarded by requiring an annotated class |
+| kmeans | centroids replaced by their nearest real tile | favours typicality over coverage |
+
+**Class balance is the open design question.** Coverage-driven selection is class-blind, so a
+minority class - Hameln water at 3% of foreground - can be starved at small budgets, and the
+mean IoU would then be dominated by a class the budget simply skipped. Each strategy therefore
+needs a class-aware variant that allocates the budget per class first and applies the strategy
+within it. Report both; the difference is itself a result.
+
+**Cost.** 4 strategies x 3 budgets = 12 runs at ~10 h each is too much for the two GPUs. Prune
+to the 6 that answer the question: uniform and kcenter and kmeans at 300 and 1,000, with random
+at 300 as the floor. Evaluation is the full test set of every subset, identical for all runs.
+
+**What the result would say.** If a coverage-selected 300 matches a uniform 2,900, the paper's
+headline is that most annotation in this corpus is redundant, and the diagnostic from E12 tells a
+practitioner which tiles are worth their time.
 
 ## 4. Training recipe and two-GPU schedule
 
