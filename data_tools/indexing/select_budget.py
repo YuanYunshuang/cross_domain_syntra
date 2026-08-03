@@ -193,10 +193,13 @@ def main():
         if args.output_root:
             from data_tools.indexing.make_pool_pairing import mirror_subset
             out_dir = mirror_subset(subset_dir, args.output_root, subset, args.root_dir)
-        # every subset gets the full selection: the pool is global, and make_pool_pairing
-        # restricts it per scope when the pairings are built
+        # Each subset gets only its own selected tiles. make_pool_pairing keys candidates by
+        # the subset that owns the pool file, so a shared file would offer foreign tiles as
+        # sources at subset scope and the loader would not have those subsets open at all.
+        own = {c: [n for n in v if n.rsplit(".", 1)[0] == subset] for c, v in by_class.items()}
+        own = {c: v for c, v in own.items() if v}
         with open(os.path.join(out_dir, f"{name}.json"), "w") as f:
-            json.dump(by_class, f, indent=2)
+            json.dump(own, f, indent=2)
     print(f"\nWrote {name}.json to {len(dirs)} subsets")
 
 

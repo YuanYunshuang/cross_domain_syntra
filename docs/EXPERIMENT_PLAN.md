@@ -386,15 +386,27 @@ A model trained on global-scope pairings (`syntra_maps_s100_global`, 100k iterat
 mean fusion, topk, k=3, hismap only) evaluated against the subset-trained checkpoint on the same
 2,552 target-class pairs at natural prevalence:
 
-| pool scope at inference | subset-trained (E9) | globally-trained |
+| pool scope at inference | subset-trained (E9 ckpt) | globally-trained |
 | --- | ---: | ---: |
-| subset, topk k=3 | **85.57** | 80.06 |
+| subset, topk k=3 | 85.57 | 80.06 |
 | footprint, topk k=3 | 85.57 | 79.89 |
 | global, topk k=3 | 80.95 | 79.54 |
 | global, random k=3 | — | 77.81 |
 
-Training on global pools gave up ~5.5 mIoU everywhere and gained nothing where it was meant to
-help. Two further symptoms: retrieval's advantage collapsed from +8.1 to +1.7 mIoU at global
+**Corrected 2026-08-03.** The comparison above is against a checkpoint trained on a different
+mixture (it also saw Siegfried at 384-native), so it overstated the effect. The matched control
+`syntra_maps_s100_subset` - identical in every respect except the pool scope - has since been
+trained and evaluated on the full test set:
+
+| run (identical hismap-only mixture) | mIoU |
+| --- | ---: |
+| subset pool (control) | **82.38** |
+| global pool | 81.12 |
+
+**Global-pool training costs 1.26 mIoU, not ~5.5.** The effect is real but small, and most of
+the apparent gap was the training-mixture confound flagged when this section was first written.
+The control's advantage concentrates in the minority class hameln.water (84.14 vs 70.75).
+Training on global pools still gained nothing where it was meant to help. Two further symptoms: retrieval's advantage collapsed from +8.1 to +1.7 mIoU at global
 scope, and the model became k-dependent (74.1 at k=1 against 80.1 at k=3, where the
 subset-trained model was flat in k), with random *beating* topk at k=1.
 
@@ -402,10 +414,9 @@ Its full-test-set score of 81.12 mIoU looked encouraging but is not comparable t
 above, which come from a stratified sample - the mismatch is what made the result look positive
 at first.
 
-**Confound, unresolved.** This model trained on hismap only, while the E9 checkpoint trained on
-hismap plus Siegfried at 384-native. "Globally-trained" therefore also means "trained on less
-data". A subset-pool control on the identical hismap-only mixture (one 7 h run) is required
-before this negative result goes into the paper.
+**Confound, resolved.** The matched control above closes it: on the identical hismap-only
+mixture the gap is 1.26 mIoU. What remains open is whether the conclusion survives a broader
+training distribution - see the Siegfried rerun noted in section 0.
 
 ### Why it likely fails, and what would fix it
 
