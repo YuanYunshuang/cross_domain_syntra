@@ -17,42 +17,42 @@ DATA=/home/yuan/data/syntra
 INDEX=$DATA/global_index.npz
 POOL_ROOT=/home/yuan/data/syntra_e13          # selections and pairings live here, not in $DATA
 CFG=syntra/syntra_maps_s100                   # base config; everything else is overridden below
-CELL=sheet                                    # the cell: which sheets share a retrieval pool.
-                                              # One choice - it sets both the balance group and
-                                              # the retrieval scope, and they must not disagree.
 KW="hismap,siegfried"
 XKW=hameln.3921_2023
 SEL_PY=/home/yuan/anaconda3/envs/hismap/bin/python    # data tools: needs sklearn/matplotlib
 TRAIN_PY=/home/yuan/anaconda3/envs/syntra/bin/python  # training: needs torch
 export PYTHONPATH=.
 
-# name | strategy | cell | guard | budget
+# name | strategy | cell-gap | guard | budget
 # Experiment 1 first: the same number of training pairs as the n-shot scheme, chosen differently.
+# Gap 0 is sheet-wise, the validated setting, so the selection is the only thing that differs.
 RUNS=(
-  "e13x1_fps_b6160   fps      sheet   0  6160"
-  "e13x1_unif_b6160  uniform  sheet   0  6160"
+  "e13x1_fps_b6160   fps      0  0  6160"
+  "e13x1_unif_b6160  uniform  0  0  6160"
 )
 # Experiments 2-4 follow, anchored on whichever arm of experiment 1 wins; see docs/E13_PLAN.md.
 PILOTS=("e13x1_fps_b6160")                    # calibration uses the run it will be applied to
 
 prepare() {
   for spec in "${RUNS[@]}"; do
-    read -r name strat cell guard budget <<< "$spec"
-    echo "=== $name: $strat / cell $cell / guard $guard / B=$budget ==="
+    read -r name strat gap guard budget <<< "$spec"
+    echo "=== $name: $strat / cell-gap $gap / guard $guard / B=$budget ==="
     $SEL_PY data_tools/indexing/select_budget.py -d "$DATA" --index "$INDEX" \
       --budget "$budget" --strategy "$strat" --density-guard "$guard" \
-      --cell "$cell" --min-per-cell-class 1 --val-fraction 0.1 \
+      --cell-gap "$gap" --min-per-cell-class 1 --val-fraction 0.1 \
       --name "$name" --output-root "$POOL_ROOT" -dkw "$KW" -xkw "$XKW"
     # Sources are the run's own annotations: what you did not pay to label you cannot prompt
-    # with either. Scope stays subset-local, so selection is the only variable across runs.
+    # with either. The pairing gap matches the selection gap - they are one decision.
     for tgt in "$name" "${name}_val"; do
       $SEL_PY data_tools/indexing/make_pool_pairing.py -d "$POOL_ROOT" --index "$INDEX" \
-        --source "$name" --target "$tgt" --scope "$cell" -k 8 -dkw "$KW" --suffix "$cell"
+        --source "$name" --target "$tgt" --cell-gap "$gap" -k 8 -dkw "$KW" --suffix "gap$gap"
     done
-    # test targets come from the dataset's own test lists, so they must be visible to the tool
-    $SEL_PY data_tools/indexing/make_pool_pairing.py -d "$DATA" --index "$INDEX" \
-      --source "$name" --target test_samples --scope "$cell" -k 8 -dkw "$KW" -xkw "$XKW" \
-      --output-root "$POOL_ROOT" --suffix "$cell" || true
+    # Test targets and the selection both have to be visible at once. mirror_subset symlinks
+    # the dataset's own lists into POOL_ROOT, so everything is read from there; pointing this at
+    # DATA finds test_samples.txt but not the selection, and writes an empty pairing in silence.
+    $SEL_PY data_tools/indexing/make_pool_pairing.py -d "$POOL_ROOT" --index "$INDEX" \
+      --source "$name" --target test_samples --cell-gap "$gap" -k 8 -dkw "$KW" -xkw "$XKW" \
+      --suffix "gap$gap"
   done
 }
 
@@ -79,8 +79,8 @@ pilot() {
   for name in "${PILOTS[@]}"; do
     local itr=100000
     itr=150000
-    train "${name}_pilot" "sample_pair_${name}_${name}_${CELL}" \
-          "sample_pair_${name}_${name}_val_${CELL}" "$itr" constant
+    train "${name}_pilot" "sample_pair_${name}_${name}_gap0" \
+          "sample_pair_${name}_${name}_val_gap0" "$itr" constant
   done
   echo
   echo "Now read logs/<task>/val_curve.txt: take the smallest iteration count within 0.5 mIoU"
@@ -93,10 +93,10 @@ declare -A ITERS=( [e13x1_fps_b6160]=100000 [e13x1_unif_b6160]=100000 )
 
 ladder() {
   for spec in "${RUNS[@]}"; do
-    read -r name _ cell _ _ <<< "$spec"
-    train "$name" "sample_pair_${name}_${name}_${CELL}" \
-          "sample_pair_${name}_${name}_val_${CELL}" "${ITERS[$name]}" exp
-    run_test "$name" "sample_pair_${name}_test_samples_${CELL}"
+    read -r name _ gap _ _ <<< "$spec"
+    train "$name" "sample_pair_${name}_${name}_gap0" \
+          "sample_pair_${name}_${name}_val_gap0" "${ITERS[$name]}" exp
+    run_test "$name" "sample_pair_${name}_test_samples_gap0"
   done
   $SEL_PY syntra/tools/collect_results.py logs -o results/e13_runs.csv || true
 }

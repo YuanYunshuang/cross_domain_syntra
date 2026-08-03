@@ -287,7 +287,7 @@ def main():
 
     dirs = subset_dirs(args.root_dir, args.data_keywords, args.exclude_keys)
     subsets = [os.path.basename(d) for d in dirs]
-    print(f"{len(dirs)} subsets, scope={args.scope}, k={args.k}")
+    print(f"{len(dirs)} subsets, cell-gap={args.cell_gap:g}, k={args.k}")
 
     corpora = corpus_map(dirs)
     # class ratios and the source pool of every subset
