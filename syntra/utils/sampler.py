@@ -236,6 +236,7 @@ class FixedPerGroupEpochBatchSampler(Sampler[List[int]]):
         *,
         replacement: bool = False,
         shuffle_epoch: bool = True,
+        drop_last: bool = True,
         generator: Optional[torch.Generator] = None,
     ) -> None:
         if samples_per_group <= 0:
@@ -250,13 +251,28 @@ class FixedPerGroupEpochBatchSampler(Sampler[List[int]]):
         self.batch_size = int(batch_size)
         self.replacement = bool(replacement)
         self.shuffle_epoch = bool(shuffle_epoch)
+        self.drop_last = bool(drop_last)
         self.gen = generator
         # Preconvert groups to tensors
         self.group_tensors = [torch.tensor(g, dtype=torch.long) for g in self.groups]
         self._epoch_size = self.K * self.m
-        self._num_batches = math.ceil(self._epoch_size / self.batch_size)
-
-        print(f"FixedPerGroupEpochBatchSampler: {self.K} groups, {self.m} samples/group.")
+        # K * m rarely divides batch_size - 18 groups at m=1 into batches of 8 leaves a
+        # remainder of 2 - and that short batch is not a harmless rounding detail. It is a third
+        # of the optimizer steps at a quarter of the nominal batch size, and with pos and neg as
+        # separate groups it drew both of its two samples from negative groups 25% of the time,
+        # which is where the NaN losses came from before SAMLoss was guarded. Dropping it makes
+        # every step the batch size that was asked for; the epoch is reshuffled, so the two
+        # samples left out differ each time and nothing is systematically starved.
+        self._num_batches = (self._epoch_size // self.batch_size if self.drop_last
+                             else math.ceil(self._epoch_size / self.batch_size))
+        if self._num_batches == 0:
+            raise ValueError(
+                f"{self.K} groups x {self.m} samples/group = {self._epoch_size} per epoch is "
+                f"below batch_size {self.batch_size}; raise samples_per_group")
+        dropped = self._epoch_size - self._num_batches * self.batch_size
+        print(f"FixedPerGroupEpochBatchSampler: {self.K} groups, {self.m} samples/group, "
+              f"{self._num_batches} batches of {self.batch_size}"
+              + (f", {dropped} left over per epoch and reshuffled" if dropped else ""))
 
     def __len__(self) -> int:
         return self._num_batches
@@ -288,8 +304,7 @@ class FixedPerGroupEpochBatchSampler(Sampler[List[int]]):
 
     def __iter__(self) -> Iterator[List[int]]:
         epoch_indices = self._build_epoch_indices()
-        # slice into batches
-        for start in range(0, len(epoch_indices), self.batch_size):
-            yield epoch_indices[start:start + self.batch_size]
+        for i in range(self._num_batches):
+            yield epoch_indices[i * self.batch_size: (i + 1) * self.batch_size]
 
 

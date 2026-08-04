@@ -44,24 +44,30 @@ class SAMLoss(nn.Module):
         gt_masks_neg = gt_masks_neg[cared_neg].unsqueeze(1)
 
         
-        ce_loss_pos = self.ce_loss_fn(pred_masks_pos, gt_masks_pos)
-        ce_loss_pos = ce_loss_pos.mean()
-        if torch.sum(~pos_inds) == 0:
-            ce_loss_neg = torch.tensor(0.0, device=pred_masks.device)
-        else:
-            ce_loss_neg = self.ce_loss_fn(pred_masks_neg, gt_masks_neg)   
-            ce_loss_neg = ce_loss_neg.mean() * self.ce_neg_weight
+        # A batch can hold no positive at all - every target a class the tile does not carry -
+        # and `.mean()` of an empty tensor is NaN, not zero. The negative branch was guarded and
+        # the positive one was not, so any all-negative batch poisoned the loss. The old runs
+        # never hit it often enough to notice; a budget that buys negatives explicitly does.
+        # Both branches are guarded on the tensor being non-empty rather than on the index
+        # count, because `cared` can empty one after the split when a mask is entirely ignored.
+        zero = torch.zeros((), device=pred_masks.device)
+        has_pos = pred_masks_pos.numel() > 0
+        has_neg = pred_masks_neg.numel() > 0
 
-        if self.dice_pos_weight > 0:
-            seg_loss_pos = self.seg_loss_fn(pred_masks_pos, gt_masks_pos) 
-            seg_loss_pos = seg_loss_pos.mean()
+        ce_loss_pos = self.ce_loss_fn(pred_masks_pos, gt_masks_pos).mean() if has_pos else zero
+        if has_neg:
+            ce_loss_neg = self.ce_loss_fn(pred_masks_neg, gt_masks_neg).mean() * self.ce_neg_weight
         else:
-            seg_loss_pos = torch.tensor(0.0, device=pred_masks.device)
-        if self.dice_neg_weight > 0 and pred_masks_neg.shape[0] > 0:
-            seg_loss_neg = self.seg_loss_fn(pred_masks_neg, gt_masks_neg)
-            seg_loss_neg = seg_loss_neg.mean()
+            ce_loss_neg = zero
+
+        if self.dice_pos_weight > 0 and has_pos:
+            seg_loss_pos = self.seg_loss_fn(pred_masks_pos, gt_masks_pos).mean()
         else:
-            seg_loss_neg = torch.tensor(0.0, device=pred_masks.device)
+            seg_loss_pos = zero
+        if self.dice_neg_weight > 0 and has_neg:
+            seg_loss_neg = self.seg_loss_fn(pred_masks_neg, gt_masks_neg).mean()
+        else:
+            seg_loss_neg = zero
 
         # if 'aux' in kwargs and kwargs['aux']:
         #     valid_notions_inds = []
