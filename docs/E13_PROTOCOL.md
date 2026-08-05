@@ -191,21 +191,52 @@ which is the E1 control repeated under a budget instead of the full training set
 
 ---
 
-## Iteration count
+## Iteration count: 150,000, and why
 
-Not chosen by early stopping: the poly decay is a function of `max_iterations`, so a run halted
-at k is not the run that would have been trained for k. Calibrated once, then frozen.
+**Result of the calibration pilot (2026-08-04).** Both arms of E13.1 train for **150,000
+iterations** with the `exp` poly decay. This is a *compute-bound* choice, not a converged one,
+and the paper has to say so.
 
-1. Two pilots at the ends of the ladder — B=300 and B=6160 — with `--lr-scheduler constant` so
-   the curve measures convergence rather than the schedule, validating every 2,000 iterations
-   against the held-out 10% and writing `val_curve.txt`.
-2. From each curve take the smallest iteration count within 0.5 mIoU of its peak, fit the
-   simplest rule through the two points, and use it for every run.
-3. Restore `--lr-scheduler exp` so each run anneals over its own length.
+The count cannot be chosen by early stopping, because the decay is a function of it:
+`lr = base_lr * (1 - (itr - warmup) / max_itr) ** 0.9`. A run halted at k is not the run that
+would have been trained for k - it stops with the rate still a fraction of base and its weights
+mid-schedule. So it is a hyperparameter, calibrated once on a pilot that holds the rate flat
+after warmup, because under a decaying rate every checkpoint sits at a different learning rate
+and the curve would measure the schedule rather than convergence.
 
-Until the pilots are read, all runs use `max_iterations=100000`, which is provisional. At batch 8
-that is 800,000 samples: 2,667 epochs over 300 pairs but 130 over 6,160, and closing that gap is
-what the calibration is for.
+**What the pilot showed.** Held-out mIoU over 150,000 iterations, smoothed over seven points:
+
+| iterations | 20k | 44k | 68k | 92k | 116k | 140k |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| val mIoU | 0.621 | 0.501 | 0.497 | 0.602 | 0.663 | 0.663 |
+
+First half 0.550 ± 0.109, second half 0.627 ± 0.059, a trend of **+0.102 mIoU per 100k**. The
+half-to-half difference of 0.077 stands against standard errors of 0.018 and 0.010, so the
+improvement is real even though single points are not. The smoothed peak is at 144,000 - the far
+end - and the protocol's "smallest count within 0.5 mIoU of the peak" returns 142,000, which is
+only another way of saying the curve never turned over.
+
+**So 150,000 is a floor rather than an optimum.** It is chosen because:
+
+- nothing in the curve argues for stopping earlier: there is no plateau and no overfitting, with
+  training loss reaching 0.073 while held-out mIoU was still climbing;
+- the real runs anneal rather than holding 1e-3, which normally reaches a better solution in the
+  same number of steps than a constant rate does, so the pilot understates what 150,000 buys;
+- at ~9 h per run it is what the schedule affords across the runs E13 needs.
+
+A longer pilot would find the actual plateau, but the budget would cap the answer anyway.
+
+**Two earlier readings that were wrong, recorded so they are not repeated.** The first pilot
+appeared to plateau past 60,000; it was running with ~5% NaN losses from all-negative batches
+and its training loss stalled at 0.423 against 0.073 once fixed. And the NaN was blamed on the
+constant learning rate - `exp` decay produced it at the same rate on the same data, so the
+schedule was never the cause.
+
+**What the pilot did not fix.** Validation noise is unchanged at 0.106 point-to-point against
+0.108 before, so it is not the NaN: the validation set is 1,339 samples spread over nine
+class-dataset combinations, two of which hold about ten pairs each while carrying two ninths of
+the mean. Any future criterion that needs a precise optimum has to enlarge it first, and that
+costs budget.
 
 ## Execution
 
