@@ -110,8 +110,7 @@ pilot() {
   # Phase 1: constant LR after warmup, so the validation curve measures convergence and not the
   # decay. Long enough to see the knee; the fitted rule then sets the real lengths.
   for name in "${PILOTS[@]}"; do
-    local itr=100000
-    itr=150000
+    local itr=150000
     train "${name}_pilot" "sample_pair_${name}_${name}_gap0" \
           "sample_pair_${name}_${name}_val_gap0" "$itr" constant
   done
@@ -122,11 +121,17 @@ pilot() {
 
 # Phase 3: set from the pilots before running `ladder`. 100000 is the pre-calibration default
 # and is deliberately left obviously provisional.
-declare -A ITERS=( [e13x1_fps]=100000 [e13x1_nshot]=100000 )
+# From the calibration pilot: held-out mIoU was still rising at 150,000 with no plateau and no
+# overfitting signal - training loss reached 0.073 while validation kept improving - so this is
+# a compute-bound choice, not a converged one, and the paper has to say so.
+declare -A ITERS=( [e13x1_fps]=150000 [e13x1_nshot]=150000 )
+
+# Both arms of experiment 1. The n-shot arm is the scheme as it exists, the fps arm is the same
+# number of positives chosen differently, and they share their negatives verbatim.
+ARMS=("e13x1_nshot" "e13x1_fps")
 
 ladder() {
-  for spec in "${RUNS[@]}"; do
-    read -r name _ gap _ _ <<< "$spec"
+  for name in "${ARMS[@]}"; do
     train "$name" "sample_pair_${name}_${name}_gap0" \
           "sample_pair_${name}_${name}_val_gap0" "${ITERS[$name]}" exp
     run_test "$name" "sample_pair_${name}_test_samples_gap0"
