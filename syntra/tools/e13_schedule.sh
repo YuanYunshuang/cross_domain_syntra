@@ -16,10 +16,11 @@ set -euo pipefail
 DATA=/home/yuan/data/syntra
 INDEX=$DATA/global_index.npz
 POOL_ROOT=/home/yuan/data/syntra_e13          # selections and pairings live here, not in $DATA
-CFG=syntra/syntra_maps_s100                   # base config; everything else is overridden below
+CFG=syntra/syntra_v3_match                    # v3's configuration field for field;
+                                              # only the training data varies
 KW="hismap,siegfried"
-XKW=hameln.3921_2023
-FG=hameln=0.05,bayern=0.05,siegfried=0.01
+XKW=                                          # empty: nothing excluded, as v3 had it
+FG=0.05                                       # flat, as v3 had it - not 0.01 for Siegfried
 SEL_PY=/home/yuan/anaconda3/envs/hismap/bin/python    # data tools: needs sklearn/matplotlib
 TRAIN_PY=/home/yuan/anaconda3/envs/syntra/bin/python  # training: needs torch
 export PYTHONPATH=.
@@ -32,8 +33,8 @@ export PYTHONPATH=.
 # of their sheet - with its negatives sampled down to match its positives: 6,801 + 6,697. The
 # proposed arm buys the same 13,498 passes at the same split. The original's 61.5% negative skew
 # was an accident of exhaustive labelling, not a design choice.
-NPOS=6801        # the n-shot scheme's positive count; the proposed arm is given the same
-NNEG=6697        # one negative draw, shared verbatim by both arms
+NPOS=7131        # the n-shot scheme's positive count; the proposed arm is given the same
+NNEG=7027        # one negative draw, shared verbatim by both arms
 NSHOT=e13x1_nshot
 # name | strategy | cell-gap | guard | budget   (positives only; negatives are merged in)
 RUNS=("e13x1_fps  fps  0  0  $NPOS")
@@ -46,17 +47,17 @@ prepare() {
   $SEL_PY data_tools/indexing/select_budget.py -d "$DATA" --index "$INDEX" \
     --budget "$NNEG" --strategy random --negative-fraction 1.0 --negative-strategy random \
     --cell-gap 0 --min-per-cell-class 0 --fg-ratio "$FG" \
-    --name e13x1_neg --output-root "$POOL_ROOT" -dkw "$KW" -xkw "$XKW"
+    --name e13x1_neg --output-root "$POOL_ROOT" -dkw "$KW" ${XKW:+-xkw "$XKW"}
 
   # the n-shot arm's positive half: its tiles times the classes they carry
   $SEL_PY data_tools/indexing/expand_selection.py -d "$DATA" --source cls_selection_100 \
     --name "${NSHOT}_pos" --output-root "$POOL_ROOT" --fg-ratio "$FG" --negative-ratio 0 \
-    -dkw "$KW" -xkw "$XKW"
+    -dkw "$KW" ${XKW:+-xkw "$XKW"}
   $SEL_PY data_tools/indexing/merge_selections.py -d "$POOL_ROOT" \
-    --inputs "${NSHOT}_pos,e13x1_neg" --name "$NSHOT" -dkw "$KW" -xkw "$XKW"
+    --inputs "${NSHOT}_pos,e13x1_neg" --name "$NSHOT" -dkw "$KW" ${XKW:+-xkw "$XKW"}
   for tgt in "$NSHOT" "test_samples"; do
     $SEL_PY data_tools/indexing/make_pool_pairing.py -d "$POOL_ROOT" --index "$INDEX" \
-      --source "$NSHOT" --target "$tgt" --cell-gap 0 -k 8 -dkw "$KW" -xkw "$XKW" --suffix gap0
+      --source "$NSHOT" --target "$tgt" --cell-gap 0 -k 8 -dkw "$KW" ${XKW:+-xkw "$XKW"} --suffix gap0
   done
 
   for spec in "${RUNS[@]}"; do
@@ -65,9 +66,9 @@ prepare() {
     $SEL_PY data_tools/indexing/select_budget.py -d "$DATA" --index "$INDEX" \
       --budget "$budget" --strategy "$strat" --density-guard "$guard" \
       --cell-gap "$gap" --min-per-cell-class 1 --fg-ratio "$FG" \
-      --name "${name}_pos" --output-root "$POOL_ROOT" -dkw "$KW" -xkw "$XKW"
+      --name "${name}_pos" --output-root "$POOL_ROOT" -dkw "$KW" ${XKW:+-xkw "$XKW"}
     $SEL_PY data_tools/indexing/merge_selections.py -d "$POOL_ROOT" \
-      --inputs "${name}_pos,e13x1_neg" --name "$name" -dkw "$KW" -xkw "$XKW"
+      --inputs "${name}_pos,e13x1_neg" --name "$name" -dkw "$KW" ${XKW:+-xkw "$XKW"}
     # Sources are the run's own annotations: what you did not pay to label you cannot prompt
     # with either. The pairing gap matches the selection gap - they are one decision.
     for tgt in "$name"; do
@@ -78,7 +79,7 @@ prepare() {
     # the dataset's own lists into POOL_ROOT, so everything is read from there; pointing this at
     # DATA finds test_samples.txt but not the selection, and writes an empty pairing in silence.
     $SEL_PY data_tools/indexing/make_pool_pairing.py -d "$POOL_ROOT" --index "$INDEX" \
-      --source "$name" --target test_samples --cell-gap "$gap" -k 8 -dkw "$KW" -xkw "$XKW" \
+      --source "$name" --target test_samples --cell-gap "$gap" -k 8 -dkw "$KW" ${XKW:+-xkw "$XKW"} \
       --suffix "gap$gap"
   done
 }
@@ -89,7 +90,7 @@ train() {
   echo "=== train $task: $itr iterations, lr $sched ==="
   $TRAIN_PY syntra/train_one_gpu.py --config "$CFG" -t "$task" -d "$POOL_ROOT" \
     --data-info "$info" \
-    --max-iterations "$itr" --lr-scheduler "$sched" --use-amp true -dkw "$KW" -xkw "$XKW"
+    --max-iterations "$itr" --lr-scheduler "$sched" -dkw "$KW" ${XKW:+-xkw "$XKW"}
 }
 
 # test <task> <data_info>
@@ -97,7 +98,7 @@ run_test() {
   local task=$1 info=$2
   echo "=== test $task ==="
   $TRAIN_PY syntra/test.py --config "$CFG" -d "$POOL_ROOT" --data-info "$info" \
-    -w "logs/$task/model_best.pth" -dkw "$KW" -xkw "$XKW" -s
+    -w "logs/$task/model_best.pth" -dkw "$KW" ${XKW:+-xkw "$XKW"} -s
 }
 
 pilot() {
@@ -117,7 +118,7 @@ pilot() {
 # From the calibration pilot: held-out mIoU was still rising at 150,000 with no plateau and no
 # overfitting signal - training loss reached 0.073 while validation kept improving - so this is
 # a compute-bound choice, not a converged one, and the paper has to say so.
-declare -A ITERS=( [e13x1_fps]=150000 [e13x1_nshot]=150000 )
+declare -A ITERS=( [e13x1_fps]=100000 [e13x1_nshot]=100000 )   # v3 used 100,000
 
 # Both arms of experiment 1. The n-shot arm is the scheme as it exists, the fps arm is the same
 # number of positives chosen differently, and they share their negatives verbatim.
