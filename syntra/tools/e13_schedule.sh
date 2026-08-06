@@ -45,19 +45,16 @@ prepare() {
   # thing that differs between them.
   $SEL_PY data_tools/indexing/select_budget.py -d "$DATA" --index "$INDEX" \
     --budget "$NNEG" --strategy random --negative-fraction 1.0 --negative-strategy random \
-    --cell-gap 0 --min-per-cell-class 0 --val-fraction 0.1 --fg-ratio "$FG" \
+    --cell-gap 0 --min-per-cell-class 0 --fg-ratio "$FG" \
     --name e13x1_neg --output-root "$POOL_ROOT" -dkw "$KW" -xkw "$XKW"
 
   # the n-shot arm's positive half: its tiles times the classes they carry
   $SEL_PY data_tools/indexing/expand_selection.py -d "$DATA" --source cls_selection_100 \
     --name "${NSHOT}_pos" --output-root "$POOL_ROOT" --fg-ratio "$FG" --negative-ratio 0 \
-    --val-fraction 0.1 -dkw "$KW" -xkw "$XKW"
-  for part in "" "_val"; do
-    $SEL_PY data_tools/indexing/merge_selections.py -d "$POOL_ROOT" \
-      --inputs "${NSHOT}_pos${part},e13x1_neg${part}" --name "${NSHOT}${part}" \
-      -dkw "$KW" -xkw "$XKW"
-  done
-  for tgt in "$NSHOT" "${NSHOT}_val" "test_samples"; do
+    -dkw "$KW" -xkw "$XKW"
+  $SEL_PY data_tools/indexing/merge_selections.py -d "$POOL_ROOT" \
+    --inputs "${NSHOT}_pos,e13x1_neg" --name "$NSHOT" -dkw "$KW" -xkw "$XKW"
+  for tgt in "$NSHOT" "test_samples"; do
     $SEL_PY data_tools/indexing/make_pool_pairing.py -d "$POOL_ROOT" --index "$INDEX" \
       --source "$NSHOT" --target "$tgt" --cell-gap 0 -k 8 -dkw "$KW" -xkw "$XKW" --suffix gap0
   done
@@ -67,16 +64,13 @@ prepare() {
     echo "=== $name: $strat / cell-gap $gap / guard $guard / B=$budget ==="
     $SEL_PY data_tools/indexing/select_budget.py -d "$DATA" --index "$INDEX" \
       --budget "$budget" --strategy "$strat" --density-guard "$guard" \
-      --cell-gap "$gap" --min-per-cell-class 1 --val-fraction 0.1 --fg-ratio "$FG" \
+      --cell-gap "$gap" --min-per-cell-class 1 --fg-ratio "$FG" \
       --name "${name}_pos" --output-root "$POOL_ROOT" -dkw "$KW" -xkw "$XKW"
-    for part in "" "_val"; do
-      $SEL_PY data_tools/indexing/merge_selections.py -d "$POOL_ROOT" \
-        --inputs "${name}_pos${part},e13x1_neg${part}" --name "${name}${part}" \
-        -dkw "$KW" -xkw "$XKW"
-    done
+    $SEL_PY data_tools/indexing/merge_selections.py -d "$POOL_ROOT" \
+      --inputs "${name}_pos,e13x1_neg" --name "$name" -dkw "$KW" -xkw "$XKW"
     # Sources are the run's own annotations: what you did not pay to label you cannot prompt
     # with either. The pairing gap matches the selection gap - they are one decision.
-    for tgt in "$name" "${name}_val"; do
+    for tgt in "$name"; do
       $SEL_PY data_tools/indexing/make_pool_pairing.py -d "$POOL_ROOT" --index "$INDEX" \
         --source "$name" --target "$tgt" --cell-gap "$gap" -k 8 -dkw "$KW" --suffix "gap$gap"
     done
@@ -89,12 +83,12 @@ prepare() {
   done
 }
 
-# train <task> <data_info> <val_info> <iterations> <scheduler>
+# train <task> <data_info> <iterations> <scheduler>
 train() {
-  local task=$1 info=$2 val=$3 itr=$4 sched=$5
+  local task=$1 info=$2 itr=$3 sched=$4
   echo "=== train $task: $itr iterations, lr $sched ==="
   $TRAIN_PY syntra/train_one_gpu.py --config "$CFG" -t "$task" -d "$POOL_ROOT" \
-    --data-info "$info" --validation-data "$val" --val-interval 2000 \
+    --data-info "$info" \
     --max-iterations "$itr" --lr-scheduler "$sched" --use-amp true -dkw "$KW" -xkw "$XKW"
 }
 
@@ -103,7 +97,7 @@ run_test() {
   local task=$1 info=$2
   echo "=== test $task ==="
   $TRAIN_PY syntra/test.py --config "$CFG" -d "$POOL_ROOT" --data-info "$info" \
-    -w "logs/$task/model_latest.pth" -dkw "$KW" -xkw "$XKW" -s
+    -w "logs/$task/model_best.pth" -dkw "$KW" -xkw "$XKW" -s
 }
 
 pilot() {
@@ -111,8 +105,7 @@ pilot() {
   # decay. Long enough to see the knee; the fitted rule then sets the real lengths.
   for name in "${PILOTS[@]}"; do
     local itr=150000
-    train "${name}_pilot" "sample_pair_${name}_${name}_gap0" \
-          "sample_pair_${name}_${name}_val_gap0" "$itr" constant
+    train "${name}_pilot" "sample_pair_${name}_${name}_gap0" "$itr" constant
   done
   echo
   echo "Now read logs/<task>/val_curve.txt: take the smallest iteration count within 0.5 mIoU"
@@ -132,8 +125,7 @@ ARMS=("e13x1_nshot" "e13x1_fps")
 
 ladder() {
   for name in "${ARMS[@]}"; do
-    train "$name" "sample_pair_${name}_${name}_gap0" \
-          "sample_pair_${name}_${name}_val_gap0" "${ITERS[$name]}" exp
+    train "$name" "sample_pair_${name}_${name}_gap0" "${ITERS[$name]}" exp
     run_test "$name" "sample_pair_${name}_test_samples_gap0"
   done
   $SEL_PY syntra/tools/collect_results.py logs -o results/e13_runs.csv || true

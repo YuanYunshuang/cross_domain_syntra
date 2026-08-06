@@ -12,6 +12,7 @@ import random
 import argparse
 from datetime import datetime
 import shutil
+from collections import deque
 from os.path import join
 from tqdm import tqdm
 
@@ -293,6 +294,11 @@ def main():
     lrs = []
     best_loss = 1e10
     max_mean_iou = 0
+    # A rolling window over the last 100 iterations. inter_avg_loss resets every epoch, and an
+    # epoch here is two iterations, so it held a one- or two-batch average: fine for a progress
+    # bar, useless as a checkpoint criterion, which would have picked whichever pair of batches
+    # happened to be easiest out of 150,000.
+    recent_losses = deque(maxlen=100)
     start_epoch = 1
 
     if getattr(args, 'resume', None) is not None:
@@ -360,6 +366,7 @@ def main():
                     optimizer.zero_grad()
 
             inter_avg_loss += loss.item()
+            recent_losses.append(loss.item())
             for k, v in loss_dict.items():
                 inter_avg_loss_dict[k] += v
             iter_num += 1
@@ -379,7 +386,7 @@ def main():
                 vis_train(img_src, lbl_src, img_tgt, lbl_tgt, pred, aux, iter_num)
 
             if iter_num % 100 == 0:
-                inter_avg_loss /= max(step, 1)
+                inter_avg_loss = sum(recent_losses) / len(recent_losses)
                 losses.append(inter_avg_loss)
                 lrs.append(cur_lr)
                 logger.info(f'Time: {datetime.now().strftime("%Y%m%d-%H%M")}, Epoch: {epoch}, Loss: {inter_avg_loss}')
