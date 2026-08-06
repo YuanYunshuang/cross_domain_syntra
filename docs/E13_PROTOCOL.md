@@ -7,7 +7,7 @@ each run is compared against. Every number below is measured from the corpus, no
 
 | | |
 | --- | --- |
-| corpus | 26 sheets — 15 Hameln, 8 Bayern, 2 Siegfried, with `hameln.3921_2023` excluded as a duplicate scan |
+| corpus | 27 sheets — 17 Hameln, 8 Bayern, 2 Siegfried, **including `hameln.3921_2023`** |
 | candidate pool | 10,831 tiles, **12,918 (tile, class) pairs** above the foreground threshold (0.05; 0.01 for Siegfried) |
 | classes | forest, grass, settlement, water, railway, vineyard |
 | budget unit | one annotation pass = one class digitised on one tile |
@@ -22,8 +22,21 @@ each run is compared against. Every number below is measured from the corpus, no
 **Retrieval scope always equals the cell.** `--cell` for `select_budget.py` and `--scope` for
 `make_pool_pairing.py` take the same value in the same run; they are one decision.
 
-**Every run trains from scratch.** No earlier checkpoint enters E13, and the historical 85.89 is
-not a baseline for any of it.
+**Every run trains from scratch.** No earlier checkpoint enters E13.
+
+**`hameln.3921_2023` is kept, for comparability rather than because the data is sound.** It is
+byte-identical to `hameln.3921_2017` - all 900 tiles sit at cosine distance 0.0000 from their
+twins - so the corpus holds that sheet twice and the test set scores it twice. Every run E13 is
+measured against does the same: the SMOL baselines set no `exclude_keys`, and v3 logged 18,864
+training samples, which matches the corpus with the sheet (18,664 on the current tree) and not
+without it (17,753). Dropping it would make the numbers cleaner and incomparable. It is a defect
+of the release, recorded in `DATA_ISSUE_hameln_3921_duplicate.md`, and it should be fixed in the
+data rather than worked around per experiment.
+
+Neither arm can decline it. Quotas are per (sheet, class), so the duplicate draws a full share
+whatever a strategy thinks of it: 634 pairs for farthest-point against 649 for the n-shot scheme,
+roughly 1,270 passes per arm spent twice over the same imagery. A selection allowed to
+reallocate across sheets would have caught it; balancing per sheet forbids that.
 
 ### The cells, and how many groups each definition makes
 
