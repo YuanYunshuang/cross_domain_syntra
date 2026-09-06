@@ -152,7 +152,7 @@ The argument for tiles, taken here, is that it matches how annotation is actuall
 | --- | --- | --- |
 | unit | one class on one tile | one tile, all its classes |
 | cross-class negatives | bought explicitly, cost budget | **free, and automatic** |
-| `cls_selection_100` baseline | 6,160 passes → 6,158 trainable pairs | 4,887 tiles → all pairs on them |
+| `cls_selection_100` baseline | 6,438 passes → 6,435 trainable pairs | **5,087 tiles → 18,664 pairs** |
 | E13 class-restricted pairing | required | **wrong — remove it** |
 
 The class restriction in `make_pool_pairing.py` (a selection's tiles serve as sources and targets
@@ -184,8 +184,26 @@ replaces the retired "cross-class negatives" open question.
 
 ### 3d. Ladder
 
-Tile budgets: **100 / 300 / 1,000 / 3,000 / 4,887 (n-shot baseline) / 10,831 (all annotatable)**.
+Tile budgets: **100 / 300 / 1,000 / 3,000 / 5,087 (n-shot baseline) / 11,152 (all annotatable)**.
 Every figure with a budget on the x-axis states "tiles" in the axis label. No figure mixes units.
+
+**The two top rungs were re-derived from the corpus on 2026-09-06** and both moved, because both
+had been computed with `hameln.3921_2023` excluded and the decision is to keep it (§9):
+
+| rung | was | is | why |
+| --- | ---: | ---: | --- |
+| n-shot baseline | 4,887 | **5,087** | `cls_selection_100` over 27 subsets. 4,887 predates the index rebuild of `fd59ff2`; today's selection gives 4,859 without the duplicate and 5,087 with it, so the old figure reconciles to neither and is simply stale. |
+| all annotatable | 10,831 | **11,152** | train tiles carrying ≥1 class above `fg 0.05`. 10,831 is exactly this count with `hameln.3921_2023` removed — verified, so the provenance is not in doubt. |
+
+"All annotatable" deliberately excludes the **3,523** purely-negative train tiles; the full train
+split is 14,675. Under tile accounting a purely-negative tile still costs a unit and still yields
+negatives, so if the budget curve is ever extended to the whole split, label that rung 14,675 and
+say which convention it uses — do not silently blend the two.
+
+`train_samples` + `test_samples` = 14,675 + 11,342 = **26,017**, the corpus total in §3b, so the
+splits are exhaustive and disjoint. §3b's table was re-measured at the same time and reproduces
+exactly: 2,376 / 15,300 / 7,551 / 790 tiles, 76,669 pairs, 24,618 positive and 52,051 negative
+for a natural ratio of **2.11**.
 
 ---
 
@@ -222,10 +240,14 @@ Two caveats that outlived the 2×2 and still need acting on:
 **P0.4 — data hygiene.**
 - **Rebuild Siegfried at 384 natively.** The deprecated tree already holds it. This lets `Resize`
   be dropped from every config, removing an upsample confound that touches 2 of 9 classes.
-- **Resolve `hameln.3921_2023`.** It is the same scan as `hameln.3921_2017` under a second year
-  label (`DATA_ISSUE_hameln_3921_duplicate.md`); the corpus currently trains on it twice and
-  scores it twice. Decide: exclude from both, or keep and report with and without. Do not leave it
-  implicit — SMOL includes it, so the comparison table has to say which convention it uses.
+- **`hameln.3921_2023` — decided 2026-09-06: keep it.** It is the same scan as `hameln.3921_2017`
+  under a second year label (`DATA_ISSUE_hameln_3921_duplicate.md`), so the corpus trains on it
+  twice and scores it twice. Kept because every run any new number is compared against includes
+  it — v3, the reproduction, both E13 arms, and SMOL (`05c964e`) — and excluding it now would put
+  a second uncontrolled difference between the anchor and the archive.
+  **What this obliges:** the methods section states the convention explicitly rather than leaving
+  it implicit, and the tile counts in §3d are the with-duplicate ones (5,087 and 11,152, not 4,859
+  and 10,831). It stays a known defect of the data, not of any experiment.
 - **Canonicalise class names.** v3-era results key `siegfried.railway` / `siegfried.vineyard`
   (three vineyard subsets collapsing into one class); the current layout gives `railway.railway` /
   `vineyard.vineyard`. Same nine classes, different weighting of the mean and no join key. Fix one
@@ -369,9 +391,8 @@ state it; an AMP result is not comparable to 85.89 until that is measured.
 - ~~**The 12.8 points.**~~ Closed 2026-09-06: two bugs in `sam_loss.py` (§1b), fixed in `aa8eb04`.
   Worth a methods paragraph — the loss reported a quantity outside the range its own definition
   allows for seven months, and the range check that catches it is one assert.
-- **`hameln.3921_2023`.** Duplicate scan, currently trained and scored twice, and SMOL includes
-  it. Whatever P0.4 decides has to be applied to the baselines too or the main table is not
-  like-for-like.
+- ~~**`hameln.3921_2023`.**~~ Closed 2026-09-06: **kept**, since SMOL and every archive run
+  include it, so keeping it is what makes the main table like-for-like. See P0.4 and §3d.
 - **Tile-to-pair ratio across archives** (§3c). A tile-balanced budget over-serves Siegfried by
   4× relative to Hameln in training pairs. Decide whether the policy optimises tiles, pairs, or
   reports both, before E-A is run.
