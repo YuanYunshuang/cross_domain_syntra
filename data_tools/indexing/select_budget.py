@@ -1,12 +1,20 @@
 # -*- coding: utf-8 -*-
 """Spend a fixed annotation budget: which tiles are worth labelling (E11).
 
-Given a total budget of B annotation units - one unit is one class digitised on one tile -
-choose which (tile, class) pairs to annotate. A tile carrying two classes costs two units if
-both are wanted, because they are two passes and two training samples; it is written out only
-under the classes actually bought. The selection is written in the
-`cls_selection_*.json` format, so it can be used either as a training set or as a retrieval
-pool by passing its name to `make_pool_pairing.py --source`.
+Given a total budget of B annotation units, choose what to annotate. `--budget-unit` says what a
+unit is, and it changes the answer, not just the bookkeeping:
+
+    tile   the default (PAPER_PLAN.md section 3). One unit is one tile labelled for every class
+           in its sheet's vocabulary: the annotator visits the tile once and digitises what is
+           on it, so a tile carrying forest and water costs one unit, not two, and the classes
+           it does *not* carry come back as negative training samples for free. B is a count of
+           distinct tiles, found by bisecting the pair budget, so every arm of a comparison
+           spends the same number of tiles whatever its strategy.
+    pass   the retired accounting. One unit is one class on one tile, so a tile carrying two
+           wanted classes costs two units and is written out only under the classes bought.
+
+The selection is written in the `cls_selection_*.json` format either way, so it can be used as a
+training set or as a retrieval pool by passing its name to `make_pool_pairing.py --source`.
 
 Strategies:
 
@@ -32,11 +40,20 @@ spread over those cells and retrieval draws inside them, so the two must agree -
 they can be given annotations retrieval never looks at, or asked for exemplars the budget never
 bought.
 
-`--balance` divides the budget over the cells: a quota per (cell, class), per cell, or not at
-all. It decides *what* gets covered, and that is not a detail. Run over the whole pool at once,
-k-center covers the corpus well, but any single class's picks are then only wherever that class
-happens to meet the global cover, which leaves each class's own region patchy and starves a
-minority class. `--cell-gap 0 --strategy uniform` is the classic n-per-class-and-sheet scheme.
+`--balance` divides the budget: a quota per (cell, class), per cell, per (corpus, class), per
+corpus, or not at all. It decides *what* gets covered, and that is not a detail. Run over the
+whole pool at once, k-center covers the corpus well, but any single class's picks are then only
+wherever that class happens to meet the global cover, which leaves each class's own region patchy
+and starves a minority class. `--cell-gap 0 --strategy uniform` is the classic
+n-per-class-and-sheet scheme.
+
+**Prefer `corpus-class` for anything that will be scored.** At `--cell-gap 0` a cell is a sheet,
+so `cell-class` gives each of 92 (sheet, class) groups an equal quota and Hameln's 17 sheets take
+about three quarters of the budget; railway and vineyard, one subset and one class apiece, get
+one group each - 3 tiles of 300 - while being 2 of the 9 (dataset, class) combinations the mIoU
+averages. `corpus-class` quotas over those 9 instead. Retrieval coverage does not need the quota
+to be per sheet, because `--min-per-cell-class` already floors every (sheet, class) combination
+at one tile.
 
 Candidates are restricted to pairs whose class actually occupies the tile above the
 foreground threshold. Without that, coverage-seeking strategies drift to sheet borders, blank
@@ -61,6 +78,11 @@ from data_tools.indexing.make_pool_pairing import (corpus_map, era_map, group_of
                                                    year_of)
 
 INVALID_CLS = ("background", "nonlabeled")
+
+
+def _tiles(pairs):
+    """Distinct tiles in a selection. Under tile accounting this is what the budget counts."""
+    return {t for t, _ in pairs}
 
 
 def kcenter_greedy(vectors, budget, seed, seeds=None):
@@ -286,24 +308,37 @@ def _cell_map(present_of, gap, corpus_of, vectors, row_of, merge_corpora=False):
 
 def cells_of(present_of, gap=0.0, balance="cell-class", corpus_of=None,
              vectors=None, row_of=None, merge_corpora=False):
-    """Split the pool into groups of (tile, class) pairs, the unit the budget is spent in.
+    """Split the pool into groups of (tile, class) pairs, over which the budget is divided.
 
-    A pair is one class annotated on one tile - one digitising pass - and that is what costs
-    money. Counting tiles instead would make the second class on an already-chosen tile free,
-    which it is not: the training samples it produces are separate samples with their own
-    labels. So a tile carrying forest and water offers two pairs and costs two units, and it is
-    listed in the output only under the classes actually bought for it.
+    `gap` says which sheets share a retrieval pool; `balance` says how the budget is divided over
+    them. Every pair lands in exactly one group, so the groups are disjoint and each simply buys
+    its quota, with no credit to carry between them.
 
-    `gap` says which sheets share a retrieval pool; `balance` says how the budget is divided
-    over them. Every pair lands in exactly one group, so the groups are disjoint and each
-    simply buys its quota, with no credit to carry between them.
+    **`balance` decides which classes the money reaches, and the choice is not neutral.** At
+    `gap=0` every sheet is its own cell, so `cell-class` quotas per (sheet, class) - 92 groups
+    over this corpus, of which Hameln's 17 sheets supply about 68. Hameln then takes roughly
+    three quarters of any budget while railway and vineyard, one subset and one class each, get
+    one group apiece: at B=300 tiles that is 3 tiles each against forest's 78. They are 2 of the
+    9 (dataset, class) combinations the mIoU averages, so 1.9% of the budget backs 22% of the
+    headline number.
+
+    `corpus-class` quotas per (corpus, class) instead - 9 groups, near enough the combinations
+    actually scored - which is what E13's protocol used and what `EXPERIMENT_PLAN.md` means by
+    "without it vineyard gets 7 tiles of 499; with it ~40". It was dropped when retrieval became
+    cell-local and is restored here: the *floor* is what guarantees every (sheet, class) an
+    exemplar for retrieval, so the quota does not also have to, and making the quota carry that
+    job silently hands the budget to whichever corpus has the most sheets.
     """
     cells_by_sheet = _cell_map(present_of, gap, corpus_of, vectors, row_of, merge_corpora)
     cells = {}
     for name, present in present_of.items():
-        group = group_of(name.rsplit(".", 1)[0], cells_by_sheet)
+        subset = name.rsplit(".", 1)[0]
+        group = group_of(subset, cells_by_sheet)
+        corpus = (corpus_of or {}).get(subset, subset.split(".")[0])
         for cls in present:
-            key = {"cell-class": (group, cls), "cell": (group,), "none": ("all",)}[balance]
+            key = {"cell-class": (group, cls), "cell": (group,),
+                   "corpus-class": (corpus, cls), "corpus": (corpus,),
+                   "none": ("all",)}[balance]
             cells.setdefault(key, []).append((name, cls))
     return {k: sorted(v) for k, v in cells.items()}
 
@@ -461,8 +496,15 @@ def main():
     parser.add_argument("-d", "--root-dir", required=True)
     parser.add_argument("--index", required=True)
     parser.add_argument("--budget", type=int, required=True,
-                        help="annotation units to spend, one unit = one class on one tile; "
-                             "every strategy spends exactly this many")
+                        help="annotation units to spend; every strategy spends exactly this "
+                             "many. See --budget-unit for what a unit is")
+    parser.add_argument("--budget-unit", default="tile", choices=["tile", "pass"],
+                        help="what one unit buys. 'tile' (default, PAPER_PLAN.md section 3) is "
+                             "one tile labelled for every class in its sheet's vocabulary, so "
+                             "the second class on a chosen tile is free and cross-class "
+                             "negatives come with it. 'pass' is one class on one tile, the "
+                             "retired accounting, under which a tile carrying two wanted "
+                             "classes costs two units")
     parser.add_argument("--strategy", default="kcenter",
                         choices=["uniform", "random", "kcenter", "fps", "fps-medoid", "kmeans"])
     parser.add_argument("--cell-gap", type=float, default=0.0,
@@ -471,9 +513,14 @@ def main():
                              "corpus collapses to one pool by 0.114. Pass the same value to "
                              "make_pool_pairing")
     parser.add_argument("--balance", default="cell-class",
-                        choices=["cell-class", "cell", "none"],
-                        help="how the budget is divided over the cells: a quota per (cell, "
-                             "class), per cell, or not at all")
+                        choices=["cell-class", "cell", "corpus-class", "corpus", "none"],
+                        help="how the budget is divided: a quota per (cell, class), per cell, "
+                             "per (corpus, class), per corpus, or not at all. At --cell-gap 0 a "
+                             "cell is a sheet, so cell-class hands the budget to whichever "
+                             "corpus has the most sheets - Hameln takes ~74%% and the two "
+                             "Siegfried classes sit at the floor. corpus-class quotas over the "
+                             "9 combinations the mIoU actually averages; the per-(sheet, class) "
+                             "floor still guarantees retrieval an exemplar everywhere")
     parser.add_argument("--pool", default="train_samples",
                         help="sample list the budget may be spent from")
     parser.add_argument("-dkw", "--data-keywords", default=None)
@@ -515,6 +562,12 @@ def main():
     dirs, present_of = build_pool(args.root_dir, row_of, args.pool, fg_ratio,
                                   args.data_keywords, args.exclude_keys)
     corpora = corpus_map(dirs)
+    if args.budget_unit == "tile" and args.negative_fraction:
+        raise SystemExit(
+            "--negative-fraction is meaningless under --budget-unit tile: a bought tile is "
+            "labelled for every class in its sheet's vocabulary, so the classes it does not "
+            "carry are already negatives and cost nothing. Spending budget on them would buy "
+            "labels twice. Use --budget-unit pass if you mean the retired accounting.")
     n_negative = int(round(args.negative_fraction * args.budget))
     n_positive = args.budget - n_negative
 
@@ -523,10 +576,36 @@ def main():
     print(f"candidate pool: {candidates} (tile, class) pairs over {len(present_of)} annotated "
           f"tiles in {len(dirs)} subsets")
 
-    selected = select(present_of, vectors, row_of, n_positive, args.strategy,
+    def spend(n_pairs):
+        return select(present_of, vectors, row_of, n_pairs, args.strategy,
                       gap=args.cell_gap, balance=args.balance, corpus_of=corpora,
                       density_guard=args.density_guard,
-                      min_per_group=args.min_per_cell_class, seed=args.seed)
+                      min_per_group=args.min_per_cell_class, seed=args.seed,
+                      verbose=args.budget_unit == "pass")
+
+    if args.budget_unit == "tile":
+        # The budget is B tiles, each labelled for every class in its sheet's vocabulary
+        # (PAPER_PLAN.md section 3), while `select` spends pairs. Distinct tiles rise
+        # monotonically with the pair budget at a fixed seed, so bisect for the smallest pair
+        # budget holding B of them. Doing it here rather than in the caller keeps every arm of a
+        # comparison at the *same* tile count, which is what makes them comparable - converting
+        # by a fixed pairs-per-tile ratio would not, since the ratio depends on the strategy.
+        lo, hi = n_positive, max(n_positive * 6, 64)
+        while len(_tiles(spend(hi))) < n_positive and hi < candidates:
+            lo, hi = hi, min(hi * 2, candidates)
+        best = None
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            got = spend(mid)
+            if len(_tiles(got)) >= n_positive:
+                best, hi = (mid, got), mid - 1
+            else:
+                lo = mid + 1
+        n_pairs, selected = best if best else (candidates, spend(candidates))
+        print(f"budget unit tile: {n_positive} tiles cost {n_pairs} pairs "
+              f"({len(selected)} bought, {len(_tiles(selected))} distinct tiles)")
+    else:
+        selected = spend(n_positive)
     if n_negative:
         # Negatives are drawn in the same cells but by their own strategy, and need no coverage
         # floor: a negative is never a source, so no combination depends on one existing.
@@ -580,10 +659,12 @@ def main():
     for cls in all_classes:
         print(f"    {cls:<14} {len(by_class.get(cls, [])):>5} pairs")
 
+    # The unit is in the name because the same B means different things under the two, and a
+    # selection outlives the command line that made it.
     name = args.name or (f"budget_{args.strategy}"
                          f"{'' if not args.density_guard else f'_g{args.density_guard:g}'}"
                          f"_gap{args.cell_gap:g}"
-                         f"_{args.budget}")
+                         f"_{args.budget}{'t' if args.budget_unit == 'tile' else 'p'}")
     if args.dry_run:
         print("\n(dry run, nothing written)")
         return
