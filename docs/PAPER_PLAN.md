@@ -265,11 +265,29 @@ annotation policy is the supporting act that says which labels go into the pool.
 
 ### 6a. Retrieval mechanism — inference-only, effectively free
 
-Retrieval is baked into the pairing JSON offline: `pairing.py` builds a FAISS index per
-(subset, class) over **DINOv2 ViT-S/14-reg, 384-d**, runs `external_search(k=8)`, drops the
-self-match and stores the neighbours in distance order. At runtime `_select_src_samples` merely
-draws from that list. So `src_selection` variants cost **no training at all**, and repeats are
-cheap enough to give tight confidence intervals.
+Retrieval is baked into the pairing JSON offline, so `src_selection` variants cost **no training
+at all** and repeats are cheap enough to give tight confidence intervals — at runtime
+`_select_src_samples` merely draws from the stored list.
+
+**One tool builds every pairing: `make_pool_pairing.py`.** Exact cosine over L2-normalised
+**DINOv2 ViT-S/14-reg, 384-d** vectors from `global_index.npz`, candidates scoped per (cell,
+class) by foreground ratio, self-match removed by setting its similarity to `-inf`, `k=8`,
+neighbours stored in distance order.
+
+`pairing.py` is **retired for the paper** (2026-09-06). It produced every archive number, but it
+is a different retrieval, not a different implementation of the same one: it ranks by
+**unnormalised L2** on raw DINOv2 features, scopes candidates per (subset, class) over the raw
+selection list, and drops self-matches with `distances > 1e-3` — which also silently drops
+genuine near-duplicates and leaves 7 neighbours where the new tool keeps 8. Measured over
+`cls_selection_100`, the two agree on **84.9%** of nearest neighbours at **0.888** mean Jaccard:
+close, but not the same. E1's whole design is a comparison *between* retrieval variants, so its
+arms cannot each come from a different index, and the main table cannot be built on one index
+while E1 is built on another.
+
+The cost of retiring it is one run: `syntra_anchor_cls100` re-establishes the 100-shot baseline
+on the new pairings, and every Phase-2 comparison is made against that rather than against 86.57.
+It doubles as one of P1.1's seed anchors. **Until it lands, 85.89 / 86.57 / 85.88 are
+`pairing.py` numbers and must not be quoted beside a `make_pool_pairing.py` result.**
 
 | id | tests | design | training cost |
 | --- | --- | --- | ---: |

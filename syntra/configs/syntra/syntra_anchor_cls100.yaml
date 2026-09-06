@@ -1,0 +1,97 @@
+# The paper's anchor: the 100-shot baseline under tile accounting and the unified retrieval.
+#
+# Everything in Phase 2 is compared against this run, so it fixes the three things that were
+# previously inconsistent across the archive:
+#
+#   retrieval    make_pool_pairing.py for every pairing, i.e. exact cosine over L2-normalised
+#                DINOv2 ViT-S/14-reg 384-d vectors, candidates scoped per (cell, class) by
+#                foreground ratio, self-match removed by setting its similarity to -inf, k=8.
+#                The archive's numbers came from pairing.py, which ranks by *unnormalised* L2,
+#                scopes candidates per (subset, class) over the raw selection list, and drops
+#                self-matches with `distances > 1e-3` - which also silently drops genuine near
+#                duplicates and leaves 7 neighbours rather than 8. The two agree on 84.9% of
+#                nearest neighbours and 0.888 mean Jaccard, so they are close but not the same
+#                retrieval, and E1 compares retrieval variants: its arms cannot each come from a
+#                different index. pairing.py is retired for the paper.
+#
+#   budget unit  one tile labelled for every class in its sheet's vocabulary (PAPER_PLAN.md
+#                section 3). `cls_selection_100` was already built this way - the class
+#                restriction only ever applied to make_pool_pairing.py selections - so this is
+#                the same 5,087 tiles and 18,664 training pairs the `_intracls` pairing gave.
+#
+#   loss         aa8eb04, which restores v3's objective. See check_sam_loss.py.
+#
+# Held to v3 otherwise: fp32 (no use_amp - section 8 has not frozen that and an AMP number is
+# not comparable to 85.89 until it is measured), foreground_ratio a flat scalar, 100k iterations,
+# and evaluation on model_latest, since validation_data is null and "best" would select on
+# training loss.
+#
+# Resize is still here because the current corpus keeps Siegfried at its native 224 while hismap
+# is 384 and collate_fn stacks a batch into one tensor. P0.4 removes it by rebuilding Siegfried
+# at 384 on disk; until then it is an upsample confound touching 2 of 9 classes.
+#
+# hameln.3921_2023 is kept, as every run compared against keeps it (see
+# docs/DATA_ISSUE_hameln_3921_duplicate.md and section 9 - the duplicate is still unresolved and
+# whatever is decided has to be applied to the SMOL baselines too).
+TRAIN:
+  task_name: null
+  root_dir: /home/yuan/data/syntra
+  data_info: sample_pair_cls_selection_100_cls_selection_100_gap0
+  batch_size: 8
+  num_workers: 8
+  accum_steps: 4
+  vis_freq: null
+
+  model_name: smol
+  dora_rank: 16
+  backbone: vit_b
+  prompt_encoder: example
+  mask_decoder: default
+  src_fusion: max
+
+  dataset_name: cd_syntra2_efficient
+  num_src: 3
+  num_notions: 1
+  img_size: 384
+  src_selection: retrieved
+  retrieval_encoder: dinov2
+  foreground_ratio: 0.05
+  sampler: group_fixed_m
+  data_keywords: hismap,siegfried
+  exclude_keys: null
+  validation_data: null
+  val_interval: 2000
+  uni_transform:
+    - name: ToTensor
+    - name: Resize
+      args:
+        target_size: 384
+    - name: Normalize
+      args:
+        mean: [0.5, 0.5, 0.5]
+        std: [0.25, 0.25, 0.25]
+  aug_transform:
+    - name: RandomRotateBatch
+      args:
+        degrees: 30
+
+  num_epochs: 200
+  max_iterations: 100000
+  lr: 1e-3
+  lr_scheduler: exp
+  output_dir: logs
+  disable_runid: true
+  weight_decay: 0.01
+  warmup_itrs: 1000
+  resume: null
+  ce_neg_weight: 1.0
+
+TEST:
+  num_notions: 1
+  num_src: 7
+  data_info: sample_pair_cls_selection_100_test_samples_gap0
+  data_keywords: hismap,siegfried
+  exclude_keys: null
+  checkpoint: null
+  save_result: true
+  output_dir: null
