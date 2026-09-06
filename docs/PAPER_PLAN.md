@@ -341,10 +341,18 @@ selection is the **density-neutral reference**, and the guard is the smallest le
 farthest-point sampling back to it (≤1.1×) on the share of picks landing in the globally-sparsest
 tenth of tiles.
 
+Under `--balance corpus-class`, the balance §6b adopts:
+
 | B (tiles) | neutral ref | g=0 | g=3 | g=5 | g=10 | g=15 | g=20 | **level** |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | :---: |
-| 300 | 22.4% ±1.6 | 1.98× | 1.58× | 1.38× | 1.16× | **1.01×** | 0.97× | **15** |
-| 1,000 | 19.7% ±0.6 | 2.21× | 1.63× | 1.40× | **1.03×** | 0.87× | 0.80× | **10** |
+| 300 | 21.2% ±0.7 | 2.78× | 2.25× | 1.79× | 1.16× | **1.04×** | 1.04× | **15** |
+| 1,000 | 19.1% ±0.6 | 2.71× | 2.11× | 1.72× | **1.01×** | 0.87× | 0.76× | **10** |
+
+The same sweep under the old `cell-class` balance gives the **same two levels** (15 and 10) from
+different ratios (1.98× and 2.21× unguarded). The level is robust to the balance choice; the
+severity is not — with 9 cells rather than 92 each cell gets many more picks over a much larger
+pool, so the greedy walk reaches further into the fringe before exhausting the extremes. **The
+guard matters more under the balance the paper adopts, not less.**
 
 **The level is not the same at both rungs**, which is why it had to be re-derived rather than
 carried over: `g=15` over-corrects at B=1,000 to 0.87×, i.e. farthest-point sampling ends up
@@ -370,6 +378,34 @@ annotation do you need" is a fair question and "mostly whatever the floor gives 
 *Caveat on the covering-radius columns:* they are measured over the **guarded** pool, so the
 population shrinks as `g` rises and the radii are not comparable across guard levels. The
 neutrality ratio is the criterion; the radii are context only.
+
+#### E-B's selections, generated 2026-09-06
+
+Eight, all `--budget-unit tile --balance corpus-class --cell-gap 0`, floor 1 per (sheet, class),
+27/27 subsets covered. Random carries **no guard** — it *is* the density-neutral reference, and
+guarding it would change the control's candidate pool.
+
+| selection | tiles | pairs bought | training pairs |
+| --- | ---: | ---: | ---: |
+| `budget_random_gap0_300t_s{2026,2027,2028}` | 300 | 302 / 303 / 303 | 880 / 878 / 878 |
+| `budget_fps_g15_gap0_300t_s{2026,2027,2028}` | 300 | 311 / 309 / 309 | 873 / 879 / 885 |
+| `budget_random_gap0_1000t_s2026` | 1,000 | 1,047 | 2,958 |
+| `budget_fps_g10_gap0_1000t_s2026` | 1,000 | 1,070 | 2,925 |
+
+**§3c's worry does not bite here.** A tile-balanced budget is not a pair-balanced one in general,
+and the arms do buy different numbers of pairs (302 vs 311 at B=300) because farthest-point
+sampling favours tiles carrying more classes. But what trains the model is the *pairing*, and
+under tile accounting that draws on every class in the cell's vocabulary rather than only the
+ones bought — so the training-pair counts land within 1.4% of each other across all six B=300
+arms (873–885). The arms are matched in supervision as well as in tiles.
+
+**Every arm shares one test pairing: 11,342 targets, 37,935 target-class pairs**, byte-identical
+across all eight — §8's requirement and the third of P0.3's asserts, verified rather than assumed.
+
+E-A's remaining rungs (100 and 3,000 tiles) are **not** generated yet: §6b defines the curve as
+running "at the winning strategy", which E-B decides. 5,087 and 11,152 already exist as
+`cls_selection_100` and `train_samples`. B=3,000 will also need its own guard level derived first
+if the winner is the guarded arm.
 
 ### 6c. Main table
 
