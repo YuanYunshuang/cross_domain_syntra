@@ -329,14 +329,47 @@ grid-aligned per sheet crop, restrict E7 to per-year IoU and drop change-consist
 
 | id | design | runs |
 | --- | --- | ---: |
-| **E-A** | budget curve: 100 / 300 / 1,000 / 3,000 / 4,887 / 10,831 tiles at the winning strategy | 6 |
-| **E-B** | selection at small budget: random vs fps (+guard) at 100 / 300 / 1,000 tiles; 3 seeds at 300, where the effect is largest | 7 |
+| **E-A** | budget curve: 100 / 300 / 1,000 / 3,000 / 5,087 / 11,152 tiles at the winning strategy | 6 |
+| **E-B** | selection: random vs fps (+guard) at **300 / 1,000** tiles; 3 seeds at 300, where the effect is largest | 5 |
 | **E-C** | cell width: `--cell-gap` 0 / 0.05 / 0.114 (single pool) at 1,000 tiles — the in-between §3c never measured | 3 |
 
-The guard is a small-budget instrument and its level belongs to the budget, not the method: it
-was measured at 2.0× the density-neutral reference at B=300 and 1.3× at B=6,160 in pass units, so
-re-derive the per-rung levels in tile units before running E-B, and state them in the caption.
-Deciding the guard after seeing the curve would be choosing on the outcome.
+#### The guard, re-derived in tile units (2026-09-06)
+
+`data_tools/indexing/derive_guard.py`, over the 11,152-tile pool, `--balance cell-class`,
+`--cell-gap 0`, seed 2026, floor 1 per (sheet, class). The criterion is unchanged: random
+selection is the **density-neutral reference**, and the guard is the smallest level bringing
+farthest-point sampling back to it (≤1.1×) on the share of picks landing in the globally-sparsest
+tenth of tiles.
+
+| B (tiles) | neutral ref | g=0 | g=3 | g=5 | g=10 | g=15 | g=20 | **level** |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | :---: |
+| 300 | 22.4% ±1.6 | 1.98× | 1.58× | 1.38× | 1.16× | **1.01×** | 0.97× | **15** |
+| 1,000 | 19.7% ±0.6 | 2.21× | 1.63× | 1.40× | **1.03×** | 0.87× | 0.80× | **10** |
+
+**The level is not the same at both rungs**, which is why it had to be re-derived rather than
+carried over: `g=15` over-corrects at B=1,000 to 0.87×, i.e. farthest-point sampling ends up
+*avoiding* sparse tiles more than random does. State the level per rung in the caption.
+
+**B=100 is not derivable and is dropped from E-B.** The correctness floor — one tile per (sheet,
+class), needed so that no combination leaves the evaluation — costs 92 pairs on **85 distinct
+tiles**, and it is mandatory at every budget:
+
+| B (tiles) | forced by floor | free for the strategy |
+| ---: | ---: | ---: |
+| 100 | 85 | **15** |
+| 300 | 85 | 215 |
+| 1,000 | 85 | 915 |
+
+At B=100 random and fps agree on 85 of 100 picks by construction, so no number of seeds can
+separate them; the guard sweep there is flat and non-monotonic (1.25 / 1.04 / 1.17 / 1.12 / 1.08
+/ 1.08×) and its apparent optimum of `g=3` is an artefact of 15 tiles of noise. This is §2's
+E13.1 failure from the other end — there the budget was 48% of the pool, here the floor is 85% of
+the budget, and both force strategies to converge. **B=100 stays a rung of E-A**, where "how much
+annotation do you need" is a fair question and "mostly whatever the floor gives you" is a finding.
+
+*Caveat on the covering-radius columns:* they are measured over the **guarded** pool, so the
+population shrinks as `g` rises and the radii are not comparable across guard levels. The
+neutrality ratio is the criterion; the radii are context only.
 
 ### 6c. Main table
 
@@ -354,16 +387,17 @@ reviewer cannot separate retrieval from backbone.
 
 | phase | runs | notes |
 | --- | ---: | --- |
-| P0 bisect | 6 | 1 full + ~5 short |
-| P1 instrument | 6 | 3 seeds × 2 anchors |
+| ~~P0 bisect~~ | ~~6~~ **0** | cause found by diff read, §1b — P0.1/P0.2 retired |
+| anchor | 1 | `syntra_anchor_cls100`, the baseline on the unified retrieval (§6a) |
+| P1 instrument | 6 | 3 seeds × 2 anchors; the anchor above is one of them |
 | E7 temporal | 2 | |
 | E-A budget | 6 | |
-| E-B selection | 7 | includes 3 seeds at B=300 |
+| E-B selection | 5 | 3 seeds at B=300; B=100 dropped, floor-dominated (§6b) |
 | E-C cell | 3 | |
 | E4 main table | 4 | |
 | E8 backbone | 2 | P1 |
 | E1 / E3′ / E5 | 0 | inference only |
-| **total** | **36** | |
+| **total** | **29** | was 36 |
 
 At 12.5 h that is ~19 days on the 4090 alone. Two levers bring it inside a week: P1.2's 50k
 calibration (halves everything but the headline numbers) and the 3090 running Phase 2 in
