@@ -1,0 +1,96 @@
+# This branch's code on the v3 corpus, for checking that the two train the same thing.
+#
+# The 86.57 anchor is logs/syntra_hismap_n1_s100_v2_ce_neg_1, run from the v3 code on
+# /home/yuan/data/syntra_v3repro/hismap. This config is that anchor's config, field for field,
+# so running it here leaves the code as the only variable and the loss traces can be compared
+# iteration for iteration against logs/v3_repro.out.
+#
+# It was written for P0.1, the fourth cell of the code x data 2x2, which is retired: the 12.8
+# points were found in sam_loss.py by reading the diff rather than by training (see
+# check_sam_loss.py and PAPER_PLAN.md section 1b). A 200-iteration run of this config after the
+# fix reproduces v3 to six significant figures - 0.507338 at ITR=10, 0.406873 against 0.406846
+# at ITR=200, the drift being GPU nondeterminism - which is a sharper equivalence check than a
+# 100k run and costs two minutes. Re-run it that way after any change to the training path:
+#
+#   PYTHONPATH=. python syntra/train_one_gpu.py --config syntra/syntra_v3_match_v3data \
+#       -t losscheck_200itr -itr 200
+#
+# (-itr only affects the exp decay after warmup_itrs=1000, so the first 1,000 iterations are
+# comparable against the 100k anchor regardless of what it is set to.)
+#
+# Two fields differ from syntra_v3_match.yaml, and both follow the data rather than a choice:
+#
+#   root_dir / data_keywords
+#       The v3 corpus keeps Siegfried under the hismap directory, so `hismap` alone selects all
+#       29 subsets; the current corpus splits railway and vineyard out and needs
+#       `hismap,siegfried`. Both spellings mean "everything".
+#
+#   uni_transform
+#       Resize is DROPPED. It exists in syntra_v3_match.yaml only because the current corpus
+#       keeps Siegfried at its native 224 while hismap is 384, and collate_fn cannot stack a
+#       mixed batch. Every image in syntra_v3repro is already 384 on disk (checked over all 29
+#       subsets), so a Resize here would be a no-op that the 86.57 anchor did not run. Keeping
+#       it would add a second variable to a run whose entire purpose is to have one.
+#
+# The E13-only fields that syntra_v3_match.yaml documents as matching v3's behaviour -
+# src_selection: retrieved, src_fusion: max, foreground_ratio as a scalar, no use_amp - are
+# carried over unchanged. hameln.3921_2023 is kept, as both anchors keep it.
+TRAIN:
+  task_name: null
+  root_dir: /home/yuan/data/syntra_v3repro/hismap
+  data_info: sample_pair_cls_selection_100_cls_selection_100_intracls
+  batch_size: 8
+  num_workers: 8
+  accum_steps: 4
+  vis_freq: null
+
+  model_name: smol
+  dora_rank: 16
+  backbone: vit_b
+  prompt_encoder: example
+  mask_decoder: default
+  src_fusion: max
+
+  dataset_name: cd_syntra2_efficient
+  num_src: 3
+  num_notions: 1
+  img_size: 384
+  src_selection: retrieved
+  retrieval_encoder: dinov2
+  foreground_ratio: 0.05
+  sampler: group_fixed_m
+  data_keywords: hismap
+  exclude_keys: null
+  validation_data: null
+  val_interval: 2000
+  uni_transform:
+    - name: ToTensor
+    - name: Normalize
+      args:
+        mean: [0.5, 0.5, 0.5]
+        std: [0.25, 0.25, 0.25]
+  aug_transform:
+    - name: RandomRotateBatch
+      args:
+        degrees: 30
+
+  num_epochs: 200
+  max_iterations: 100000
+  lr: 1e-3
+  lr_scheduler: exp
+  output_dir: logs
+  disable_runid: true
+  weight_decay: 0.01
+  warmup_itrs: 1000
+  resume: null
+  ce_neg_weight: 1.0
+
+TEST:
+  num_notions: 1
+  num_src: 7
+  data_info: sample_pair_cls_selection_100_test_samples_intracls
+  data_keywords: hismap
+  exclude_keys: null
+  checkpoint: null
+  save_result: true
+  output_dir: null

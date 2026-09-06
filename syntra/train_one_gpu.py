@@ -195,10 +195,13 @@ def main():
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
 
-    loss_fn = get_loss_fn("SAMLoss", 
+    # dice_neg_weight falls back to 0.0, matching SAMLoss's own default and v3, which had no
+    # Dice term on the negative branch. The fallback here used to be 1.0, which overrode the
+    # class default in every run because no config sets the key.
+    loss_fn = get_loss_fn("SAMLoss",
                           ce_neg_weight=getattr(args, 'ce_neg_weight', 1.0),
                           dice_pos_weight = getattr(args, 'dice_pos_weight', 1.0),
-                          dice_neg_weight = getattr(args, 'dice_neg_weight', 1.0),
+                          dice_neg_weight = getattr(args, 'dice_neg_weight', 0.0),
                           dataset_weights=getattr(args, 'dataset_weights', None)).to(device)
 
     # dataset
