@@ -162,12 +162,19 @@ def style_map(tiles_by_subset, vectors, row_of, corpus_of=None, gap=0.0, merge_c
 def load_classes(path):
     """{tile: [classes it was annotated for]} for a selection json, or None for a plain list.
 
-    A budgeted selection is a set of (tile, class) pairs, not a set of tiles: a tile bought for
-    water was not annotated for forest. Flattening it to tiles and re-deriving the classes from
-    the label ratios - which is what happens without this - hands back exactly the classes the
-    budget declined to buy: on the source side as prompts with no annotation behind them, on the
-    target side as training samples with ground truth nobody paid for. A `*_samples.txt` list
-    carries no class restriction and returns None, which leaves the old behaviour intact.
+    **Only used under `--budget-unit pass`, which is the retired accounting.** It belongs to the
+    reading in which a unit of budget is one class on one tile, so a tile bought for water was
+    not annotated for forest and re-deriving its classes from the label ratios would hand back
+    exactly what the budget declined to buy - sources with no annotation behind them, targets
+    with ground truth nobody paid for.
+
+    Under tile accounting (the default, PAPER_PLAN.md section 3) that reasoning inverts. One unit
+    of budget is one tile labelled for **every class in its sheet's vocabulary**: the annotator
+    visits the tile once and digitises what is on it, so a tile carrying forest and water costs
+    one unit, not two, and those labels *were* paid for. Applying this restriction then discards
+    annotation the budget already bought, and it is what starved the E13 arms of negatives.
+
+    A `*_samples.txt` list carries no class information and returns None either way.
     """
     if not path.endswith(".json"):
         return None
@@ -255,6 +262,14 @@ def main():
                              "threshold. 'style' is reserved for pooling by visual style "
                              "regardless of which class a tile carries - the way a cartographer "
                              "would first pick a similar sheet and only then its annotations.")
+    parser.add_argument("--budget-unit", default="tile", choices=["tile", "pass"],
+                        help="what one unit of budget buys. 'tile' (default) is one tile labelled "
+                             "for every class in its sheet's vocabulary, so a selected tile serves "
+                             "as source and target for all of them and cross-class negatives come "
+                             "free. 'pass' is one class on one tile, the retired accounting: it "
+                             "restricts each tile to the classes its selection json bought, which "
+                             "discards labels tile accounting has already paid for. Use 'pass' "
+                             "only to rebuild a pre-2026-09-06 pairing for comparison.")
     parser.add_argument("--suffix", default=None,
                         help="output file suffix; defaults to the scope name")
     parser.add_argument("--output-root", default=None,
@@ -301,7 +316,7 @@ def main():
             print(f"  !! {subset}: no source list {args.source}")
             continue
         sources[subset] = [n for n in load_samples(source_path) if n in row_of]
-        source_classes[subset] = load_classes(source_path)
+        source_classes[subset] = load_classes(source_path) if args.budget_unit == "pass" else None
 
     cells = style_map({k: v for k, v in sources.items() if v}, vectors, row_of,
                       corpora, args.cell_gap, args.merge_corpora)
@@ -324,8 +339,11 @@ def main():
                 for key in keys:
                     candidates.setdefault((key, cls), []).append(name)
     if unpaid:
-        print(f"class restriction: {unpaid} (tile, class) combinations skipped as sources - "
-              f"the class is in the tile but the budget did not buy it")
+        print(f"class restriction (--budget-unit pass): {unpaid} (tile, class) combinations "
+              f"skipped as sources - the class is in the tile but the budget did not buy it")
+    elif args.budget_unit == "tile":
+        print("budget unit: tile - every class in a selected tile's vocabulary is available, "
+              "as source and as target")
     print(f"candidate pools: {len(candidates)} (scope key, class) combinations, "
           f"largest {max((len(v) for v in candidates.values()), default=0)} tiles")
 
@@ -337,7 +355,7 @@ def main():
             print(f"  !! {subset}: no target list {args.target}")
             continue
         targets = [n for n in load_samples(target_path) if n in row_of]
-        target_classes = load_classes(target_path)
+        target_classes = load_classes(target_path) if args.budget_unit == "pass" else None
         scope_key = group_of(subset, cells)
 
         # Only classes the target subset is annotated for. A wider pool offers sources for
