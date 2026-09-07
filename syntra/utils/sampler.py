@@ -37,12 +37,31 @@ def get_sampler(dataset, batch_size, sampler_name='uniform'):
         )
         sampler = None
     elif sampler_name.startswith('group_fixed_m'):
-        # pattern: "group_fixed_m:<m>" e.g. "group_fixed_m:3"
+        # "group_fixed_m"                -> one sample per group, batch-size derived
+        # "group_fixed_m:<m>"            -> m from every group
+        # "group_fixed_m:<m_pos>:<m_neg>" -> m_pos from `.pos` groups, m_neg from `.neg` ones,
+        #                                   which sets the positive share explicitly: with 9
+        #                                   positive and 9 negative groups, 1:1 is 50%, 2:1 67%,
+        #                                   3:1 75%, 4:1 80%, 1:2 33%.
         parts = sampler_name.split(':')
         labels = [dataset.subdataset_id(i) for i in range(len(dataset))]
         groups = group_indices_by_labels(labels)
         print(f"Sampler group names: {dataset._loc2id.keys()}")
-        if len(parts) == 2:
+        if len(parts) == 3:
+            m_pos, m_neg = int(parts[1]), int(parts[2])
+            # _loc2id assigns ids by sorted name, and group_indices_by_labels returns groups in
+            # id order, so position i in `groups` is the name at sorted position i.
+            names = [n for n, _ in sorted(dataset._loc2id.items(), key=lambda kv: kv[1])]
+            if not any(n.endswith('.pos') for n in names):
+                raise ValueError(
+                    f"sampler '{sampler_name}' asks for a positive:negative split, but this "
+                    f"dataset's groups carry no .pos/.neg suffix: {names[:4]}...")
+            samples_per_group = [m_pos if n.endswith('.pos') else m_neg for n in names]
+            n_pos = sum(m for m, n in zip(samples_per_group, names) if n.endswith('.pos'))
+            print(f"positive share: {n_pos}/{sum(samples_per_group)} = "
+                  f"{100 * n_pos / sum(samples_per_group):.0f}% "
+                  f"(m_pos={m_pos}, m_neg={m_neg})")
+        elif len(parts) == 2:
             samples_per_group = int(parts[1])
         else:
             samples_per_group = math.ceil(batch_size / len(groups))
@@ -239,15 +258,29 @@ class FixedPerGroupEpochBatchSampler(Sampler[List[int]]):
         drop_last: bool = True,
         generator: Optional[torch.Generator] = None,
     ) -> None:
-        if samples_per_group <= 0:
-            raise ValueError("samples_per_group must be > 0")
         if batch_size <= 0:
             raise ValueError("batch_size must be > 0")
         self.groups = [list(g) for g in groups]
         self.K = len(self.groups)
         if self.K == 0:
             raise ValueError("groups must be non-empty")
-        self.m = int(samples_per_group)
+        # `samples_per_group` may be one number for every group, or one per group. The per-group
+        # form is what makes the positive:negative ratio an explicit setting rather than an
+        # accident of how many groups happen to exist: with 9 positive and 9 negative groups,
+        # one sample each gives exactly 50/50, and nobody chose that. Drawing m_pos from the
+        # positive groups and m_neg from the negative ones sets the ratio directly - (4,1) is
+        # 80/20, SMOL's own - so a comparison can hold the ratio fixed while grouping, source
+        # count and retrieval vary one at a time.
+        if isinstance(samples_per_group, int):
+            self.m_per_group = [int(samples_per_group)] * self.K
+        else:
+            self.m_per_group = [int(x) for x in samples_per_group]
+            if len(self.m_per_group) != self.K:
+                raise ValueError(
+                    f"samples_per_group has {len(self.m_per_group)} entries for {self.K} groups")
+        if any(m <= 0 for m in self.m_per_group):
+            raise ValueError("samples_per_group must be > 0 for every group")
+        self.m = self.m_per_group[0] if len(set(self.m_per_group)) == 1 else self.m_per_group
         self.batch_size = int(batch_size)
         self.replacement = bool(replacement)
         self.shuffle_epoch = bool(shuffle_epoch)
@@ -255,7 +288,7 @@ class FixedPerGroupEpochBatchSampler(Sampler[List[int]]):
         self.gen = generator
         # Preconvert groups to tensors
         self.group_tensors = [torch.tensor(g, dtype=torch.long) for g in self.groups]
-        self._epoch_size = self.K * self.m
+        self._epoch_size = sum(self.m_per_group)
         # K * m rarely divides batch_size - 18 groups at m=1 into batches of 8 leaves a
         # remainder of 2 - and that short batch is not a harmless rounding detail. It is a third
         # of the optimizer steps at a quarter of the nominal batch size, and with pos and neg as
@@ -270,7 +303,10 @@ class FixedPerGroupEpochBatchSampler(Sampler[List[int]]):
                 f"{self.K} groups x {self.m} samples/group = {self._epoch_size} per epoch is "
                 f"below batch_size {self.batch_size}; raise samples_per_group")
         dropped = self._epoch_size - self._num_batches * self.batch_size
-        print(f"FixedPerGroupEpochBatchSampler: {self.K} groups, {self.m} samples/group, "
+        spg = (f"{self.m} samples/group" if isinstance(self.m, int)
+               else f"samples/group {min(self.m_per_group)}-{max(self.m_per_group)}, "
+                    f"{self._epoch_size} per epoch")
+        print(f"FixedPerGroupEpochBatchSampler: {self.K} groups, {spg}, "
               f"{self._num_batches} batches of {self.batch_size}"
               + (f", {dropped} left over per epoch and reshuffled" if dropped else ""))
 
@@ -280,7 +316,7 @@ class FixedPerGroupEpochBatchSampler(Sampler[List[int]]):
     def _sample_group(self, gidx: int) -> List[int]:
         pool = self.group_tensors[gidx]
         n = pool.numel()
-        k = self.m
+        k = self.m_per_group[gidx]
         if n == 0:
             raise RuntimeError(f"group {gidx} is empty")
         if self.replacement:
