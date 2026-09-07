@@ -1,0 +1,90 @@
+# SMOL-MapSeg on SYNTRA's budgeted selections, under SYNTRA's training settings.
+#
+# The baseline for E4. It is `syntra_anchor_cls100.yaml` field for field except for the two
+# things that *are* the method, so that any difference in the result is the method rather than
+# the setup:
+#
+#   dataset_name  smol. SMOL has no retrieval - it draws a prompt from the pool of annotated
+#                 tiles, where cd_syntra2 draws from a ranked neighbour list. That is the
+#                 hypothesis under test (H1), so it must differ.
+#   num_src       1, train and test. One prompt is what SMOL-MapSeg is.
+#
+# Everything else is held: same corpus, same 27 subsets, hameln.3921_2023 kept, 384 px, batch 8
+# x accum 4, lr 1e-3 with exp decay and 1,000 warmup iterations, 100k iterations, fp32, the same
+# Resize, and evaluation on model_latest over the full 37,935-pair test set.
+#
+# **foreground_ratio is a flat 0.05 scalar.** The archived SMOL runs used the dict form
+# `{hameln: 0.05, bayern: 0.05, siegfried: 0.01}`, which section 8 records as resolving
+# inconsistently - `fg_threshold` in the data tools matches its key against the subset name,
+# where 'siegfried' does not appear in 'railway', while `cd_syntra2` matches the full path, where
+# it does. One run, two thresholds, and 406 railway and 19 vineyard test tiles sit between 1% and
+# 5% coverage and flip class between them. Those numbers therefore cannot be quoted against a
+# scalar-threshold SYNTRA run, which is why SMOL is being re-run rather than cited.
+#
+# source_file / target_file must be passed per arm, because SMOL reads sample lists rather than
+# the pairing JSON and cannot infer a budgeted selection from the pairing's filename:
+#
+#   --data-info sample_pair_<sel>_<sel>_gap0 --source-file <sel>.json --target-file <sel>.json
+#
+# Without them the loader used to fall back to the whole 14,675-tile training split in silence,
+# reporting the budget in the config while training on everything. It now raises instead.
+TRAIN:
+  task_name: null
+  root_dir: /home/yuan/data/syntra
+  data_info: sample_pair_cls_selection_100_cls_selection_100_gap0
+  batch_size: 8
+  num_workers: 8
+  accum_steps: 4
+  vis_freq: null
+
+  model_name: smol
+  dora_rank: 16
+  backbone: vit_b
+  prompt_encoder: example
+  mask_decoder: default
+  src_fusion: max
+
+  dataset_name: smol
+  num_src: 1
+  num_notions: 1
+  img_size: 384
+  foreground_ratio: 0.05
+  sampler: group_fixed_m
+  data_keywords: hismap,siegfried
+  exclude_keys: null
+  validation_data: null
+  val_interval: 2000
+  uni_transform:
+    - name: ToTensor
+    - name: Resize
+      args:
+        target_size: 384
+    - name: Normalize
+      args:
+        mean: [0.5, 0.5, 0.5]
+        std: [0.25, 0.25, 0.25]
+  aug_transform:
+    - name: RandomRotateBatch
+      args:
+        degrees: 30
+
+  num_epochs: 200
+  max_iterations: 100000
+  lr: 1e-3
+  lr_scheduler: exp
+  output_dir: logs
+  disable_runid: true
+  weight_decay: 0.01
+  warmup_itrs: 1000
+  resume: null
+  ce_neg_weight: 1.0
+
+TEST:
+  num_notions: 1
+  num_src: 1
+  data_info: sample_pair_cls_selection_100_test_samples_gap0
+  data_keywords: hismap,siegfried
+  exclude_keys: null
+  checkpoint: null
+  save_result: true
+  output_dir: null

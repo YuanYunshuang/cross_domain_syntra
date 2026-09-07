@@ -32,6 +32,8 @@ class SMOLDataset(Dataset):
                  filtering_keys : str = None, 
                  uni_transform: Optional[object] = None,
                  aug_transform: Optional[object] = None,
+                 source_file: Optional[str] = None,
+                 target_file: Optional[str] = None,
                  **kwargs):
         """
         Initializes an instance of the class with dataset information, loads file lists,
@@ -76,6 +78,8 @@ class SMOLDataset(Dataset):
         self.meta_info = {}
         self.dataset_full_paths = {}
         self.filtering_keys = [x.strip() for x in filtering_keys.split(",")] if filtering_keys is not None else None
+        self.source_file = source_file
+        self.target_file = target_file
 
         # parse info files
         if isinstance(info_file, str):
@@ -155,17 +159,36 @@ class SMOLDataset(Dataset):
                     samples = [line.strip() for line in f.readlines()]
             return samples
         # load source and target samples
-        if 'sample_pair' in info_file:
+        #
+        # Unlike cd_syntra2, this reads the *sample lists* rather than the pairing JSON - SMOL
+        # has no retrieval, so it needs the pool a prompt may be drawn from, not a ranked
+        # neighbour list. Which lists those are used to be inferred from the pairing's filename,
+        # which only ever recognised `cls_selection_<n>` and `train_samples` and fell through to
+        # the *whole training split* for anything else. That fallback was silent: pointing this
+        # at a budgeted selection reported the budget in the config and trained on all 14,675
+        # tiles. Explicit `source_file` / `target_file` now take precedence, and the inference
+        # raises rather than guessing when it does not recognise the name.
+        if self.source_file and self.target_file:
+            source_file = self.source_file
+            target_file = self.target_file if self.mode == 'train' else f"{self.mode}_samples.txt"
+        elif 'sample_pair' in info_file:
             info = info_file.replace('sample_pair_', '').replace('_intracls.json', '')
-            if info.split('_')[0]=='cls':
+            head = info.split('_')[0]
+            if head == 'cls':
                 source_file = f"cls_selection_{info.split('_')[2]}.json"
-            else:
+            elif head == 'train':
                 source_file = "train_samples.txt"
-            if info.split('_')[-2]=='selection' and self.mode == 'train':
+            else:
+                raise ValueError(
+                    f"SMOLDataset cannot infer the source list from '{info_file}'. It only "
+                    f"recognises 'cls_selection_<n>' and 'train_samples'; every other name used "
+                    f"to fall back to the full training split without saying so. Pass "
+                    f"source_file= and target_file= explicitly for budgeted selections.")
+            if info.split('_')[-2] == 'selection' and self.mode == 'train':
                 target_file = f"cls_selection_{info.split('_')[-1]}.json"
             else:
                 target_file = f"{self.mode}_samples.txt"
-            
+
         else:
             info = info_file.split('_')
             source_file = f"{info[2]}_samples.txt"

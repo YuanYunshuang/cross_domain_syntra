@@ -94,6 +94,13 @@ def parse_args():
                         help="comma-separated keys of subsets to drop, e.g. a held-out sheet")
     parser.add_argument("--src-selection", type=str,
                         help="source selection: retrieved (default), topk, or random")
+    parser.add_argument("--source-file", type=str,
+                        help="SMOL only: sample list the prompts are drawn from, e.g. "
+                             "budget_random_gap0_300t_s2026.json. SMOL reads sample lists rather "
+                             "than the pairing JSON and cannot infer a budgeted selection from "
+                             "the pairing's name")
+    parser.add_argument("--target-file", type=str,
+                        help="SMOL only: sample list used as training targets")
     parser.add_argument("--src-fusion", type=str,
                         help="fusion over the source predictions: max or mean")
     parser.add_argument("--sampler", type=str, help="sampler name: random, weighted_random, sequential")
@@ -148,8 +155,14 @@ def parse_args():
     with open_dict(hydra_cfg):
         hydra_cfg["TRAIN"] = cfg
     cfg_yaml_str = OmegaConf.to_yaml(hydra_cfg)
-    os.makedirs(join(cfg.output_dir, os.path.basename(args.config).split(".")[0]), exist_ok=True)
-    with open(join(cfg.output_dir, os.path.basename(args.config).split(".")[0], "config.yaml"), "w") as f:
+    # Keyed on the task, not the config file. One config serves many runs - the E-B queue drives
+    # eight arms off syntra_anchor_cls100 with -t - and keying this on the config name meant every
+    # arm overwrote the config.yaml of whichever run shares that name, silently replacing the
+    # anchor's own provenance record with the last arm's. P0.5 asks that every run record its
+    # resolved config; that only holds if the record lives with the run.
+    run_dir = join(cfg.output_dir, cfg.task_name or os.path.basename(args.config).split(".")[0])
+    os.makedirs(run_dir, exist_ok=True)
+    with open(join(run_dir, "config.yaml"), "w") as f:
         f.write(cfg_yaml_str)
     
     return cfg
@@ -214,6 +227,12 @@ def main():
         kwargs['src_selection'] = args.src_selection
     if getattr(args, 'exclude_keys', None) is not None:
         kwargs['exclude_keys'] = args.exclude_keys
+    # SMOL reads sample lists rather than the pairing JSON, and cannot infer which list a
+    # budgeted selection corresponds to from the pairing's name. Naming them is the only way to
+    # train it on the same budget as a cd_syntra2 run.
+    for k in ('source_file', 'target_file'):
+        if getattr(args, k, None) is not None:
+            kwargs[k] = getattr(args, k)
     train_dataset = get_dataset(args.dataset_name,
                                data_root=args.root_dir,
                                num_src=args.num_src,
