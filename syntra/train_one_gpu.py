@@ -230,7 +230,7 @@ def main():
     # SMOL reads sample lists rather than the pairing JSON, and cannot infer which list a
     # budgeted selection corresponds to from the pairing's name. Naming them is the only way to
     # train it on the same budget as a cd_syntra2 run.
-    for k in ('source_file', 'target_file'):
+    for k in ('source_file', 'target_file', 'src_fg_max'):
         if getattr(args, k, None) is not None:
             kwargs[k] = getattr(args, k)
     train_dataset = get_dataset(args.dataset_name,

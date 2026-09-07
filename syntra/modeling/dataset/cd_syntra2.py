@@ -31,6 +31,7 @@ class CrossDomainSynTraDataset2(Dataset):
                  aug_transform: Optional[object] = None,
                  src_selection : str = "retrieved",
                  exclude_keys : str = None,
+                 src_fg_max : float = None,
                  **kwargs):
         """
         Initializes an instance of the class with dataset information, loads file lists,
@@ -75,6 +76,13 @@ class CrossDomainSynTraDataset2(Dataset):
         assert src_selection in ("retrieved", "topk", "random"), \
             f"Unknown source selection: {src_selection}"
         self.src_selection = src_selection
+        # Upper bound on how much of a source tile the class may cover before it stops being a
+        # useful prompt. SMOL has always had one - `_parse_source_samples` keeps sources with
+        # fg_ratio < v < 0.9 - and this class had none, so in a SMOL comparison SYNTRA could
+        # prompt with near-total-coverage tiles that SMOL was denied. That is a free advantage
+        # on an axis nobody is testing. None keeps the old behaviour, so runs made before this
+        # existed stay reproducible; the ablation sets 0.9 to match SMOL.
+        self.src_fg_max = src_fg_max
         self.fg_ratio = {}
         self.pos_prob = pos_prob
         self.img_size = img_size
@@ -198,6 +206,19 @@ class CrossDomainSynTraDataset2(Dataset):
                 pools.setdefault((ds, cls_name), set()).update(pairing_info['src_samples'])
         self.candidate_pools = {k: sorted(v) for k, v in pools.items()}
 
+    def _cap_sources(self, names, cls_key):
+        """Drop candidates the class covers more than `src_fg_max` of, as SMOL does.
+
+        Falls back to the uncapped list if the cap would empty it: a target with no prompt at all
+        cannot be trained on, and losing the sample entirely is a worse distortion than one
+        over-full prompt. Rare - it needs every candidate for that class to be near-total.
+        """
+        if self.src_fg_max is None:
+            return names
+        kept = [n for n in names
+                if self.label_ratios.get(n, {}).get(cls_key, 0.0) < self.src_fg_max]
+        return kept or names
+
     def _select_src_samples(self, cls_name, tgt_full_name):
         """Pick ``num_src`` source samples for one target image and class.
 
@@ -212,6 +233,7 @@ class CrossDomainSynTraDataset2(Dataset):
         src_samples = self.src_pool[tgt_full_name][cls_key]['src_samples']
         assert len(src_samples) > 0, \
             f"No source samples found for target image {tgt_full_name} and class {cls_name}."
+        src_samples = self._cap_sources(src_samples, cls_key)
 
         if self.src_selection == "topk":
             # the pairing files store the neighbours in increasing distance
@@ -224,7 +246,8 @@ class CrossDomainSynTraDataset2(Dataset):
             if not hasattr(self, "candidate_pools"):
                 self._build_candidate_pools()
             ds = tgt_full_name.rsplit(".", 1)[0]
-            src_samples = self.candidate_pools.get((ds, cls_key), src_samples)
+            src_samples = self._cap_sources(
+                self.candidate_pools.get((ds, cls_key), src_samples), cls_key)
 
         return np.random.choice(
             src_samples,
