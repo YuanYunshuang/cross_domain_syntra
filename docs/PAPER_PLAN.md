@@ -407,6 +407,48 @@ running "at the winning strategy", which E-B decides. 5,087 and 11,152 already e
 `cls_selection_100` and `train_samples`. B=3,000 will also need its own guard level derived first
 if the winner is the guarded arm.
 
+### 6b-bis. SMOL → SYNTRA, one step at a time (decided 2026-09-07)
+
+The headline is **the anchor, 83.75**, not v3's 85.89/86.57. The v3 numbers are on a different
+corpus — `syntra_v3repro`, 29 subsets, Siegfried native-384, vineyard split across three subsets —
+while **every SMOL run and the anchor share the current 27-subset tree** (`root_dir:
+/home/yuan/data/syntra`, `hismap,siegfried`, 37,935 test pairs, verified). Quoting v3 against SMOL
+would compare across corpora and reweight the nine-class mean. The anchor is the corpus-matched
+number, so it is the one that goes in the table:
+
+| | tiles | mIoU | vs anchor |
+| --- | ---: | ---: | ---: |
+| SMOL s100 | 5,087 | 81.80 | **+1.95** |
+| SMOL full | 14,675 | 82.57 | **+1.18** |
+| **SYNTRA anchor** | 5,087 | **83.75** | — |
+
+Rather than assert the gap, decompose it. Four rungs at `cls_selection_100`, each adding exactly
+one thing, so the paper says *which* change earns the margin:
+
+| step | dataset | `num_src` | `src_selection` | adds |
+| --- | --- | ---: | --- | --- |
+| **S0** | `smol` | 1 | pool draw | SMOL as published |
+| **S1** | `cd_syntra2` | 1 | `random` | SYNTRA's sample formation and grouping |
+| **S2** | `cd_syntra2` | 3 | `random` | more source images |
+| **S3** | `cd_syntra2` | 3 | `retrieved` | retrieval — **the anchor, already run** |
+
+Three new runs. S1→S2→S3 are two config knobs on one dataset class, so those steps are
+single-variable. **S0→S1 is not, and should not be claimed as one:** SMOL enumerates *tiles* and
+draws a class stochastically while `cd_syntra2` enumerates *(tile, class)* pairs, so the grouping
+change and the sample-formation change are the same change. Report it as "data organisation".
+
+**S0 uses the standardised settings, not the archive's.** `foreground_ratio` is a flat 0.05
+scalar: the archived SMOL runs used the dict form with `siegfried: 0.01`, which §8 records as
+resolving to two different thresholds inside one run, with 406 railway and 19 vineyard test tiles
+flipping class between them. The archived `smol_hismap_n1_s100` file also holds two different runs
+— `uniform` sampler on `hismap` without `Resize` scoring 85.09 over 11,342 samples, and
+`group_fixed_m` on `hismap,siegfried` with `Resize` scoring 81.80 over 37,935. So 81.80 is a
+placeholder until S0 replaces it.
+
+**Never quote an 11,342-sample number beside a 37,935 one.** The former excludes negatives and
+runs ~4 points higher; SMOL's archive contains both, and mixing them would show SMOL beating
+SYNTRA.
+
 ### 6c. Main table
 
 **E4** — SYNTRA vs SMOL-Uni/-Ind vs MapSAM/MapSAM2 at all / 4,887 / 1,000 / 300 tiles: **4 runs**.
