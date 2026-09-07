@@ -94,6 +94,13 @@ def parse_args():
                         help="comma-separated keys of subsets to drop, e.g. a held-out sheet")
     parser.add_argument("--src-selection", type=str,
                         help="source selection: retrieved (default), topk, or random")
+    parser.add_argument("--pos-prob", type=float,
+                        help="SMOL only: probability of drawing a class the target carries, so "
+                             "the positive share of training samples. cd_syntra2 sets the same "
+                             "quantity through the sampler instead - group_fixed_m:<m_pos>:<m_neg>")
+    parser.add_argument("--src-fg-max", type=float,
+                        help="drop source prompts the class covers more than this fraction of. "
+                             "SMOL has always used 0.9; cd_syntra2 defaults to no cap")
     parser.add_argument("--source-file", type=str,
                         help="SMOL only: sample list the prompts are drawn from, e.g. "
                              "budget_random_gap0_300t_s2026.json. SMOL reads sample lists rather "

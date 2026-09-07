@@ -171,7 +171,12 @@ class SMOLDataset(Dataset):
         if self.source_file and self.target_file:
             source_file = self.source_file
             target_file = self.target_file if self.mode == 'train' else f"{self.mode}_samples.txt"
-        elif 'sample_pair' in info_file:
+        elif 'sample_pair' in info_file and info_file.endswith('_intracls.json'):
+            # Only the legacy `_intracls` naming can be inferred, and only because the archive's
+            # runs depend on it. The suffix has to be checked, not just stripped: on a `_gap0`
+            # name the strip is a no-op, `[-2]` is then '100' rather than 'selection', and the
+            # target silently became the whole 14,675-tile split while the source was read
+            # correctly from the selection - a half-right load, which is worse than a failure.
             info = info_file.replace('sample_pair_', '').replace('_intracls.json', '')
             head = info.split('_')[0]
             if head == 'cls':
@@ -181,13 +186,20 @@ class SMOLDataset(Dataset):
             else:
                 raise ValueError(
                     f"SMOLDataset cannot infer the source list from '{info_file}'. It only "
-                    f"recognises 'cls_selection_<n>' and 'train_samples'; every other name used "
-                    f"to fall back to the full training split without saying so. Pass "
-                    f"source_file= and target_file= explicitly for budgeted selections.")
+                    f"recognises 'cls_selection_<n>' and 'train_samples'. Pass source_file= and "
+                    f"target_file= explicitly.")
             if info.split('_')[-2] == 'selection' and self.mode == 'train':
                 target_file = f"cls_selection_{info.split('_')[-1]}.json"
             else:
                 target_file = f"{self.mode}_samples.txt"
+
+        elif 'sample_pair' in info_file:
+            raise ValueError(
+                f"SMOLDataset cannot infer its sample lists from '{info_file}'. Inference is "
+                f"only supported for the legacy '_intracls' naming; anything else - including "
+                f"every '_gap0' pairing this project now builds - must name its lists with "
+                f"source_file= and target_file=, or the target silently becomes the full "
+                f"training split.")
 
         else:
             info = info_file.split('_')
