@@ -17,10 +17,12 @@
 # by moving the negative:positive ratio 0.97 -> 1.53, and the anchor's worst class fails by
 # over-prediction, precision 71.62 against recall 90.87. Either outcome is worth reporting.
 #
-# 50k rather than 100k, on P1.2's argument that halving the schedule preserves the *ordering* of
-# conditions even though absolute mIoU drops. That argument has never been checked. If it is
-# wrong, r* is wrong and every later rung inherits it - so validate it by re-running the two
-# endpoints at 100k before trusting the middle of the grid.
+# Full 100k, not P1.2's 50k shortcut. The shortcut rests on the claim that halving the schedule
+# preserves the *ordering* of conditions, which has never been checked - and r* propagates into
+# all four rungs of the ablation, so a wrong ordering here would be inherited by everything
+# downstream and never noticed. Two days rather than one, spent on the one number the rest of the
+# study is conditioned on. It also makes these four runs directly comparable to the anchor and to
+# the ablation rungs, which are all 100k, instead of being a separate scale nobody can quote.
 #
 # Realised positive shares, measured over 20k draws rather than assumed, since select_tgt_cls
 # forces a positive when the tile carries every class:  0.33 -> 36.0%, 0.5 -> 52.1%,
@@ -31,7 +33,7 @@ PY=/home/yuan/anaconda3/envs/syntra/bin/python
 CFG=syntra/smol_budget
 D=/home/yuan/data/syntra
 SEL=cls_selection_100
-ITR=50000
+ITR=100000
 
 # Wait for whatever holds the card - E-B arm 1 is finishing and its queue is already stopped.
 while pgrep -f "train_one_gpu.py" > /dev/null; do sleep 120; done
