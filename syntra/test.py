@@ -66,6 +66,9 @@ def setup_parser():
     parser.add_argument("--img-size", type=int)
     parser.add_argument("-xkw", "--exclude-keys", type=str,
                         help="comma-separated keys of subsets to drop, e.g. a held-out sheet")
+    parser.add_argument("--src-fg-max", type=float,
+                        help="drop source prompts the class covers more than this fraction of. "
+                             "Must match the value the checkpoint was trained with")
     parser.add_argument("--source-file", type=str,
                         help="SMOL only: sample list the prompts are drawn from. Targets in test "
                              "mode are always <mode>_samples.txt, so this sets the prompt pool "
@@ -129,6 +132,8 @@ def single_test(num_notions, fixed_src_cls, args, device, model, seg_loss, ce_lo
                                # SMOL only: names the budgeted sample list its prompts come from.
                                # In test mode the targets are always <mode>_samples.txt, so this
                                # sets the prompt pool without touching what is scored.
+                               **({'src_fg_max': args.src_fg_max}
+                                  if getattr(args, 'src_fg_max', None) is not None else {}),
                                **({'source_file': args.source_file}
                                   if getattr(args, 'source_file', None) is not None else {}),
                                **({'target_file': args.target_file}
