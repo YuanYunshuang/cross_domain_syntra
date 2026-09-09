@@ -168,9 +168,19 @@ class SMOLDataset(Dataset):
         # at a budgeted selection reported the budget in the config and trained on all 14,675
         # tiles. Explicit `source_file` / `target_file` now take precedence, and the inference
         # raises rather than guessing when it does not recognise the name.
-        if self.source_file and self.target_file:
+        if self.source_file:
             source_file = self.source_file
-            target_file = self.target_file if self.mode == 'train' else f"{self.mode}_samples.txt"
+            if self.mode == 'train':
+                # Only training needs a target list named; test and val targets are always the
+                # whole split, which is the point - every arm is scored on identical data.
+                if not self.target_file:
+                    raise ValueError(
+                        "source_file was given without target_file in train mode. The targets "
+                        "would silently fall back to the full split, which is the bug this "
+                        "check exists to prevent.")
+                target_file = self.target_file
+            else:
+                target_file = f"{self.mode}_samples.txt"
         elif 'sample_pair' in info_file and info_file.endswith('_intracls.json'):
             # Only the legacy `_intracls` naming can be inferred, and only because the archive's
             # runs depend on it. The suffix has to be checked, not just stripped: on a `_gap0`
