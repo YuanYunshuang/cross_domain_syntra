@@ -211,7 +211,13 @@ def main():
         args.checkpoint = os.path.join(out_dir, "model_latest.pth") # set to default checkpoint
         print(f"Set checkpoint to default latest model: {args.checkpoint}")
     else:
-        out_dir = os.path.dirname(args.checkpoint)
+        # -o wins when given. It used to be ignored whenever -w was passed, so a sweep over
+        # inference settings on one checkpoint wrote every variant into that checkpoint's own
+        # result file - and the logger opens in append mode, so they stacked up as extra blocks
+        # behind the canonical number. That is exactly what makes the archived SMOL files hard to
+        # read: smol_hismap_n1_s100 holds two runs at two different test-set sizes, and quoting
+        # the wrong block flatters the baseline by four points.
+        out_dir = args.output_dir or os.path.dirname(args.checkpoint)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

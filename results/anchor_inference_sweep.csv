@@ -1,0 +1,6 @@
+num_src,src_selection,mIoU,grass_IoU,grass_P,grass_R,note
+7,retrieved,83.75,66.81,71.62,90.87,anchor canonical
+3,retrieved,83.97,67.41,72.65,90.33,
+1,retrieved,82.18,66.05,75.09,84.59,
+7,random,83.11,66.93,71.77,90.84,
+1,random,80.48,66.16,74.92,84.97,
