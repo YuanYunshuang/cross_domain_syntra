@@ -101,6 +101,12 @@ def setup_parser():
         for key, value in vars(args).items():
             if value is not None:
                 setattr(cfg_test, key, value)
+        # Kept separately because `output_dir` is also a TRAIN key, so after the merge it is
+        # never None - it inherits 'logs' from the training config. Reading it back to decide
+        # where results go sent every result to logs/ instead of the run's own directory, and
+        # since the logger appends, consecutive runs stacked into one file. Only an -o given on
+        # the command line should redirect anything.
+        cfg_test.cli_output_dir = args.output_dir
 
     print(cfg_test)
 
@@ -222,7 +228,7 @@ def main():
         # behind the canonical number. That is exactly what makes the archived SMOL files hard to
         # read: smol_hismap_n1_s100 holds two runs at two different test-set sizes, and quoting
         # the wrong block flatters the baseline by four points.
-        out_dir = args.output_dir or os.path.dirname(args.checkpoint)
+        out_dir = getattr(args, "cli_output_dir", None) or os.path.dirname(args.checkpoint)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
