@@ -1,0 +1,6 @@
+rung,dataset,train_k,src_selection,mIoU,grass_IoU,grass_P,grass_R,k1,k3,k5,k7
+S0,smol,1,pool,81.36,64.30,70.92,87.33,,,,
+S1,cd_syntra2,1,random,81.48,69.73,77.67,87.21,81.48,80.61,79.79,78.84
+S1r,cd_syntra2,1,retrieved,84.10,74.64,81.99,89.27,84.10,83.85,83.59,83.29
+S2,cd_syntra2,3,random,84.30,72.76,79.43,89.65,82.24,84.30,84.22,84.16
+S3,cd_syntra2,3,retrieved,84.92,74.88,81.92,89.70,84.18,84.92,84.72,84.56

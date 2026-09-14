@@ -29,6 +29,14 @@ CONFIG_FIELDS = [
     "data_info", "data_keywords", "sampler", "batch_size", "accum_steps", "lr",
     "max_iterations", "ce_neg_weight", "dice_pos_weight", "dice_neg_weight", "root_dir",
     "checkpoint",
+    # added as the SMOL comparison grew a knob per confound it turned up
+    "foreground_ratio",   # scalar 0.05 now; the dict form resolved to two thresholds (section 8)
+    "pos_prob",           # SMOL's positive share; cd_syntra2 sets the same thing via the sampler
+    "src_fg_max",         # 0.9 coverage cap on prompts, SMOL's own bound
+    "source_file",        # SMOL reads sample lists, not the pairing, so the budget lives here
+    "target_file",
+    "exclude_keys",
+    "uni_transform",      # records whether Resize was applied
 ]
 METRICS = ["iou", "precision", "recall", "accuracy"]
 
@@ -41,6 +49,12 @@ _METRICS_PATTERN = (
 _NOTION_RE = re.compile(r"Notion set : (\S+?):" + _METRICS_PATTERN)
 _MEAN_RE = re.compile(r"Overal Mean #+" + _METRICS_PATTERN)
 _LOSS_RE = re.compile(r"Average Loss:\s*([\d.]+)")
+# The single most important disambiguator in this archive. An evaluation over 11,342 samples
+# scores one class per tile; one over 37,935 scores every (tile, class) pair including the
+# negatives, and runs about four points lower. Both appear in the same files - smol_hismap_n1_s100
+# holds one of each - so a table that omits this column will rank the easier metric on top and
+# show the baseline beating the method.
+_NSAMP_RE = re.compile(r"# testing samples:\s*(\d+)")
 
 
 def parse_config_block(text):
@@ -90,11 +104,13 @@ def parse_test_file(path):
         if not classes and mean is None:
             continue
         loss = _LOSS_RE.search(chunk)
+        nsamp = _NSAMP_RE.search(chunk)
         blocks.append({
             "config": parse_config_block(chunk),
             "classes": classes,
             "mean": mean,
             "loss": float(loss.group(1)) if loss else None,
+            "n_test": int(nsamp.group(1)) if nsamp else None,
         })
     return blocks
 
@@ -132,6 +148,7 @@ def collect(log_roots, all_blocks=False):
                     "n_blocks": len(blocks),
                     "path": path,
                     "avg_loss": block["loss"],
+                    "n_test": block["n_test"],
                     **{k: cfg.get(k) for k in CONFIG_FIELDS},
                 }
                 for cls in block["classes"]:
@@ -143,7 +160,7 @@ def collect(log_roots, all_blocks=False):
 
 def write_csv(rows, out_path):
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
-    fieldnames = (["run", "eval", "block", "n_blocks", "scope", "class"] + METRICS +
+    fieldnames = (["run", "eval", "block", "n_blocks", "n_test", "scope", "class"] + METRICS +
                   ["avg_loss"] + CONFIG_FIELDS + ["path"])
     with open(out_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")

@@ -94,6 +94,13 @@ def parse_args():
                         help="comma-separated keys of subsets to drop, e.g. a held-out sheet")
     parser.add_argument("--src-selection", type=str,
                         help="source selection: retrieved (default), topk, or random")
+    parser.add_argument("--seed", type=int,
+                        help="base seed. Note this does NOT make a run reproducible: the "
+                             "DataLoader workers are forked with a shared numpy state and which "
+                             "worker serves which batch depends on timing, so the source and "
+                             "class draws vary run to run regardless. Two runs of the same SMOL "
+                             "config at the default seed scored 81.36 and 82.37. Use this to "
+                             "vary replicates deliberately rather than to pin them.")
     parser.add_argument("--pos-prob", type=float,
                         help="SMOL only: probability of drawing a class the target carries, so "
                              "the positive share of training samples. cd_syntra2 sets the same "
@@ -179,7 +186,7 @@ def parse_args():
 def main():
     args = parse_args()
     run_id = datetime.now().strftime("%Y%m%d-%H%M")
-    set_seeds(1234)
+    set_seeds(getattr(args, "seed", None) or 1234)
     if args.task_name is None:
         args.task_name = os.path.splitext(args.config)[0]
     if args.disable_runid:
