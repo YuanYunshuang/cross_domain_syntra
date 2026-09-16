@@ -41,6 +41,15 @@ averages out over repeats. Retrieval ablations can therefore resolve effects an 
 smaller than 0.7, which is why the retrieval-led framing is the safe one and the
 selection-strategy framing is the risky one.
 
+> **Superseded 2026-09-16 — the 0.7 is roughly 3× too optimistic.** It came from *one* pair of v3
+> runs. Measured properly at n=3 per arm (§6b-ter), run-to-run spread is **~2 mIoU**: two runs of
+> an identical SMOL config gave 81.36 and 82.37, and S3's three seeds span 81.61–85.04. Per class
+> it reaches **7.6** on `hameln.water`. **Use ~2 as the MDE for the nine-class mean, and read
+> §6b-ter's per-class table rather than the mean.** The inference half of this paragraph *is*
+> confirmed, and more strongly than stated: repeated scoring of one checkpoint agrees to < 0.01
+> even though it draws different sources — a ~300× asymmetry between training and evaluation
+> noise. Claims in §2 that were downgraded for sitting inside 0.7 sit further inside 2.
+
 ### 1b. A 12.8-point gap, found in `sam_loss.py` (closed 2026-09-06)
 
 E13's arms scored 70.93 (n-shot) and 71.10 (fps) where v3 scored 86.57. Two rounds of
@@ -407,47 +416,111 @@ running "at the winning strategy", which E-B decides. 5,087 and 11,152 already e
 `cls_selection_100` and `train_samples`. B=3,000 will also need its own guard level derived first
 if the winner is the guarded arm.
 
-### 6b-bis. SMOL → SYNTRA, one step at a time (decided 2026-09-07)
+### 6b-bis. SMOL → SYNTRA, measured (2026-09-16)
 
-The headline is **the anchor, 83.75**, not v3's 85.89/86.57. The v3 numbers are on a different
-corpus — `syntra_v3repro`, 29 subsets, Siegfried native-384, vineyard split across three subsets —
-while **every SMOL run and the anchor share the current 27-subset tree** (`root_dir:
-/home/yuan/data/syntra`, `hismap,siegfried`, 37,935 test pairs, verified). Quoting v3 against SMOL
-would compare across corpora and reweight the nine-class mean. The anchor is the corpus-matched
-number, so it is the one that goes in the table:
+The headline is **S3, not v3's 85.89/86.57**. Those are on a different corpus — `syntra_v3repro`,
+29 subsets, Siegfried native-384, vineyard split across three subsets — while every SMOL run and
+every rung here shares the current 27-subset tree, verified from their configs. Quoting v3 against
+SMOL would compare across corpora and reweight a mean in which each (dataset, class) counts
+equally.
 
-| | tiles | mIoU | vs anchor |
-| --- | ---: | ---: | ---: |
-| SMOL s100 | 5,087 | 81.80 | **+1.95** |
-| SMOL full | 14,675 | 82.57 | **+1.18** |
-| **SYNTRA anchor** | 5,087 | **83.75** | — |
+Run on `cls_selection_100` (5,087 tiles), same 37,935-pair test set, 100k, identical model
+throughout (`model_name: smol`, SAM ViT-B, DoRA 16, example prompt encoder, `src_fusion: max`).
+Only what the model is *shown* changes. Full table: `results/ablation_all_results.csv`,
+per-class with seed ranges: `results/per_class_results.csv`.
 
-Rather than assert the gap, decompose it. Four rungs at `cls_selection_100`, each adding exactly
-one thing, so the paper says *which* change earns the margin:
+| rung | dataset | k | prompts | mIoU |
+| --- | --- | ---: | --- | ---: |
+| **S0** | `smol` | 1 | pool | 81.09 (n=3, 79.55–82.37) |
+| **S1** | `cd_syntra2` | 1 | random | 81.48 |
+| **S1r** | `cd_syntra2` | 1 | retrieved | 84.10 |
+| **S2** | `cd_syntra2` | 3 | random | 84.30 |
+| **S3** | `cd_syntra2` | 3 | retrieved | **83.86 (n=3, 81.61–85.04)** |
 
-| step | dataset | `num_src` | `src_selection` | adds |
-| --- | --- | ---: | --- | --- |
-| **S0** | `smol` | 1 | pool draw | SMOL as published |
-| **S1** | `cd_syntra2` | 1 | `random` | SYNTRA's sample formation and grouping |
-| **S2** | `cd_syntra2` | 3 | `random` | more source images |
-| **S3** | `cd_syntra2` | 3 | `retrieved` | retrieval — **the anchor, already run** |
+**Step 0 — the ratio, tuned on the baseline.** Positive share was an uncontrolled 30-point
+difference: SMOL trains at 80% via `pos_prob`, `cd_syntra2` at exactly 50% because it happens to
+have 9 positive and 9 negative sampler groups. Nobody chose either. Sweeping SMOL gave 81.17 /
+**82.37** / 81.47 / 80.65 at 36 / 52 / 68 / 80% — an inverted-U peaking at 50%. SMOL's published
+0.8 is the **worst** point, so tuning the baseline rather than our own method cost ~1.7 points of
+apparent margin and is what makes the remaining margin defensible. `r* = 0.5` is pinned on every
+rung; `group_fixed_m:<m_pos>:<m_neg>` exists to set it explicitly rather than by accident.
 
-Three new runs. S1→S2→S3 are two config knobs on one dataset class, so those steps are
-single-variable. **S0→S1 is not, and should not be claimed as one:** SMOL enumerates *tiles* and
-draws a class stochastically while `cd_syntra2` enumerates *(tile, class)* pairs, so the grouping
-change and the sample-formation change are the same change. Report it as "data organisation".
+**What the 2×2 says.** Retrieval and source count are **substitutes, not complements**: either
+alone buys ~2.7 (+2.62 retrieval at k=1, +2.82 sources at random), and doing both adds only
++0.62/+0.82 more — inside the noise. **One retrieved source ≈ three random sources** (84.10 vs
+84.30). Data organisation contributes **nothing** (+0.12), which is §6a's validity check passing:
+S1 at k=1 random reproduces SMOL, so the comparison is like-for-like and no reviewer can
+attribute the win to infrastructure.
 
-**S0 uses the standardised settings, not the archive's.** `foreground_ratio` is a flat 0.05
-scalar: the archived SMOL runs used the dict form with `siegfried: 0.01`, which §8 records as
-resolving to two different thresholds inside one run, with 406 railway and 19 vineyard test tiles
-flipping class between them. The archived `smol_hismap_n1_s100` file also holds two different runs
-— `uniform` sampler on `hismap` without `Resize` scoring 85.09 over 11,342 samples, and
-`group_fixed_m` on `hismap,siegfried` with `Resize` scoring 81.80 over 37,935. So 81.80 is a
-placeholder until S0 replaces it.
+**H2 is refuted in its naive form.** Every model peaks at its *training* k; adding exemplars at
+inference hurts. Retrieval-trained models degrade far less under mismatch (S1r spans 0.81, S1
+spans 2.64), which is the salvageable part.
 
-**Never quote an 11,342-sample number beside a 37,935 one.** The former excludes negatives and
-runs ~4 points higher; SMOL's archive contains both, and mixing them would show SMOL beating
-SYNTRA.
+| model | k=1 | k=3 | k=5 | k=7 |
+| --- | ---: | ---: | ---: | ---: |
+| S1r (train k=1) | **84.10** | 83.85 | 83.59 | 83.29 |
+| S3 (train k=3) | 84.18 | **84.92** | 84.72 | 84.56 |
+| S1 (train k=1, random) | **81.48** | 80.61 | 79.79 | 78.84 |
+| S2 (train k=3, random) | 82.24 | **84.30** | 84.22 | 84.16 |
+
+**Cap source prompts at 90% coverage.** SMOL always had `fg_ratio < v < 0.9`; `cd_syntra2` had no
+bound, letting it prompt with near-total-coverage tiles SMOL was denied — 14.1% of the pool, 40%
+of forest's. Adding it fixed `hameln.grass`: 67.41 → 74.88, precision 72.65 → **81.92** with
+recall flat. It also *stabilised* it, sd 4.38 → 0.54. The mechanism is indirect — only 1.1% of
+grass prompts are that large — most likely via forest, grass's main confusion partner.
+
+### 6b-ter. Report per class, and why the mean is fragile (decided 2026-09-16)
+
+**Run-to-run noise is ~2 mIoU, not §1a's 0.7.** Two runs of an identical SMOL config scored 81.36
+and 82.37, diverging from iteration 100. At n=3, S3 − S0 = +2.76 with pooled SE 1.39, **t = 1.98,
+p ≈ 0.12** — the nine-class mean is *not* significant, and S3's worst seed (81.61) sits below S0's
+best (82.37).
+
+**Evaluation, by contrast, is stable to < 0.01.** Two independent scorings of one checkpoint agree
+to the printed precision on every class, even though they demonstrably draw *different* source
+tiles — pooling over 37,935 samples averages the draw away. So **inference-only experiments need
+no repeats and training experiments need seeds**, a ~300× asymmetry. This does not transfer to
+small evaluations: a held-out sheet in E5 has far fewer samples to average over and must be
+re-measured.
+
+**The variance is structural, and lives in the metric.** `Evaluator` pools pixels — per-class IoU
+is `Σtp / Σunion` over every sample including negatives — so stability tracks positive pixel mass
+relative to negative exposure. Regressing sd on log(mass/neg) over the nine classes gives
+**r = −0.80**:
+
+| class | pos mass | neg tiles | mass/neg | S3 sd |
+| --- | ---: | ---: | ---: | ---: |
+| hameln.water | 80 | 7,763 | **0.010** | **7.60** |
+| bayern.water | 19 | 1,186 | **0.016** | **4.71** |
+| hameln.grass | 581 | 5,328 | 0.109 | 0.54 |
+| hameln.forest | 2,415 | 4,636 | 0.521 | 0.77 |
+
+`hameln.water` has ~80 tiles' worth of water spread over 8,160 test tiles, 7,763 containing none.
+A **1%** false-positive rate on those roughly doubles the denominator and halves the IoU. That is
+exactly how seed 1236 failed: precision 91.4 → 80.4, recall only −4.5. It explains what scarcity
+and coverage could not — `hameln.grass` has the same 20% coverage but 7× the positive mass, and
+vineyard has fewer positives but only 34 negatives to be wrong on.
+
+**So the paper reports per class with seed ranges, and treats the nine-class mean as secondary.**
+A mean over nine classes, two of which are near-degenerate estimators, is a fragile statistic and
+a reviewer recomputing it will meet the same variance.
+
+**What survives replication** — S3's worst seed beats S0's best on three classes:
+
+| class | S3 − S0 | separated? |
+| --- | ---: | --- |
+| hameln.settlement | **+6.40** | yes |
+| hameln.grass | **+6.06** | yes |
+| bayern.forest | **+3.78** | yes |
+| bayern.water | +4.62 | overlap |
+| hameln.water | +3.42 | overlap |
+| bayern.grass | +1.67 | overlap |
+| hameln.forest | +0.39 | overlap |
+| vineyard | −0.58 | overlap |
+| railway | −0.90 | overlap |
+
+"Wins decisively on settlement, grass and Bayern forest, ties elsewhere, and the two thin
+Siegfried classes are a draw" is defensible and specific. "+2.76 mIoU, p = 0.12" is not.
 
 ### 6c. Main table
 
