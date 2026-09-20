@@ -465,9 +465,16 @@ spans 2.64), which is the salvageable part.
 
 **Cap source prompts at 90% coverage.** SMOL always had `fg_ratio < v < 0.9`; `cd_syntra2` had no
 bound, letting it prompt with near-total-coverage tiles SMOL was denied — 14.1% of the pool, 40%
-of forest's. Adding it fixed `hameln.grass`: 67.41 → 74.88, precision 72.65 → **81.92** with
-recall flat. It also *stabilised* it, sd 4.38 → 0.54. The mechanism is indirect — only 1.1% of
-grass prompts are that large — most likely via forest, grass's main confusion partner.
+of forest's. Every rung below carries it, which is what the ladder needs.
+
+> **Partly retracted 2026-09-20 — see §6b-quater.** The "+0.95 at 5,087" quoted here was one seed
+> against one seed; against S3's three-seed mean it is **−0.11**, and on the matched-selection
+> budget curve the cap *costs* 0.65 / 1.93 / 0.99 at 300 / 1,000 / 3,000 tiles. **No budget shows
+> it helping, so it is out of the recipe** — though it stays in this ladder, where every rung
+> carries it and the comparisons are therefore unaffected. What survives is the *grass* result,
+> which is a same-configuration comparison: 67.41 → 74.88 with precision 72.65 → 81.92 and recall
+> flat, and sd 4.38 → 0.54. The mechanism is indirect — only 1.1% of grass prompts are that large —
+> most likely via forest, grass's main confusion partner.
 
 ### 6b-ter. Report per class, and why the mean is fragile (decided 2026-09-16)
 
@@ -521,6 +528,65 @@ a reviewer recomputing it will meet the same variance.
 
 "Wins decisively on settlement, grass and Bayern forest, ties elsewhere, and the two thin
 Siegfried classes are a draw" is defensible and specific. "+2.76 mIoU, p = 0.12" is not.
+
+### 6b-quater. The budget curve, and the efficiency claim (measured 2026-09-20)
+
+**This replaces the mean-difference framing as the headline.** "+2.76 mIoU, p ≈ 0.12" does not
+reach significance; "matches SMOL's full-data accuracy with a fifteenth of the annotation" does
+not depend on the mean being significant at all.
+
+Six runs at the S3 recipe (k=3, retrieved, r* = 0.5, 100k) over corpus-class balanced random
+selections, each scored on the 37,935-pair test set with **prompts drawn from its own budget** —
+at test time you only have the tiles you bought. `results/budget_curve.csv`.
+
+| tiles | capped | no cap | selection |
+| ---: | ---: | ---: | --- |
+| 300 | 76.25 | 76.90 | corpus-class random |
+| 1,000 | 81.03 | **82.96** | corpus-class random |
+| 3,000 | 84.79 | **85.78** | corpus-class random |
+| 5,087 | 84.92 (n=3: 83.86) | 83.97 | **n-shot — different scheme** |
+
+| | tiles | mIoU |
+| --- | ---: | ---: |
+| SMOL, matched baseline (S0) | 5,087 | 81.09 |
+| SMOL-full, archive | 14,675 | 82.57 |
+| **SYNTRA** | **1,000** | **82.96** |
+| **SYNTRA** | 3,000 | **85.78** |
+
+**1,000 tiles beats SMOL trained on 14,675 — 14.7× less annotation.** At 3,000 it is +3.21 over
+SMOL-full with 4.9× less. The *capped* — i.e. handicapped — curve also clears SMOL-full at 1,000.
+
+**Plotting caveat: 3,000 (85.78) exceeds 5,087 (83.97), and that is not a budget effect.** The
+5,087 point is `cls_selection_100`, the n-shot scheme, which quotas per (sheet, class) and gives
+railway and vineyard 10 tiles each rather than ~1/9 of the budget. Either add a matched
+`budget_random` point at 5,087 or stop the curve at 3,000 and mark 5,087 separately.
+
+#### The coverage cap: retracted
+
+§6b-bis records `src_fg_max: 0.9` as worth +0.95 at 5,087. **That was one seed against one seed.**
+Against S3's three-seed mean (83.86) versus the anchor (83.97) it is −0.11, and on the
+matched-selection curve it costs 0.65 / 1.93 / 0.99 at 300 / 1,000 / 3,000.
+
+**There is no budget at which the cap is shown to help. Drop it from the recipe.** It stays in the
+S0–S3 ladder, which is internally consistent and where it equalises SMOL's own `fg_ratio < v < 0.9`
+bound — and the ladder's conclusions are unaffected because every rung carries it. What does *not*
+survive is describing it as an improvement.
+
+#### A larger prompt pool at test time makes things worse
+
+Found by way of a bug: the curve scripts initially hardcoded `cls_selection_100_test_samples` as
+the test pairing, so every budget was prompted from the **5,087-tile** pool instead of its own.
+A 300-tile model prompted from 5,087 tiles scores **66.38**; prompted from its own 300, **76.25**.
+**Ten points worse with a larger, better-covered prompt pool.**
+
+That is the same train/test mismatch the `num_src` grid shows (§6b-bis: every model peaks at its
+training k), and it is worth reporting beside it: the model adapts to the *distribution* of
+exemplars it trained on, not merely to their number. It also means **the test prompt pool is part
+of the protocol** and must be stated for every budgeted result.
+
+The episode is also why the earlier "cap costs 9.87 points at 300 tiles" claim was wrong: that gap
+was the protocol, not the cap. Re-scoring is inference-only, so all six checkpoints were corrected
+without retraining.
 
 ### 6c. Main table
 

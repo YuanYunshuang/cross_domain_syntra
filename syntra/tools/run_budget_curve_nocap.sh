@@ -22,7 +22,10 @@ cd /home/yuan/code/CD_SYNTRA
 PY=/home/yuan/anaconda3/envs/syntra/bin/python
 D=/home/yuan/data/syntra
 CFG=syntra/syntra_anchor_cls100
-TEST_INFO=sample_pair_cls_selection_100_test_samples_gap0
+# Prompts must come from the run's OWN budget: at test time you only have the tiles you bought.
+# Hardcoding cls_selection_100 here gave every budget the 5,087-tile prompt pool and cost ~10
+# points at 300 tiles, which I first misattributed to the coverage cap.
+TEST_INFO_TEMPLATE=1
 
 while pgrep -f "run_budget_curve.sh" > /dev/null || pgrep -f "train_one_gpu.py" > /dev/null; do
   sleep 300
@@ -38,7 +41,7 @@ for b in 300 1000 3000; do
     --data-info "sample_pair_${sel}_${sel}_gap0" \
     --num-src 3 --src-selection retrieved > "logs/$t.out" 2>&1
   PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/test.py --config "$CFG" \
-    -w "logs/$t/model_latest.pth" -d "$D" --data-info "$TEST_INFO" \
+    -w "logs/$t/model_latest.pth" -d "$D" --data-info "sample_pair_${sel}_test_samples_gap0" \
     --num-src 3 --src-selection retrieved > "logs/${t}_test.out" 2>&1
   echo "$(date '+%F %T') === $t: $(grep -A1 'Overal Mean' "logs/$t/test_model_latest_hismap,siegfried.txt" 2>/dev/null | tail -1)"
 done
