@@ -1,0 +1,17 @@
+model,pool_tiles,src_selection,mIoU,n_classes,forest,grass,settlement,water
+held-out,1,retrieved,52.63,3,0.4,71.69,,85.8
+held-out,1,random,52.63,3,0.4,71.69,,85.8
+held-out,10,retrieved,83.39,4,92.62,71.33,84.08,85.53
+held-out,10,random,83.45,4,92.7,71.3,84.08,85.71
+held-out,50,retrieved,83.77,4,92.93,71.28,84.6,86.29
+held-out,50,random,83.84,4,93.32,71.36,84.24,86.45
+held-out,100,retrieved,83.52,4,91.95,71.37,84.09,86.67
+held-out,100,random,83.09,4,90.79,71.48,83.79,86.28
+trained-on,1,retrieved,72.52,3,52.14,74.67,,90.73
+trained-on,1,random,72.52,3,52.14,74.67,,90.73
+trained-on,10,retrieved,88.3,4,96.12,74.57,91.69,90.84
+trained-on,10,random,87.92,4,94.61,74.56,91.66,90.88
+trained-on,50,retrieved,88.78,4,98.09,74.48,91.69,90.86
+trained-on,50,random,88.74,4,98.03,74.41,91.73,90.81
+trained-on,100,retrieved,88.76,4,98.06,74.4,91.73,90.86
+trained-on,100,random,88.67,4,97.77,74.45,91.71,90.75
