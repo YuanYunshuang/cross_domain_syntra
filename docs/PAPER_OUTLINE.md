@@ -12,7 +12,7 @@ headline:
 - retrieval at k=3 is worth **+0.62** over random — inside the ~2-point noise floor, not established
 - one retrieved source ≈ three random sources (84.10 vs 84.30), so retrieval buys *prompt
   efficiency*, not accuracy
-- on an unseen sheet it is a **wash** at every pool size — a single sheet's tiles are too
+- adapting to a new survey year it is a **wash** at every pool size — one sheet's tiles are too
   homogeneous for similarity ranking to have anything to choose between
 
 What did replicate, cleanly and with separation, is **annotation efficiency** and **training-free
@@ -22,14 +22,14 @@ leads with the thing a practitioner cares about: how little labelling is needed.
 ## One-sentence claim
 
 > Retrieval-conditioned segmentation reaches the accuracy of a fine-tuned baseline trained on the
-> whole corpus while annotating **1/15th** of it, and adapts to an unseen map sheet from **ten
-> annotated tiles with no gradient step**.
+> whole corpus while annotating **1/15th** of it, and adapts to a **new survey year of a mapped
+> region from ten annotated tiles, with no gradient step**.
 
 ## Contributions
 
 1. **Annotation efficiency.** 1,000 tiles beats SMOL trained on 14,675, and beats matched SMOL at
    5,087 with every seed separated.
-2. **Training-free adaptation.** Ten tiles from an unseen sheet close most of the gap to a model
+2. **Training-free adaptation.** Ten tiles from an unseen survey *year* close most of the gap to a model
    trained on it — a capability the single-prompt baseline structurally cannot offer.
 3. **Tile accounting.** One annotated tile yields supervision for every class it carries (2.9 on
    average, and 3 even for a single tile), so per-class budgeting understates what annotation buys.
@@ -69,11 +69,23 @@ against SMOL 81.09 @ 5,087 (matched, n=3) and 82.57 @ 14,675 (archive).
 **Every SYNTRA seed at 1,000 beats every SMOL seed at 5,087** — that separation is the claim, not
 the t-test (t = 2.64, p ≈ 0.12, which the text should report and not lean on).
 
-### 5. Training-free adaptation — **Figure 2**
+### 5. Training-free adaptation to a new survey year — **Figure 2**
 `results/e5_unseen_sheet.csv`. Per class against pool size, with the trained-on model as ceiling.
-Ten tiles suffice; 10 → 100 changes nothing; the gap to training on the sheet is 3–7 points per
+Ten tiles suffice; 10 → 100 changes nothing; the gap to training on that year is 3–7 points per
 class. State that `n=1` is degenerate (no settlement in the pool, forest 0.40) rather than
 plotting it as a point.
+
+**Call this what it is: an unseen *year*, not an unseen sheet.** The hold-out excluded
+`hameln.3922_1996` from training, but the same footprint's five other years (1898, 1974, 1982,
+2005, 2017) remained — and those grids are co-registered, land cover at the same cell correlating
+at **r = 0.994–0.997** across gaps up to 76 years against 0.269 for a different footprint. The
+model had therefore seen that ground five times; only the 1996 survey's style was new. That makes
+this **H3, temporal generalisation** — the experiment §6a called E7 — and it is the only evidence
+for H3 in the paper.
+
+A genuinely unseen *footprint* would need every year of one held out (e.g. all four of
+`hameln.3821`). Not run. Either add it, or scope the claim to survey year and say so plainly —
+the exclusion list is the first thing a reviewer checks.
 
 ### 6. Where the gain comes from — **Table 2**
 The S0 → S3 ladder, `results/ablation_all_results.csv`, per class from
@@ -101,7 +113,8 @@ The S0 → S3 ladder, `results/ablation_all_results.csv`, per class from
   tiles' worth of water across 8,160 test tiles, so a 1% false-positive rate halves its IoU.
 - **Evaluation itself is stable to < 0.01** — a ~300× asymmetry that justifies single-run
   inference sweeps and three seeds for anything trained.
-- Single corpus, single backbone, one held-out sheet for §5.
+- Single corpus, single backbone, **one held-out survey year** for §5 — and no held-out
+  *footprint* at all, so spatial generalisation is untested.
 
 ## Claims we cannot make
 
@@ -119,5 +132,9 @@ The S0 → S3 ladder, `results/ablation_all_results.csv`, per class from
    selection-scheme artefact and invites an obvious question.
 2. **Matched SMOL at 300/1,000/3,000** — lets §4 compare two curves instead of a curve against
    three archive points with unmatched settings.
-3. **E7 multi-temporal** — H3 is currently untested; either run it or drop the hypothesis from the
-   framing.
+3. **A held-out footprint** (all four years of `hameln.3821`) — §5 covers H3, temporal
+   generalisation, but nothing covers spatial. One run, and paired with §5 it separates the two:
+   how much of the 83.4 came from already knowing that ground.
+4. **E7b, the gap sweep** — free. Reuse §5's checkpoint and vary which *year* the pool is drawn
+   from (1898 / 1982 / 2005 against a 2017 target). Tests whether accuracy decays with temporal
+   distance or whether survey style dominates. ~1 min per cell.
