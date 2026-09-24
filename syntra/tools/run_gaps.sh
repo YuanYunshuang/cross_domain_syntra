@@ -33,9 +33,6 @@ ANCHOR=logs/syntra_anchor_cls100/model_latest.pth
 E5=logs/e5_holdout_hameln.3922_1996/model_latest.pth
 FP=hameln.3821
 
-# logs/ is a symlink to /koko/cd_syntra_logs_09_2026 (the local disk ran out). Do not start
-# writing into a half-moved directory.
-until [ -L logs ]; do sleep 120; done
 while pgrep -f "train_one_gpu.py" > /dev/null; do sleep 120; done
 echo "$(date '+%F %T') starting"
 
@@ -63,6 +60,11 @@ for y in 1898 1974 1982 1996 2005 2017; do
 done
 echo "$(date '+%F %T') E7b done"
 
+# logs/ becomes a symlink to /koko/cd_syntra_logs_09_2026 (the local disk ran out). E7b above only
+# reads checkpoints and writes to results/, so it runs during the move. Training writes into
+# logs/, so it must not start in a half-moved directory.
+until [ -L logs ]; do sleep 120; done
+
 # ---- gap 3: held-out footprint
 t="fp_holdout_${FP}"
 if [ ! -f "logs/$t/model_latest.pth" ]; then
@@ -74,6 +76,7 @@ if [ ! -f "logs/$t/model_latest.pth" ]; then
     -w "logs/$t/model_latest.pth" -d "$D" --data-info "sample_pair_${SEL}_test_samples_gap0" \
     --num-src 3 --src-selection retrieved > "logs/${t}_test.out" 2>&1
 fi
+mkdir -p "results/fp/$t" && cp "logs/$t/test_model_latest_hismap,siegfried.txt" "results/fp/$t/"
 for y in 1974 2002 2012 2023; do
   for n in 10 50 100; do
     info="sample_pair_fp_pool_${n}_test_samples_gap0"
@@ -95,6 +98,29 @@ for b in 300 1000 3000; do
   PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/test.py --config "$SMOL" \
     -w "logs/$t/model_latest.pth" -d "$D" --data-info "sample_pair_${sel}_test_samples_gap0" \
     --source-file "${sel}.json" > "logs/${t}_test.out" 2>&1
+  mkdir -p "results/smol_curve/$t" && cp "logs/$t/test_model_latest_hismap,siegfried.txt" "results/smol_curve/$t/"
   echo "$(date '+%F %T') === $t: $(grep -A1 'Overal Mean' "logs/$t/test_model_latest_hismap,siegfried.txt" 2>/dev/null | tail -1)"
 done
 echo "$(date '+%F %T') gaps finished"
+
+# ---- extra: de-confound the allocation comparison at ~5,100 tiles
+# n-shot (cls_selection_100) scores 83.97 and corpus-class random scores 86.09. But the n-shot run
+# has 18 sampler groups (9 pos / 9 neg, 50% positive), and every corpus-class run has 16
+# (9 pos / 7 neg, ~56%). group_fixed_m:7:9 draws 63 positives and 63 negatives per epoch, which
+# pins the corpus-class run at 50%. The railway and vineyard negative groups are still absent, and
+# that part cannot be matched without changing the selection. Last in the queue, so it can be
+# cancelled without losing a gap.
+sel=budget_random_gap0_5087t_s2026
+t=curve_nocap_5087t_r50
+if [ ! -f "logs/$t/test_model_latest_hismap,siegfried.txt" ]; then
+  echo "$(date '+%F %T') === train $t"
+  PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/train_one_gpu.py --config "$CFG" -t "$t" -d "$D" \
+    --data-info "sample_pair_${sel}_${sel}_gap0" --sampler group_fixed_m:7:9 \
+    --num-src 3 --src-selection retrieved > "logs/$t.out" 2>&1
+  PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/test.py --config "$CFG" \
+    -w "logs/$t/model_latest.pth" -d "$D" --data-info "sample_pair_${sel}_test_samples_gap0" \
+    --num-src 3 --src-selection retrieved > "logs/${t}_test.out" 2>&1
+fi
+mkdir -p "results/curve_own_prompts/$t" && cp "logs/$t/test_model_latest_hismap,siegfried.txt" "results/curve_own_prompts/$t/"
+echo "$(date '+%F %T') === $t: $(grep -A1 'Overal Mean' "logs/$t/test_model_latest_hismap,siegfried.txt" 2>/dev/null | tail -1)"
+echo "$(date '+%F %T') queue finished"
