@@ -7,3 +7,4 @@ tiles,cap,mIoU,note
 3000,none,85.78,
 5087,0.9,84.92,S3 seed 1234 (n=3 mean 83.86)
 5087,none,83.97,anchor scored at k=3
+5102,none,86.09,"matched corpus-class random selection (target 5,087; bisection lands on 5,102); replaces the n-shot row for the curve"

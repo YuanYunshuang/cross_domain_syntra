@@ -64,8 +64,10 @@ Budget curve, `results/budget_curve.csv` + the three 1,000-tile seeds.
 | 300 | 76.90 | |
 | 1,000 | **83.50** (82.96 / 83.29 / 84.24) | beats SMOL@14,675 on every seed |
 | 3,000 | 85.78 | |
+| 5,102 | 86.09 | matched corpus-class random (gap 1, 2026-09-24) |
 
 against SMOL 81.09 @ 5,087 (matched, n=3) and 82.57 @ 14,675 (archive).
+The curve is steep to 1,000 and flat after 3,000 (+0.31 from 3,000 to 5,102, inside noise).
 **Every SYNTRA seed at 1,000 beats every SMOL seed at 5,087** — that separation is the claim, not
 the t-test (t = 2.64, p ≈ 0.12, which the text should report and not lean on).
 
@@ -128,13 +130,33 @@ The S0 → S3 ladder, `results/ablation_all_results.csv`, per class from
 
 ## Gaps worth one run each
 
-1. **Matched `budget_random` at 5,087** — without it Figure 1 shows 3,000 beating 5,087, which is a
-   selection-scheme artefact and invites an obvious question.
-2. **Matched SMOL at 300/1,000/3,000** — lets §4 compare two curves instead of a curve against
-   three archive points with unmatched settings.
-3. **A held-out footprint** (all four years of `hameln.3821`) — §5 covers H3, temporal
+Status 2026-09-24. Gap 1 is done. Gaps 2-4 are queued in `syntra/tools/run_gaps.sh`, in the order
+4 → 3 → 2, one at a time on the 4090 (≈ 4 training runs, ~2 days). Its log is `logs/gaps.out`.
+
+1. ~~**Matched `budget_random` at 5,087**~~. **Done: 86.09** (`curve_nocap_5087t`, 5,102 tiles,
+   because the bisection overshoots by 0.3%). Without it, Figure 1 showed 3,000 beating 5,087, an
+   artefact of the selection scheme. The curve is now one scheme throughout and increases
+   monotonically. At equal budget the n-shot allocation scores 83.97, so allocation looks worth
+   ~2.1 points. **Caveat before quoting that:** the two runs also differ in their sampler.
+   `cls_selection_100` gives 18 sampler groups (9 pos / 9 neg, including railway and vineyard
+   negatives). Every corpus-class curve run gives **16 (9 pos / 7 neg, no railway or vineyard
+   negatives)**, so their positive share is 56%, not the 50% the plan and the curve scripts
+   state. The curve is internally consistent. The cross-scheme gap is allocation *plus* ratio.
+2. **Matched SMOL at 300/1,000/3,000.** This lets §4 compare two curves instead of a curve against
+   archive points with unmatched settings. Queued as `smol_curve_<b>t` on the same s2026
+   selections, using `smol_budget` with `--pos-prob 0.5` as for S0. (`run_smol_queue.sh` never ran,
+   and it predates the ratio fix.)
+3. **A held-out footprint** (all four years of `hameln.3821`). §5 covers H3, temporal
    generalisation, but nothing covers spatial. One run, and paired with §5 it separates the two:
-   how much of the 83.4 came from already knowing that ground.
-4. **E7b, the gap sweep** — free. Reuse §5's checkpoint and vary which *year* the pool is drawn
-   from (1898 / 1982 / 2005 against a 2017 target). Tests whether accuracy decays with temporal
-   distance or whether survey style dominates. ~1 min per cell.
+   how much of the 83.4 came from already knowing that ground. Queued as `fp_holdout_hameln.3821`,
+   followed by an E5-style sweep per year at 10 / 50 / 100 tiles against the anchor, into
+   `results/fp/`.
+4. **E7b, the temporal-gap sweep.** Inference only. Does accuracy decay with temporal distance,
+   or does survey style dominate? **As run, the target is the held-out 1996 survey**, not the
+   2017 target first proposed, because §5's checkpoint trained on 2017, so a 2017 target is not
+   unseen. The pool comes from 1898 / 1974 / 1982 / 2005 / 2017 (gaps 98 / 22 / 14 / 9 / 21
+   years), with 1996's own pool as the zero-gap point, at 10 and 100 tiles
+   (`data_tools/indexing/make_eval_pools.py`), into `results/e7b/`. Those years' tiles were seen
+   in training. That is the realistic setting: the question is whether an annotated neighbouring
+   survey substitutes for annotating the new one. Smoke cell: 2005 pool, n=10 → 83.18, against
+   83.39 from 1996's own pool.

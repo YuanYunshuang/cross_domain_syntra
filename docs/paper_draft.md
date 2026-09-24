@@ -72,6 +72,7 @@ with exemplars drawn from its own budget.
 | 300 | 76.90 |
 | 1,000 | **83.50** (82.96 / 83.29 / 84.24) |
 | 3,000 | 85.78 |
+| 5,102 | 86.09 |
 | SMOL, matched, 5,087 | 81.09 (79.55 / 81.36 / 82.37) |
 | SMOL, full split, 14,675 | 82.57 |
 
@@ -84,12 +85,14 @@ per arm; the claim rests on the separation of the seed ranges and on the monoton
 curve, not on that test.
 
 Two properties of the curve are worth noting. It is **steep below 1,000 tiles and flat above
-3,000**, so the operating point that matters is in the low hundreds — which is also where
-run-to-run variance is smallest (sd 0.66 at 1,000 against 1.95 at 5,087). And the 5,087-tile point
-is *not* on this curve: it uses the per-sheet-per-class n-shot selection rather than corpus-class
-balancing, which allocates the two single-sheet classes ten tiles each instead of a ninth of the
-budget. We plot it separately for that reason. **[TODO: add matched budget_random point at 5,087
-or drop the point from Figure 1.]**
+3,000**: 3,000 → 5,102 tiles adds 0.31, inside run-to-run noise. So the operating point that
+matters is in the low hundreds, which is also where run-to-run variance is smallest (sd 0.66 at
+1,000 against 1.95 at 5,087). Second, *how* a budget is allocated matters as well as its size.
+At the same ~5,100 tiles, the per-sheet-per-class n-shot selection the baseline uses scores 83.97
+against 86.09 for corpus-class balancing. The n-shot selection gives the two single-sheet classes
+ten tiles each rather than a ninth of the budget. **[TODO: the two runs also differ in sampler
+composition (18 vs 16 groups, 50% vs 56% positives). Either state that or match it before
+attributing the 2.1 points to allocation.]**
 
 ---
 

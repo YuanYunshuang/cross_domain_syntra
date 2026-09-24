@@ -20,6 +20,19 @@ Using the converting tools in the package `data_tools` to convert your customize
 PYTHONPATH=. python syntra/train_one_gpu.py --config config_file.yaml
 ```
 
+## Where outputs live
+Training runs write to `output_dir: logs` (checkpoints, `log.txt`, `config.yaml`, and the
+`test_model_latest_*.txt` result files beside them), and the queue scripts in `syntra/tools/`
+write their `logs/<task>.out` stdout there too. Since 2026-09-24 **`logs/` is a symlink to
+`/koko/cd_syntra_logs_09_2026`** on the koko share (the local disk ran out; ~57 GB moved). Paths in
+configs and scripts are unchanged - they still say `logs/...` - so nothing needs editing, but
+`/koko` must be mounted (`/koko/mount_koko.sh`) before training or testing. If it is not, `logs`
+is a dangling link and runs fail at start-up rather than writing somewhere else.
+
+Older archives: `/koko/SYNTRA_logs/` (runs before the E13 branch, including v3).
+
+`results/` stays in the repo: the small per-run score files and CSVs the docs cite.
+
 1. label meaning
 2. which labels are you using
 3. how the evaluation metrics are calculated, e.g., IoU

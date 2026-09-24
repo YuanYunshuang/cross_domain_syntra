@@ -561,6 +561,14 @@ SMOL-full with 4.9× less. The *capped* — i.e. handicapped — curve also clea
 railway and vineyard 10 tiles each rather than ~1/9 of the budget. Either add a matched
 `budget_random` point at 5,087 or stop the curve at 3,000 and mark 5,087 separately.
 
+> **Update 2026-09-24.** The matched point is in: `budget_random_gap0_5087t_s2026` (5,102 tiles)
+> scores **86.09** without the cap and with prompts from its own budget, so the no-cap curve reads
+> 76.90 / 82.96 / 85.78 / 86.09. **Correction to "r* = 0.5 from the 9+9 sampler groups":** that
+> holds for `cls_selection_100` runs (S0-S3, anchor, E5: 18 groups). Every corpus-class
+> `budget_random` run logs **16 groups, 9 pos / 7 neg**, because those selections produce no
+> railway or vineyard negatives, so r ≈ 0.56. The curve's points agree with each other, but a
+> curve point compared against an n-shot point differs in ratio as well as allocation.
+
 #### The coverage cap: retracted
 
 §6b-bis records `src_fg_max: 0.9` as worth +0.95 at 5,087. **That was one seed against one seed.**
