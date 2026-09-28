@@ -73,7 +73,7 @@ def setup_parser():
                         help="SMOL only: sample list the prompts are drawn from. Targets in test "
                              "mode are always <mode>_samples.txt, so this sets the prompt pool "
                              "without changing what is scored")
-    parser.add_argument("--target-file", type=str, help="SMOL only: unused in test mode")
+    parser.add_argument("--target-file", type=str, help="SMOL only: targets to score; defaults to test_samples.txt")
     parser.add_argument("--src-selection", type=str,
                         help="source selection: retrieved (default), topk, or random")
     parser.add_argument("--src-fusion", type=str,

@@ -107,7 +107,7 @@ def parse_args():
                              "quantity through the sampler instead - group_fixed_m:<m_pos>:<m_neg>")
     parser.add_argument("--src-fg-max", type=float,
                         help="drop source prompts the class covers more than this fraction of. "
-                             "SMOL has always used 0.9; cd_syntra2 defaults to no cap")
+                             "SMOL defaults to 0.9, cd_syntra2 to no cap; pass inf for no cap in either")
     parser.add_argument("--source-file", type=str,
                         help="SMOL only: sample list the prompts are drawn from, e.g. "
                              "budget_random_gap0_300t_s2026.json. SMOL reads sample lists rather "

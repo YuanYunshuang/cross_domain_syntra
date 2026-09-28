@@ -34,6 +34,7 @@ class SMOLDataset(Dataset):
                  aug_transform: Optional[object] = None,
                  source_file: Optional[str] = None,
                  target_file: Optional[str] = None,
+                 src_fg_max: Optional[float] = 0.9,
                  **kwargs):
         """
         Initializes an instance of the class with dataset information, loads file lists,
@@ -80,6 +81,12 @@ class SMOLDataset(Dataset):
         self.filtering_keys = [x.strip() for x in filtering_keys.split(",")] if filtering_keys is not None else None
         self.source_file = source_file
         self.target_file = target_file
+        # Upper bound on a source prompt's class coverage. SMOL-MapSeg hard-coded 0.9, and that
+        # stays the default so every archived SMOL run reproduces. It used to be a literal in
+        # `_parse_source_samples`, so `--src-fg-max` reached this class through **kwargs and was
+        # silently dropped. None, or any value above 1 (`--src-fg-max inf`), means no cap, which
+        # matches cd_syntra2's default.
+        self.src_fg_max = src_fg_max
 
         # parse info files
         if isinstance(info_file, str):
@@ -180,7 +187,11 @@ class SMOLDataset(Dataset):
                         "check exists to prevent.")
                 target_file = self.target_file
             else:
-                target_file = f"{self.mode}_samples.txt"
+                # The whole split by default, so every arm is scored on identical data. An
+                # explicit target list overrides it, which is how a filtered test set (e.g. one
+                # with the tiles overlapping training removed) is scored identically across
+                # SMOL and cd_syntra2.
+                target_file = self.target_file or f"{self.mode}_samples.txt"
         elif 'sample_pair' in info_file and info_file.endswith('_intracls.json'):
             # Only the legacy `_intracls` naming can be inferred, and only because the archive's
             # runs depend on it. The suffix has to be checked, not just stripped: on a `_gap0`
@@ -235,7 +246,7 @@ class SMOLDataset(Dataset):
                 for k, v in info.items(): # k: class, v: ratio
                     if k in self.INVALID_CLS:
                         continue
-                    if self.fg_ratio[ds] < v < 0.9 :
+                    if self.fg_ratio[ds] < v and (self.src_fg_max is None or v < self.src_fg_max):
                         loading_list_src[ds][k].append(full_name)
         self.loading_list = loading_list_src
 
