@@ -11,12 +11,14 @@
 #
 #   1  (moved to the 5090) overlap-filtered re-scoring of curve 1000t, S0 and S3
 #   2  SMOL on the full 14,675-tile split, no cap, r = 0.5            3 x 7.2 h
-#   3  SMOL on the balanced 300 / 1,000 / 3,000 selections, no cap   9 x 7.2 h
+#   3  SMOL on the balanced 1,000 / 3,000 / 300 selections, no cap   9 x 7.2 h
 #   4  SMOL no cap at ~5,100 tiles: balanced (5,102) and per-sheet   6 x 7.2 h
 #   5  ours per-sheet 5,087, no cap (anchor recipe), seeds 1235/1236  2 x 12.6 h
 #   6  ours balanced 300 and 3,000, no cap, seeds 1235/1236           4 x 12.6 h
 #
-# ~230 h. Every run skips itself once its result file exists, so the script can be restarted.
+# ~227 h. Every run skips itself once its result file exists, and a run whose final checkpoint
+# (model_100000.pth) exists is only scored, so the queue shell can be stopped and restarted while a
+# training job keeps running. A training job that is itself killed restarts from scratch.
 set -u
 cd /home/yuan/code/CD_SYNTRA
 PY=/home/yuan/anaconda3/envs/syntra/bin/python
@@ -38,10 +40,12 @@ seedarg () { [ "$1" = 1234 ] && echo "" || echo "--seed $1"; }
 train_ours () {
   local t=$1 sel=$2 seed=$3; shift 3
   [ -f "logs/$t/$RES" ] && { echo "$t done, skip"; return; }
+  if [ -f "logs/$t/model_100000.pth" ]; then echo "$(date '+%F %T') === $t trained, scoring only"; else
   echo "$(date '+%F %T') === train $t"
   PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/train_one_gpu.py --config "$OURS" -t "$t" -d "$D" \
     --data-info "sample_pair_${sel}_${sel}_gap0" --num-src 3 --src-selection retrieved \
     $(seedarg "$seed") "$@" > "logs/$t.out" 2>&1
+  fi
   PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/test.py --config "$OURS" -w "logs/$t/model_latest.pth" \
     -d "$D" --data-info "sample_pair_${sel}_test_samples_gap0" --num-src 3 --src-selection retrieved \
     "$@" > "logs/${t}_test.out" 2>&1
@@ -52,10 +56,12 @@ train_ours () {
 train_smol () {
   local t=$1 info=$2 src=$3 test_info=$4 seed=$5
   [ -f "logs/$t/$RES" ] && { echo "$t done, skip"; return; }
+  if [ -f "logs/$t/model_100000.pth" ]; then echo "$(date '+%F %T') === $t trained, scoring only"; else
   echo "$(date '+%F %T') === train $t"
   PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/train_one_gpu.py --config "$SMOL" -t "$t" -d "$D" \
     --data-info "$info" --pos-prob 0.5 --source-file "$src" --target-file "$src" \
     --src-fg-max inf $(seedarg "$seed") > "logs/$t.out" 2>&1
+  fi
   PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/test.py --config "$SMOL" -w "logs/$t/model_latest.pth" \
     -d "$D" --data-info "$test_info" --source-file "$src" --src-fg-max inf > "logs/${t}_test.out" 2>&1
   echo "$(date '+%F %T') === $t: $(miou "logs/$t/$RES")"
@@ -72,13 +78,15 @@ for s in "${SEEDS[@]}"; do
 done
 echo "$(date '+%F %T') 2 done: SMOL full split"
 
-# ---- 3. SMOL, balanced curve
-for b in 300 1000 3000; do
+# ---- 3. SMOL, balanced curve. 1,000 and 3,000 first (user's 3-day plan, 2026-09-28): together
+# with block 2 they finish in ~67 h; 300 follows.
+for b in 1000 3000 300; do
   sel="budget_random_gap0_${b}t_s2026"
   for s in "${SEEDS[@]}"; do
     train_smol "smol_curve_nocap_${b}t$(suffix $s)" "sample_pair_${sel}_${sel}_gap0" "${sel}.json" \
       "sample_pair_${sel}_test_samples_gap0" "$s"
   done
+  echo "$(date '+%F %T') 3 block done: SMOL curve ${b}t"
 done
 echo "$(date '+%F %T') 3 done: SMOL curve"
 
