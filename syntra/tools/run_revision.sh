@@ -9,9 +9,7 @@
 # SMOL no-cap is `--src-fg-max inf`, at train AND test. SMOL-MapSeg's 0.9 cap was a literal in
 # smol.py until the commit that made it a parameter, so the archived SMOL runs are all capped.
 #
-#   1  inference: re-score curve 1000t x3, S0 x3 and S3 x3 without the test tiles that overlap
-#      training (>10%: 513 tiles, >50%: 293). Each checkpoint is scored as it was trained: S0 and
-#      S3 capped, the curve not. Filtered sets from make_overlap_filtered_tests.py.
+#   1  (moved to the 5090) overlap-filtered re-scoring of curve 1000t, S0 and S3
 #   2  SMOL on the full 14,675-tile split, no cap, r = 0.5            3 x 7.2 h
 #   3  SMOL on the balanced 300 / 1,000 / 3,000 selections, no cap   9 x 7.2 h
 #   4  SMOL no cap at ~5,100 tiles: balanced (5,102) and per-sheet   6 x 7.2 h
@@ -63,31 +61,9 @@ train_smol () {
   echo "$(date '+%F %T') === $t: $(miou "logs/$t/$RES")"
 }
 
-# ---- 1. overlap-filtered re-scoring (inference only)
-for ov in 10 50; do
-  for run in curve_nocap_1000t curve_nocap_1000t_s1235 curve_nocap_1000t_s1236; do
-    out="results/overlap/${run}_ov$ov"; [ -f "$out/$RES" ] && continue
-    PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/test.py --config "$OURS" -w "logs/$run/model_latest.pth" \
-      -o "$out" -d "$D" --data-info "sample_pair_budget_random_gap0_1000t_s2026_test_samples_ov${ov}_gap0" \
-      --num-src 3 --src-selection retrieved > /dev/null 2>&1
-    echo "$(date '+%F %T') $out: $(miou "$out/$RES")"
-  done
-  for run in S3_k3_retrieved S3_k3_retrieved_s1235 S3_k3_retrieved_s1236; do
-    out="results/overlap/${run}_ov$ov"; [ -f "$out/$RES" ] && continue
-    PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/test.py --config "$OURS" -w "logs/$run/model_latest.pth" \
-      -o "$out" -d "$D" --data-info "sample_pair_cls_selection_100_test_samples_ov${ov}_gap0" \
-      --num-src 3 --src-selection retrieved --src-fg-max 0.9 > /dev/null 2>&1
-    echo "$(date '+%F %T') $out: $(miou "$out/$RES")"
-  done
-  for run in S0_smol_k1 S0_smol_k1_s1235 ratio_smol_p0.5; do
-    out="results/overlap/${run}_ov$ov"; [ -f "$out/$RES" ] && continue
-    PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/test.py --config "$SMOL" -w "logs/$run/model_latest.pth" \
-      -o "$out" -d "$D" --data-info "sample_pair_cls_selection_100_test_samples_ov${ov}_gap0" \
-      --source-file cls_selection_100.json --target-file "test_samples_ov${ov}.txt" > /dev/null 2>&1
-    echo "$(date '+%F %T') $out: $(miou "$out/$RES")"
-  done
-done
-echo "$(date '+%F %T') 1 done: overlap re-scoring"
+# ---- 1. overlap-filtered re-scoring: moved to the 5090 (2026-09-28). Evaluation is portable
+# across the two boxes (a 4090 checkpoint re-scored on the 5090 matched to <= 0.02 per class), and
+# the 5090 holds a copy of the 4090 logs. Filtered sets: data_tools/indexing/make_overlap_filtered_tests.py.
 
 # ---- 2. SMOL, full split
 for s in "${SEEDS[@]}"; do
