@@ -16,9 +16,10 @@
 #   5  ours per-sheet 5,087, no cap (anchor recipe), seeds 1235/1236  2 x 12.6 h
 #   6  ours balanced 300 and 3,000, no cap, seeds 1235/1236           4 x 12.6 h
 #
-# ~227 h. Every run skips itself once its result file exists, and a run whose final checkpoint
-# (model_100000.pth) exists is only scored, so the queue shell can be stopped and restarted while a
-# training job keeps running. A training job that is itself killed restarts from scratch.
+# ~227 h. A run whose result holds its "Overal Mean" block is skipped, and a run whose training log
+# says it stopped at 100k is only scored (see scored/trained below), so the queue shell can be
+# stopped and restarted while a training job keeps running. A training job that is itself killed
+# restarts from scratch, and a scoring job that dies is re-scored.
 set -u
 cd /home/yuan/code/CD_SYNTRA
 PY=/home/yuan/anaconda3/envs/syntra/bin/python
@@ -33,14 +34,22 @@ while pgrep -f "train_one_gpu.py" > /dev/null; do sleep 120; done
 echo "$(date '+%F %T') starting"
 
 miou () { grep -A1 'Overal Mean' "$1" 2>/dev/null | tail -1 | awk '{print $NF}'; }
+# A run counts as scored only once its result file holds the "Overal Mean" block. test.py opens the
+# file and logs "# testing samples" before scoring starts, so mere existence also matches a run
+# whose scoring died half-way, which a restart would then skip while it looks complete.
+scored () { grep -q 'Overal Mean' "logs/$1/$RES" 2>/dev/null; }
+# A run counts as trained only once train_one_gpu.py has logged that it stopped. That line comes
+# after the final model_latest.pth and model_100000.pth are fully written, whereas the checkpoint
+# file exists from the moment torch.save opens it and can be partial after a crash.
+trained () { grep -q 'reached 100000 iterations, stopping' "logs/$1/log.txt" 2>/dev/null; }
 suffix () { [ "$1" = 1234 ] && echo "" || echo "_s$1"; }   # the default seed carries no suffix
 seedarg () { [ "$1" = 1234 ] && echo "" || echo "--seed $1"; }
 
 # train_ours <task> <sel> <seed> [extra args]  - k=3 retrieved, then scored on its own selection
 train_ours () {
   local t=$1 sel=$2 seed=$3; shift 3
-  [ -f "logs/$t/$RES" ] && { echo "$t done, skip"; return; }
-  if [ -f "logs/$t/model_100000.pth" ]; then echo "$(date '+%F %T') === $t trained, scoring only"; else
+  scored "$t" && { echo "$t done, skip"; return; }
+  if trained "$t"; then echo "$(date '+%F %T') === $t trained, scoring only"; else
   echo "$(date '+%F %T') === train $t"
   PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/train_one_gpu.py --config "$OURS" -t "$t" -d "$D" \
     --data-info "sample_pair_${sel}_${sel}_gap0" --num-src 3 --src-selection retrieved \
@@ -55,8 +64,8 @@ train_ours () {
 # train_smol <task> <train data-info> <source list> <test data-info> <seed>  - no cap, r = 0.5
 train_smol () {
   local t=$1 info=$2 src=$3 test_info=$4 seed=$5
-  [ -f "logs/$t/$RES" ] && { echo "$t done, skip"; return; }
-  if [ -f "logs/$t/model_100000.pth" ]; then echo "$(date '+%F %T') === $t trained, scoring only"; else
+  scored "$t" && { echo "$t done, skip"; return; }
+  if trained "$t"; then echo "$(date '+%F %T') === $t trained, scoring only"; else
   echo "$(date '+%F %T') === train $t"
   PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/train_one_gpu.py --config "$SMOL" -t "$t" -d "$D" \
     --data-info "$info" --pos-prob 0.5 --source-file "$src" --target-file "$src" \
@@ -121,6 +130,6 @@ echo "$(date '+%F %T') 6 done: ours curve seeds"
 mkdir -p results/revision
 for d in logs/smol_full_nocap* logs/smol_curve_nocap_* logs/S0_smol_nocap* logs/anchor_cls100_s* \
          logs/curve_nocap_300t_s* logs/curve_nocap_3000t_s*; do
-  [ -f "$d/$RES" ] && mkdir -p "results/revision/$(basename $d)" && cp "$d/$RES" "results/revision/$(basename $d)/"
+  grep -q 'Overal Mean' "$d/$RES" 2>/dev/null && mkdir -p "results/revision/$(basename $d)" && cp "$d/$RES" "results/revision/$(basename $d)/"
 done
 echo "$(date '+%F %T') revision queue finished"
