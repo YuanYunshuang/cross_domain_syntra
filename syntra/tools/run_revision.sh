@@ -55,6 +55,12 @@ train_ours () {
     --data-info "sample_pair_${sel}_${sel}_gap0" --num-src 3 --src-selection retrieved \
     $(seedarg "$seed") "$@" > "logs/$t.out" 2>&1
   fi
+  # Whatever the exit code, score only a run whose log says it reached 100k: a crash, or a clean
+  # exit short of it, would otherwise be scored and reported as a complete run.
+  trained "$t" || { echo "$(date '+%F %T') === $t FAILED: training did not reach 100k, not scored (logs/$t.out)"; return; }
+  # Reaching here means `scored` was false, so any result file is a partial one from an
+  # interrupted scoring; test.py appends, so it would otherwise sit above the real block.
+  rm -f "logs/$t/$RES"
   PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/test.py --config "$OURS" -w "logs/$t/model_latest.pth" \
     -d "$D" --data-info "sample_pair_${sel}_test_samples_gap0" --num-src 3 --src-selection retrieved \
     "$@" > "logs/${t}_test.out" 2>&1
@@ -71,6 +77,12 @@ train_smol () {
     --data-info "$info" --pos-prob 0.5 --source-file "$src" --target-file "$src" \
     --src-fg-max inf $(seedarg "$seed") > "logs/$t.out" 2>&1
   fi
+  # Whatever the exit code, score only a run whose log says it reached 100k: a crash, or a clean
+  # exit short of it, would otherwise be scored and reported as a complete run.
+  trained "$t" || { echo "$(date '+%F %T') === $t FAILED: training did not reach 100k, not scored (logs/$t.out)"; return; }
+  # Reaching here means `scored` was false, so any result file is a partial one from an
+  # interrupted scoring; test.py appends, so it would otherwise sit above the real block.
+  rm -f "logs/$t/$RES"
   PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/test.py --config "$SMOL" -w "logs/$t/model_latest.pth" \
     -d "$D" --data-info "$test_info" --source-file "$src" --src-fg-max inf > "logs/${t}_test.out" 2>&1
   echo "$(date '+%F %T') === $t: $(miou "logs/$t/$RES")"
