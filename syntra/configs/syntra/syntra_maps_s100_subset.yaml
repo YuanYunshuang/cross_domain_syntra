@@ -1,0 +1,94 @@
+# SYNTRA, 100-shot, SUBSET pool. Control for syntra_maps_s100_global: the only
+# difference is the pool scope, which closes the 'trained on less data' confound
+# left open in docs/EXPERIMENT_PLAN.md section 3c.
+#
+# The first run under the measured recipe. Every setting that differs from syntra_maps_s100 is
+# backed by a result rather than inherited:
+#
+#   root_dir       the parallel pool tree, so the released dataset stays untouched
+#   data_info      subset-scope pairings (decision of 2026-08-02, see EXPERIMENT_PLAN 3c)
+#                  from the target's own subset
+#   src_selection  topk - E9: retrieval is worth +8.1 mIoU at global scope, +0.2 within a sheet
+#   src_fusion     mean - E1: max fusion costs false positives on tiles without the class, and
+#                  the wider the pool the more it costs (0.672% vs 0.312% at global scope)
+#   num_src        3    - E9: k=3 beats k=1 at global scope (80.95 vs 80.01)
+#   use_amp        true - benchmark: +43% throughput
+#   data_keywords  hismap only. The standard Siegfried build is 224 px and would be upsampled to
+#                  384, which destroys the thin railway lines the class depends on: including it
+#                  raises the initial loss from 0.64 to 0.88, against 0.37 for the historical run
+#                  that used the 384-native Siegfried build. Siegfried stays out of the
+#                  cross-year experiments and is kept for the SMOL comparison table, where the
+#                  384-native build must be used.
+#
+# The question this run answers: a model trained on same-sheet prompts loses 5.5 mIoU when the
+# pool is opened up (85.5 -> 80.0, E9). Does training on global pools recover it?
+TRAIN:
+  # common
+  task_name: null # will be set to the config file name
+  root_dir: /home/yuan/data/syntra_pools
+  data_info: sample_pair_cls_selection_100_cls_selection_100_subset
+  batch_size: 8
+  num_workers: 8
+  accum_steps: 4
+  vis_freq: null
+
+  # model
+  model_name: smol # architecture: SAM ViT-B + OND prompt encoder + SAM mask decoder
+  dora_rank: 16
+  backbone: vit_b
+  prompt_encoder: example
+  mask_decoder: default
+  src_fusion: mean
+
+  # data
+  dataset_name: cd_syntra2_efficient
+  num_src: 3
+  num_notions: 1
+  img_size: 384
+  src_selection: topk
+  retrieval_encoder: dinov2
+  foreground_ratio:
+    hameln: 0.05
+    bayern: 0.05
+  sampler: group_fixed_m
+  data_keywords: hismap
+  # hameln.3921_2023 is the same scan as hameln.3921_2017 with a second, more incomplete set
+  # of labels; see docs/DATA_ISSUE_hameln_3921_duplicate.md
+  exclude_keys: hameln.3921_2023
+  validation_data: null
+  uni_transform:
+    - name: ToTensor
+    - name: Resize
+      args:
+        target_size: 384
+    - name: Normalize
+      args:
+        mean: [0.5, 0.5, 0.5]
+        std: [0.25, 0.25, 0.25]
+  aug_transform:
+    - name: RandomRotateBatch
+      args:
+        degrees: 30
+
+  # train
+  num_epochs: 200
+  max_iterations: 100000
+  lr: 1e-3
+  lr_scheduler: exp
+  output_dir: logs
+  disable_runid: true
+  weight_decay: 0.01
+  warmup_itrs: 1000
+  resume: null
+  ce_neg_weight: 1.0
+  use_amp: true
+
+TEST:
+  num_notions: 1
+  num_src: 3
+  data_info: sample_pair_cls_selection_100_test_samples_subset
+  data_keywords: hismap
+  exclude_keys: hameln.3921_2023
+  checkpoint: null # will be set to the path ./logs/<task_name>/model_latest.pth
+  save_result: true
+  output_dir: null # will be set to the checkpoint's parent directory
