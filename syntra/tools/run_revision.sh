@@ -42,6 +42,15 @@ scored () { grep -q 'Overal Mean' "logs/$1/$RES" 2>/dev/null; }
 # after the final model_latest.pth and model_100000.pth are fully written, whereas the checkpoint
 # file exists from the moment torch.save opens it and can be partial after a crash.
 trained () { grep -q 'reached 100000 iterations, stopping' "logs/$1/log.txt" 2>/dev/null; }
+# Retries always restart from scratch: --resume restores weights, AdamW state and epoch but no RNG
+# state, so a resumed run is not the same experiment as an uninterrupted seed. A run folder left by
+# an unfinished attempt is set aside rather than trained into, so its log, loss.txt and
+# model_best.pth cannot mix with the retry's; the retry is logged.
+set_aside () {
+  [ -d "logs/$1" ] || return 0
+  local old="logs/$1.failed-$(date '+%Y%m%d-%H%M')"
+  mv "logs/$1" "$old" && echo "$(date '+%F %T') === RETRY $1 from scratch; unfinished attempt moved to $old"
+}
 suffix () { [ "$1" = 1234 ] && echo "" || echo "_s$1"; }   # the default seed carries no suffix
 seedarg () { [ "$1" = 1234 ] && echo "" || echo "--seed $1"; }
 
@@ -50,6 +59,7 @@ train_ours () {
   local t=$1 sel=$2 seed=$3; shift 3
   scored "$t" && { echo "$t done, skip"; return; }
   if trained "$t"; then echo "$(date '+%F %T') === $t trained, scoring only"; else
+  set_aside "$t"
   echo "$(date '+%F %T') === train $t"
   PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/train_one_gpu.py --config "$OURS" -t "$t" -d "$D" \
     --data-info "sample_pair_${sel}_${sel}_gap0" --num-src 3 --src-selection retrieved \
@@ -72,6 +82,7 @@ train_smol () {
   local t=$1 info=$2 src=$3 test_info=$4 seed=$5
   scored "$t" && { echo "$t done, skip"; return; }
   if trained "$t"; then echo "$(date '+%F %T') === $t trained, scoring only"; else
+  set_aside "$t"
   echo "$(date '+%F %T') === train $t"
   PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 $PY syntra/train_one_gpu.py --config "$SMOL" -t "$t" -d "$D" \
     --data-info "$info" --pos-prob 0.5 --source-file "$src" --target-file "$src" \
