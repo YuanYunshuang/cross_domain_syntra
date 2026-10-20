@@ -1,0 +1,40 @@
+INFO:SYNTRA:_metadata: ContainerMetadata(ref_type=typing.Any, object_type=<class 'dict'>, optional=True, key='TRAIN', flags={}, flags_root=False, resolver_cache=defaultdict(<class 'dict'>, {}), key_type=typing.Any, element_type=typing.Any)
+INFO:SYNTRA:_parent: {'TRAIN': {'task_name': None, 'root_dir': '/home/yuan/data/syntra', 'data_info': 'sample_pair_cls_selection_100_cls_selection_100_gap0', 'batch_size': 8, 'num_workers': 8, 'accum_steps': 4, 'vis_freq': None, 'model_name': 'smol', 'dora_rank': 16, 'backbone': 'vit_b', 'prompt_encoder': 'example', 'mask_decoder': 'default', 'src_fusion': 'max', 'dataset_name': 'cd_syntra2_efficient', 'num_src': 3, 'num_notions': 1, 'img_size': 384, 'src_selection': 'retrieved', 'retrieval_encoder': 'dinov2', 'foreground_ratio': 0.05, 'sampler': 'group_fixed_m', 'data_keywords': 'hismap,siegfried', 'exclude_keys': None, 'validation_data': None, 'val_interval': 2000, 'uni_transform': [{'name': 'ToTensor'}, {'name': 'Resize', 'args': {'target_size': 384}}, {'name': 'Normalize', 'args': {'mean': [0.5, 0.5, 0.5], 'std': [0.25, 0.25, 0.25]}}], 'aug_transform': [{'name': 'RandomRotateBatch', 'args': {'degrees': 30}}], 'num_epochs': 200, 'max_iterations': 100000, 'lr': 0.001, 'lr_scheduler': 'exp', 'output_dir': 'logs', 'disable_runid': True, 'weight_decay': 0.01, 'warmup_itrs': 1000, 'resume': None, 'ce_neg_weight': 1.0}, 'TEST': {'num_notions': 1, 'num_src': 7, 'data_info': 'sample_pair_cls_selection_100_test_samples_gap0', 'data_keywords': 'hismap,siegfried', 'exclude_keys': None, 'checkpoint': None, 'save_result': True, 'output_dir': None}}
+INFO:SYNTRA:_flags_cache: {'struct': True}
+INFO:SYNTRA:_content: {'task_name': None, 'root_dir': '/home/yuan/data/syntra', 'data_info': 'sample_pair_e5_pool_50_test_samples_gap0', 'batch_size': 8, 'num_workers': 8, 'accum_steps': 4, 'vis_freq': None, 'model_name': 'smol', 'dora_rank': 16, 'backbone': 'vit_b', 'prompt_encoder': 'example', 'mask_decoder': 'default', 'src_fusion': 'max', 'dataset_name': 'cd_syntra2_efficient', 'num_src': 3, 'num_notions': 1, 'img_size': 384, 'src_selection': 'random', 'retrieval_encoder': 'dinov2', 'foreground_ratio': 0.05, 'sampler': 'group_fixed_m', 'data_keywords': 'hameln.3922_1996', 'exclude_keys': None, 'validation_data': None, 'val_interval': 2000, 'uni_transform': [{'name': 'ToTensor'}, {'name': 'Resize', 'args': {'target_size': 384}}, {'name': 'Normalize', 'args': {'mean': [0.5, 0.5, 0.5], 'std': [0.25, 0.25, 0.25]}}], 'aug_transform': [{'name': 'RandomRotateBatch', 'args': {'degrees': 30}}], 'num_epochs': 200, 'max_iterations': 100000, 'lr': 0.001, 'lr_scheduler': 'exp', 'output_dir': 'results/e5/syntra_anchor_cls100_n50_random', 'disable_runid': True, 'weight_decay': 0.01, 'warmup_itrs': 1000, 'resume': None, 'ce_neg_weight': 1.0, 'checkpoint': 'logs/syntra_anchor_cls100/model_latest.pth', 'save_result': False, 'config': 'syntra_anchor_cls100', 'vis': False, 'debug': False, 'cli_output_dir': 'results/e5/syntra_anchor_cls100_n50_random'}
+INFO:SYNTRA:# testing samples: 1920
+INFO:SYNTRA:>>>>>>>>>>>>>>>>>>>> Testing hameln.3922_1996 <<<<<<<<<<<<<<<<<<<<
+INFO:SYNTRA:Average Loss: 0.292749
+==================== Evaluation Results ====================
+Notion set : hameln.water: 
+  IoU (FG): 90.81
+  Precision (FG): 93.51
+  Recall (FG): 96.92
+  Accuracy (BG&FG): 99.82
+----------------------------------------
+Notion set : hameln.grass: 
+  IoU (FG): 74.41
+  Precision (FG): 83.12
+  Recall (FG): 87.66
+  Accuracy (BG&FG): 98.76
+----------------------------------------
+Notion set : hameln.forest: 
+  IoU (FG): 98.03
+  Precision (FG): 98.82
+  Recall (FG): 99.19
+  Accuracy (BG&FG): 99.52
+----------------------------------------
+Notion set : hameln.settlement: 
+  IoU (FG): 91.73
+  Precision (FG): 94.57
+  Recall (FG): 96.82
+  Accuracy (BG&FG): 99.37
+----------------------------------------
+
+INFO:SYNTRA:#################### Overal Mean ####################
+  IoU (FG): 88.74
+  Precision (FG): 92.51
+  Recall (FG): 95.15
+  Accuracy (BG&FG): 99.37
+----------------------------------------
+

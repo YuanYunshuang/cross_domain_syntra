@@ -1,0 +1,70 @@
+INFO:SYNTRA:_metadata: ContainerMetadata(ref_type=typing.Any, object_type=<class 'dict'>, optional=True, key='TRAIN', flags={}, flags_root=False, resolver_cache=defaultdict(<class 'dict'>, {}), key_type=typing.Any, element_type=typing.Any)
+INFO:SYNTRA:_parent: {'TRAIN': {'task_name': None, 'root_dir': '/home/yuan/data/syntra', 'data_info': 'sample_pair_cls_selection_100_cls_selection_100_gap0', 'batch_size': 8, 'num_workers': 8, 'accum_steps': 4, 'vis_freq': None, 'model_name': 'smol', 'dora_rank': 16, 'backbone': 'vit_b', 'prompt_encoder': 'example', 'mask_decoder': 'default', 'src_fusion': 'max', 'dataset_name': 'cd_syntra2_efficient', 'num_src': 3, 'num_notions': 1, 'img_size': 384, 'src_selection': 'retrieved', 'retrieval_encoder': 'dinov2', 'foreground_ratio': 0.05, 'sampler': 'group_fixed_m', 'data_keywords': 'hismap,siegfried', 'exclude_keys': None, 'validation_data': None, 'val_interval': 2000, 'uni_transform': [{'name': 'ToTensor'}, {'name': 'Resize', 'args': {'target_size': 384}}, {'name': 'Normalize', 'args': {'mean': [0.5, 0.5, 0.5], 'std': [0.25, 0.25, 0.25]}}], 'aug_transform': [{'name': 'RandomRotateBatch', 'args': {'degrees': 30}}], 'num_epochs': 200, 'max_iterations': 100000, 'lr': 0.001, 'lr_scheduler': 'exp', 'output_dir': 'logs', 'disable_runid': True, 'weight_decay': 0.01, 'warmup_itrs': 1000, 'resume': None, 'ce_neg_weight': 1.0}, 'TEST': {'num_notions': 1, 'num_src': 7, 'data_info': 'sample_pair_cls_selection_100_test_samples_gap0', 'data_keywords': 'hismap,siegfried', 'exclude_keys': None, 'checkpoint': None, 'save_result': True, 'output_dir': None}}
+INFO:SYNTRA:_flags_cache: {'struct': True}
+INFO:SYNTRA:_content: {'task_name': None, 'root_dir': '/home/yuan/data/syntra', 'data_info': 'sample_pair_cls_selection_100_test_samples_gap0', 'batch_size': 8, 'num_workers': 8, 'accum_steps': 4, 'vis_freq': None, 'model_name': 'smol', 'dora_rank': 16, 'backbone': 'vit_b', 'prompt_encoder': 'example', 'mask_decoder': 'default', 'src_fusion': 'max', 'dataset_name': 'cd_syntra2_efficient', 'num_src': 1, 'num_notions': 1, 'img_size': 384, 'src_selection': 'random', 'retrieval_encoder': 'dinov2', 'foreground_ratio': 0.05, 'sampler': 'group_fixed_m', 'data_keywords': 'hismap,siegfried', 'exclude_keys': None, 'validation_data': None, 'val_interval': 2000, 'uni_transform': [{'name': 'ToTensor'}, {'name': 'Resize', 'args': {'target_size': 384}}, {'name': 'Normalize', 'args': {'mean': [0.5, 0.5, 0.5], 'std': [0.25, 0.25, 0.25]}}], 'aug_transform': [{'name': 'RandomRotateBatch', 'args': {'degrees': 30}}], 'num_epochs': 200, 'max_iterations': 100000, 'lr': 0.001, 'lr_scheduler': 'exp', 'output_dir': 'results/grid/S1_k1_random_ns1', 'disable_runid': True, 'weight_decay': 0.01, 'warmup_itrs': 1000, 'resume': None, 'ce_neg_weight': 1.0, 'checkpoint': 'logs/S1_k1_random/model_latest.pth', 'save_result': False, 'config': 'syntra_anchor_cls100', 'vis': False, 'debug': False, 'src_fg_max': 0.9, 'cli_output_dir': 'results/grid/S1_k1_random_ns1'}
+INFO:SYNTRA:# testing samples: 37935
+INFO:SYNTRA:>>>>>>>>>>>>>>>>>>>> Testing hismap,siegfried <<<<<<<<<<<<<<<<<<<<
+INFO:SYNTRA:Average Loss: 0.409792
+==================== Evaluation Results ====================
+Notion set : hameln.water: 
+  IoU (FG): 82.98
+  Precision (FG): 87.71
+  Recall (FG): 93.89
+  Accuracy (BG&FG): 99.79
+----------------------------------------
+Notion set : hameln.settlement: 
+  IoU (FG): 83.97
+  Precision (FG): 89.33
+  Recall (FG): 93.33
+  Accuracy (BG&FG): 98.79
+----------------------------------------
+Notion set : hameln.grass: 
+  IoU (FG): 69.73
+  Precision (FG): 77.67
+  Recall (FG): 87.21
+  Accuracy (BG&FG): 97.19
+----------------------------------------
+Notion set : bayern.forest: 
+  IoU (FG): 83.83
+  Precision (FG): 87.70
+  Recall (FG): 94.99
+  Accuracy (BG&FG): 96.73
+----------------------------------------
+Notion set : hameln.forest: 
+  IoU (FG): 93.54
+  Precision (FG): 95.89
+  Recall (FG): 97.45
+  Accuracy (BG&FG): 98.00
+----------------------------------------
+Notion set : railway.railway: 
+  IoU (FG): 79.20
+  Precision (FG): 85.24
+  Recall (FG): 91.79
+  Accuracy (BG&FG): 98.65
+----------------------------------------
+Notion set : bayern.grass: 
+  IoU (FG): 81.61
+  Precision (FG): 87.96
+  Recall (FG): 91.87
+  Accuracy (BG&FG): 94.95
+----------------------------------------
+Notion set : bayern.water: 
+  IoU (FG): 77.53
+  Precision (FG): 83.08
+  Recall (FG): 92.06
+  Accuracy (BG&FG): 99.59
+----------------------------------------
+Notion set : vineyard.vineyard: 
+  IoU (FG): 80.89
+  Precision (FG): 87.20
+  Recall (FG): 91.79
+  Accuracy (BG&FG): 95.03
+----------------------------------------
+
+INFO:SYNTRA:#################### Overal Mean ####################
+  IoU (FG): 81.48
+  Precision (FG): 86.86
+  Recall (FG): 92.71
+  Accuracy (BG&FG): 97.64
+----------------------------------------
+
