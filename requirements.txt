@@ -11,3 +11,4 @@ fvcore>=0.1.5.post20221221
 imagecodecs>=2025.3.30
 monai>=1.2.0
 opencv-python
+safetensors>=0.4

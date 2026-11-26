@@ -250,8 +250,13 @@ def main():
 
     assert os.path.isfile(args.checkpoint), f"Checkpoint {args.checkpoint} does not exist."
     ## Map model to be loaded to specified single GPU
-    checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=True)
-    model.load_trainable_state_dict(checkpoint["model"])
+    if args.checkpoint.endswith(".safetensors"):
+        # released weights: the trainable tensors only, the same dict as a run's ckpt["model"]
+        from safetensors.torch import load_file
+        model.load_trainable_state_dict(load_file(args.checkpoint, device=str(device)))
+    else:
+        checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=True)
+        model.load_trainable_state_dict(checkpoint["model"])
 
     # %% test
     eval_results = []

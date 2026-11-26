@@ -1,0 +1,72 @@
+# Released checkpoint S0_smol_k1_s1235 (tier2): the training config exactly as logged at the
+# start of the run (log.txt), with root_dir made relative to the data release.
+# TEST scores the cls_selection_100 selection's test pairing at the training k. Weights: tier2/S0_smol_k1_s1235.safetensors
+# SMOL baseline: prompts come from source_file, targets from test_samples.txt; data_info is unused. TEST resets
+# target_file to test_samples.txt, because test.py would otherwise inherit TRAIN's (the selection).
+TRAIN:
+  task_name: S0_smol_k1_s1235
+  root_dir: data
+  data_info: sample_pair_cls_selection_100_cls_selection_100_gap0
+  batch_size: 8
+  num_workers: 8
+  accum_steps: 4
+  vis_freq: null
+  model_name: smol
+  dora_rank: 16
+  backbone: vit_b
+  prompt_encoder: example
+  mask_decoder: default
+  src_fusion: max
+  dataset_name: smol
+  num_src: 1
+  num_notions: 1
+  img_size: 384
+  foreground_ratio: 0.05
+  sampler: group_fixed_m
+  data_keywords: hismap,siegfried
+  exclude_keys: null
+  validation_data: null
+  val_interval: 2000
+  uni_transform:
+  - name: ToTensor
+  - name: Resize
+    args:
+      target_size: 384
+  - name: Normalize
+    args:
+      mean:
+      - 0.5
+      - 0.5
+      - 0.5
+      std:
+      - 0.25
+      - 0.25
+      - 0.25
+  aug_transform:
+  - name: RandomRotateBatch
+    args:
+      degrees: 30
+  num_epochs: 200
+  max_iterations: 100000
+  lr: 0.001
+  lr_scheduler: exp
+  output_dir: logs
+  disable_runid: true
+  weight_decay: 0.01
+  warmup_itrs: 1000
+  resume: null
+  ce_neg_weight: 1.0
+  seed: 1235
+  pos_prob: 0.5
+  source_file: cls_selection_100.json
+  target_file: cls_selection_100.json
+TEST:
+  num_notions: 1
+  num_src: 1
+  data_info: sample_pair_cls_selection_100_test_samples_gap0
+  data_keywords: hismap,siegfried
+  exclude_keys: null
+  checkpoint: null
+  save_result: true
+  output_dir: null
+  target_file: test_samples.txt
