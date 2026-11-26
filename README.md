@@ -9,16 +9,20 @@ the data and weights are on Zenodo, [10.5281/zenodo.24565352](https://doi.org/10
 ## Citation
 
 Yunshuang Yuan. *Annotation-efficient segmentation of historical topographic maps with exemplar
-prompts.* ISPRS Open Journal of Photogrammetry and Remote Sensing (submitted).
+prompts.* arXiv preprint, 2026.
 
 ```bibtex
-@article{yuan_exemplar_prompts,
-  author  = {Yuan, Yunshuang},
-  title   = {Annotation-efficient segmentation of historical topographic maps with exemplar prompts},
-  journal = {ISPRS Open Journal of Photogrammetry and Remote Sensing},
-  note    = {Submitted},
+@misc{yuan2026exemplar,
+  author        = {Yuan, Yunshuang},
+  title         = {Annotation-efficient segmentation of historical topographic maps with exemplar prompts},
+  year          = {2026},
+  eprint        = {XXXX.XXXXX},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CV},
 }
 ```
+
+The arXiv identifier will be added once the preprint is announced.
 
 ## Updates
 - [Nov 13] added data converting for kitti and cityscapes; loss function support for ignoring index 255; dataset support for multi-notion training; add dockerfile and pushed to dockerhub
