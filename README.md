@@ -1,4 +1,24 @@
-# Segment Your Notions Trought Retrieval Augmentation: a Cross-Domain Semantic-Aware segmentation model
+# Annotation-efficient segmentation of historical topographic maps with exemplar prompts
+
+This code accompanies the paper of the same name. It builds on SMOL-MapSeg (SAM ViT-B
+fine-tuned with DoRA) and prompts the model with three annotated exemplar tiles. Trained on
+1,000 annotated tiles, it matches the baseline trained on all 14,675. The code, the derived
+data and the trained weights are described under [Data and trained weights](#data-and-trained-weights);
+the data and weights are on Zenodo, [10.5281/zenodo.24565352](https://doi.org/10.5281/zenodo.24565352).
+
+## Citation
+
+Yunshuang Yuan. *Annotation-efficient segmentation of historical topographic maps with exemplar
+prompts.* ISPRS Open Journal of Photogrammetry and Remote Sensing (submitted).
+
+```bibtex
+@article{yuan_exemplar_prompts,
+  author  = {Yuan, Yunshuang},
+  title   = {Annotation-efficient segmentation of historical topographic maps with exemplar prompts},
+  journal = {ISPRS Open Journal of Photogrammetry and Remote Sensing},
+  note    = {Submitted},
+}
+```
 
 ## Updates
 - [Nov 13] added data converting for kitti and cityscapes; loss function support for ignoring index 255; dataset support for multi-notion training; add dockerfile and pushed to dockerhub
@@ -7,13 +27,13 @@
 - v1: dataset=cd_syntra
 - v2: dataset=cd_syntra2_efficient
 - v3: no dice loss for negative samples
-- v4: use color gitter and rgb channel swap for augmentation, normalization at last
+- v4: use color jitter and rgb channel swap for augmentation, normalization at last
 
 ## Installation
 Using the `setup.sh` to create the conda environment for this project
 
 ## Prepare data
-Using the converting tools in the package `data_tools` to convert your customized data into SYNTRA format. One example of converting the "trees" dataset for segmenting different spieces of trees are shown in `main.py`.
+Using the converting tools in the package `data_tools` to convert your customized data into SYNTRA format. One example of converting the "trees" dataset for segmenting different species of trees is shown in `main.py`.
 
 ## Train
 ```bash
@@ -37,6 +57,7 @@ Older archives: `/koko/SYNTRA_logs/` (runs before the E13 branch, including v3).
 2. which labels are you using
 3. how the evaluation metrics are calculated, e.g., IoU
 4. confusing classes
+
 ## Data and trained weights
 
 The code, the derived data and the trained weights of *Annotation-efficient segmentation of
